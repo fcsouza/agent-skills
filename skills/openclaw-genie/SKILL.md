@@ -1,5 +1,6 @@
 ---
 name: openclaw-genie
+version: 1.0.0
 description: >-
   Use when the user asks about OpenClaw — installation, configuration, agents,
   channels, memory, tools, hooks, skills, deployment, Docker, multi-agent,
