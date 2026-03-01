@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_github_github__get_file_contents",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:torn.fandom.com)",
+      "WebFetch(domain:gameanalytics.com)",
+      "WebFetch(domain:www.gamedeveloper.com)",
+      "WebFetch(domain:www.pcgamer.com)",
+      "WebFetch(domain:store.steampowered.com)",
+      "WebFetch(domain:incremental-game-dev.fandom.com)",
+      "WebFetch(domain:kittensgame.com)",
+      "Read(//Users/fabricio/Repos/agent-skills/skills/**)",
+      "Bash(wc -l /Users/fabricio/Repos/agent-skills/skills/browser-mmo-design/SKILL.md /Users/fabricio/Repos/agent-skills/skills/browser-mmo-design/references/*.md /Users/fabricio/Repos/agent-skills/skills/browser-mmo-design/README.md)",
+      "Read(//Users/fabricio/Repos/agent-skills/skills/$skill/**)",
+      "Bash(done)"
+    ]
+  }
+}
