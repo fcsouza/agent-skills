@@ -13,7 +13,10 @@
       "Read(//Users/fabricio/Repos/agent-skills/skills/**)",
       "Bash(wc -l /Users/fabricio/Repos/agent-skills/skills/browser-mmo-design/SKILL.md /Users/fabricio/Repos/agent-skills/skills/browser-mmo-design/references/*.md /Users/fabricio/Repos/agent-skills/skills/browser-mmo-design/README.md)",
       "Read(//Users/fabricio/Repos/agent-skills/skills/$skill/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Read(//Users/fabricio/Repos/agent-skills/*/$skill/**)",
+      "Read(//Users/fabricio/Repos/agent-skills/skills/game-dev/engineering/**)",
+      "Read(//Users/fabricio/Repos/agent-skills/**)"
     ]
   }
 }
