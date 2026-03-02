@@ -30,6 +30,15 @@ Always use `bun`. Never npm, npx, or yarn.
 4. **Genre-agnostic shared code** — never hardcode game-specific mechanics in shared libraries.
 5. **Run Biome before done** — `bunx biome check --write .` after any TypeScript changes.
 
+## When Compacting
+
+Preserve in the compact summary:
+- Current game system being built (e.g., "implementing quest system — schema done, API in progress")
+- Schema decisions made this session (table names, JSONB fields chosen, indexes added)
+- Narrative decisions (new factions introduced, quest rewards set, NPC alignments)
+- Active feature branch name and what's been merged vs pending
+- Any architectural pivots (e.g., "switched from polling to WebSocket for presence tracking")
+
 ## Skill References
 
 When working on a task, read the relevant skill before implementing:
@@ -46,6 +55,7 @@ When working on a task, read the relevant skill before implementing:
 | Authentication | `@skills/game-dev/engineering/betterauth-integration/SKILL.md` |
 | Payments / IAP | `@skills/game-dev/engineering/stripe-game-payments/SKILL.md` |
 | Core game design | `@skills/game-dev/design/game-design-fundamentals/SKILL.md` |
+| Skill / talent trees | `@skills/game-dev/design/skill-progression-trees/SKILL.md` |
 | Economy / currency | `@skills/game-dev/design/game-economy-design/SKILL.md` |
 | Procedural content | `@skills/game-dev/design/procedural-gen/SKILL.md` |
 | UI / HUD | `@skills/game-dev/design/ui-ux-game/SKILL.md` |
@@ -55,12 +65,28 @@ When working on a task, read the relevant skill before implementing:
 | Characters / NPCs | `@skills/game-dev/narrative/character-design-narrative/SKILL.md` |
 | CI/CD | `@skills/game-dev/infrastructure/ci-cd-game/SKILL.md` |
 | AI IDE setup | `@skills/game-dev/infrastructure/cursor-codex-integration/SKILL.md` |
+| Before designing a new feature | `@skills/superpowers/brainstorming/SKILL.md` |
+| Before implementing any game system | `@skills/superpowers/writing-plans/SKILL.md` |
+| Debugging a production issue | `@skills/superpowers/systematic-debugging/SKILL.md` |
+| Before implementing with tests | `@skills/superpowers/test-driven-development/SKILL.md` |
 
 ## Memory Files
 
 - `quest-registry.md` — all active and completed quests (update after every narrative session)
 - `world-lore.md` — canonical world state: factions, geography, relationships
 - `~/.claude/projects/<this-project>/memory/MEMORY.md` — architectural decisions
+
+## Custom Agents
+
+This project uses Claude Code custom agents in `.claude/agents/`:
+
+- `game-engineer.md` — server-side implementation (schema, API, WebSocket, queues). Has Bash access.
+- `narrative-writer.md` — all narrative content (quests, characters, lore). No Bash access.
+- `game-designer.md` — design documents, balance, economy. No Bash access.
+
+Source templates: `@skills/game-dev/infrastructure/claude-code-game-workflow/templates/game-agents/`
+
+To invoke explicitly: `"Using the game-engineer agent: implement [feature]"`
 
 ## Game-Specific Context
 

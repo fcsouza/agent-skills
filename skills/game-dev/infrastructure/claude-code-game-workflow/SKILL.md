@@ -26,6 +26,24 @@ None — this is the entry point for the entire ecosystem.
 4. **Genre-agnostic always** — never assume a specific game genre in shared code
 5. **Schema first, logic second** — start with `postgres-game-schema` before writing game logic
 
+## Feature Guides
+
+Dedicated files for each Claude Code feature. Read the relevant one when setting up a new project or adding a capability.
+
+| File | Feature | When to Use |
+|------|---------|-------------|
+| [custom-agents.md](custom-agents.md) | Custom Claude Code agents | Setting up game-engineer, narrative-writer, game-designer agents |
+| [worktrees.md](worktrees.md) | Git worktrees | Isolating a new game system or experimental change |
+| [mcp-setup.md](mcp-setup.md) | MCP servers (GitHub, Playwright, Context7) | Connecting external tools to Claude Code |
+| [plan-mode.md](plan-mode.md) | Plan mode | Before implementing any new game system |
+| [todo-patterns.md](todo-patterns.md) | TodoWrite task tracking | Multi-step feature implementation |
+| [vision-multimodal.md](vision-multimodal.md) | Screenshots + vision | Debugging UI, reviewing level design, game state |
+| [settings-full.md](settings-full.md) | Full `.claude/settings.json` | Permissions, hooks, and env vars for a game project |
+| [templates/game-agents/](templates/game-agents/) | Agent definition files | Copy to `.claude/agents/` in your project |
+| [templates/.mcp.json](templates/.mcp.json) | MCP config | Copy to project root as `.mcp.json` |
+| [templates/claude-hooks-config.json](templates/claude-hooks-config.json) | Hooks config | Copy hooks section into `.claude/settings.json` |
+| [templates/game-project-claude.md](templates/game-project-claude.md) | Project CLAUDE.md | Copy to game project root |
+
 ## Skill Dependency Graph
 
 ```
@@ -104,39 +122,24 @@ None — this is the entry point for the entire ecosystem.
 
 ## Claude Code Setup
 
-How to configure Claude Code for a game project so agents have full context every session.
+Quick setup for a new game project (4 steps):
 
-### 1. Project CLAUDE.md
+1. **Copy CLAUDE.md template**: `templates/game-project-claude.md` → project root as `CLAUDE.md`. Fill in Core Loop, Genre, Platforms, Multiplayer.
+2. **Copy hooks**: merge hooks from `templates/claude-hooks-config.json` into `.claude/settings.json`. See `settings-full.md` for the complete settings structure with permissions.
+3. **Copy MCP config**: `templates/.mcp.json` → project root. Set `GITHUB_TOKEN` in shell env.
+4. **Copy custom agents**: `templates/game-agents/` → `.claude/agents/` in your project.
 
-Create a `CLAUDE.md` at the root of every game project. A ready-to-copy template lives at `templates/game-project-claude.md` in this skill folder. It must include:
+For detailed configuration of each Claude Code feature, see the **Feature Guides** table above.
 
-- **Tech stack declaration** — tells Claude which conventions apply (Bun, Elysia, Drizzle, Neon, Redis, BullMQ, BetterAuth, Stripe, Fly.io)
-- **Skill references section** — maps task types to the correct SKILL.md so agents self-route
-- **Mandatory rules** — narrative coherence, server-authoritative logic, schema-first development, Biome before done
-- **Memory file paths** — `quest-registry.md`, `world-lore.md`, and `~/.claude/projects/<project>/memory/MEMORY.md`
+### Skill @ Mentions
 
-### 2. Skill @ Mentions
-
-In any prompt, reference skill files directly to inject their context before Claude responds:
+In any prompt, reference skill files directly to inject their context:
 
 ```
 @skills/game-dev/engineering/postgres-game-schema/SKILL.md — add inventory table
 @skills/game-dev/narrative/quest-narrative-coherence/SKILL.md — create merchant quest
 @skills/game-dev/engineering/matchmaking-system/SKILL.md — implement ELO queue
 ```
-
-This is equivalent to pasting the skill content — Claude reads it and applies its patterns immediately.
-
-### 3. Memory Files
-
-Persist cross-session design decisions so agents never re-derive them:
-
-- `~/.claude/projects/<project>/memory/MEMORY.md` — loaded automatically every session
-- Example entries:
-  - "Chose Glicko-2 over ELO — handles new players better (fewer games played)"
-  - "Player attributes use JSONB — indexed on `attributes->>'class'`"
-  - "Gem earn rate: 10/day soft cap. First-time bonus: 200 gems."
-  - "Factions: Merchant Guild (neutral), Iron Brotherhood (hostile), Arcane Circle (allied)"
 
 ## Hooks for Game Dev
 

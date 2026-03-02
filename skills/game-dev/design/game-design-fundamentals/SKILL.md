@@ -159,6 +159,7 @@ const scaledCost = (baseCost: number, multiplier: number, owned: number): number
 | Economy balancing, resource flow, inflation control | `game-economy-design` |
 | Level/world design, spatial layouts, pacing | `level-design` |
 | Quest/mission structure, narrative arcs | `quest-mission-design` |
+| Skill trees, talent trees, ability unlock graphs | `skill-progression-trees` |
 | Game UI/UX patterns, HUD design, menus | `ui-ux-game` |
 | Backend architecture, networking, state sync | `game-backend-architecture` |
 | Visual assets, procedural generation | `game-asset-gen` |
