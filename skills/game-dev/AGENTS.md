@@ -20,6 +20,9 @@ When an AI agent encounters a game development task, it should:
 | Create quests | `quest-narrative-coherence` | `quest-mission-design` → `worldbuilding` |
 | Build world lore | `quest-narrative-coherence` | `worldbuilding` → `character-design-narrative` |
 | Add multiplayer | `game-backend-architecture` | `game-state-sync` → `redis-game-patterns` |
+| Add matchmaking | `matchmaking-system` | `bullmq-game-queues` → `redis-game-patterns` |
+| Track player behavior | `gameplay-analytics` | `postgres-game-schema` → `redis-game-patterns` |
+| Generate procedural content | `procedural-gen` | `game-economy-design` (for loot balance) |
 | Add payments | `stripe-game-payments` | `game-economy-design` |
 | Add audio | `elevenlabs-sound-music` | Choose provider: ElevenLabs or Lyria |
 | Deploy | `ci-cd-game` | `monitoring-game-ops` |

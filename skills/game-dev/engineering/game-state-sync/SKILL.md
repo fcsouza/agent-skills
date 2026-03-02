@@ -146,6 +146,195 @@ See boilerplate files:
 - `boilerplate/delta-encoder.ts` — Deep object diff with `encodeDelta` / `decodeDelta` and binary encoding option
 - `boilerplate/rollback-buffer.ts` — Ring buffer with `push`, `getAt`, `rollbackTo` for memory-efficient history
 
+## Client Architecture
+
+The sections above cover the server-authoritative sync model. This section covers the client-side architecture that complements it: input handling, prediction, dead reckoning, and visual smoothing.
+
+### Input Handling
+
+Collect raw inputs (keyboard, mouse, gamepad) at display frame rate, then sample them at the simulation tick rate. Use a ring buffer to queue inputs for sending to the server.
+
+```typescript
+// Collect at display FPS, sample at tick rate
+const rawInputs: RawInput[] = [];
+
+// In your render loop (60+ FPS)
+function onFrame() {
+  rawInputs.push(captureCurrentInput());
+}
+
+// In your tick loop (e.g., 20 Hz)
+function onTick(tickId: number) {
+  const sampled = sampleInputs(rawInputs, tickId);
+  rawInputs.length = 0; // Clear after sampling
+  inputBuffer.push({ tickId, input: sampled });
+  sendToServer({ tickId, input: sampled });
+}
+```
+
+Key rules:
+- Never drop inputs. If the tick rate is lower than the frame rate, merge intermediate inputs (e.g., combine multiple mouse deltas).
+- Tag every input with its tick ID so the server can process inputs in tick order.
+- Keep the ring buffer sized to at least `RTT / tickDuration * 2` entries for replay during rollback.
+
+### Client-Side Prediction Loop
+
+Apply inputs locally before waiting for server confirmation. This gives the player instant feedback while the server validates.
+
+```typescript
+// Apply locally, then send to server
+const input = captureTickInput(currentTick);
+
+// Predict: apply to local state immediately
+localState = applyInput(localState, input);
+inputBuffer.push({ tick: currentTick, input, predictedState: localState });
+
+// Send to server for authoritative processing
+sendToServer(input);
+```
+
+The prediction is "optimistic" — it assumes the server will agree. When the server sends its authoritative state, the client reconciles by replaying unacknowledged inputs on top of the server state (see Rollback section above).
+
+### Input Buffer
+
+Store the last N inputs with their tick ID for replay during server reconciliation. The buffer must be large enough to cover the round-trip time to the server.
+
+```typescript
+interface BufferedInput<TInput> {
+  tick: number;
+  input: TInput;
+  predictedState: GameState;
+}
+
+class InputRingBuffer<TInput> {
+  private buffer: (BufferedInput<TInput> | null)[];
+  private head = 0;
+  private capacity: number;
+
+  constructor(capacity: number) {
+    this.capacity = capacity;
+    this.buffer = new Array(capacity).fill(null);
+  }
+
+  push(entry: BufferedInput<TInput>): void {
+    this.buffer[this.head] = entry;
+    this.head = (this.head + 1) % this.capacity;
+  }
+
+  getInputsSince(tick: number): BufferedInput<TInput>[] {
+    const results: BufferedInput<TInput>[] = [];
+    for (let i = 0; i < this.capacity; i++) {
+      const entry = this.buffer[i];
+      if (entry && entry.tick >= tick) results.push(entry);
+    }
+    return results.sort((a, b) => a.tick - b.tick);
+  }
+
+  clear(): void {
+    this.buffer.fill(null);
+    this.head = 0;
+  }
+}
+```
+
+### Dead Reckoning
+
+When no server update has arrived for an entity, extrapolate its position based on the last known velocity and acceleration. This prevents entities from "freezing" during packet loss.
+
+```typescript
+interface EntitySnapshot {
+  position: { x: number; y: number };
+  velocity: { x: number; y: number };
+  lastUpdateTick: number;
+}
+
+function deadReckon(
+  entity: EntitySnapshot,
+  currentTick: number,
+  tickDuration: number,
+): { x: number; y: number } {
+  const elapsed = (currentTick - entity.lastUpdateTick) * tickDuration;
+  return {
+    x: entity.position.x + entity.velocity.x * elapsed,
+    y: entity.position.y + entity.velocity.y * elapsed,
+  };
+}
+```
+
+Key rules:
+- Cap extrapolation time (e.g., max 500ms). Beyond that, the entity is stale — show a visual indicator.
+- When the server update finally arrives, blend from the dead-reckoned position to the corrected position over 2-3 frames to avoid snapping.
+- For non-linear motion (e.g., turning vehicles), include angular velocity in the snapshot.
+
+### Visual Smoothing
+
+Separate the render loop from the game logic loop. The game logic runs at a fixed tick rate, while rendering runs at the display refresh rate and interpolates between the previous and current game states.
+
+```typescript
+// Fixed timestep game loop with interpolated rendering
+let previous = performance.now();
+let accumulator = 0;
+const tickDuration = 1000 / TICK_RATE; // e.g., 50ms for 20Hz
+
+let prevState = initialState;
+let currState = initialState;
+
+function loop(timestamp: number) {
+  const dt = timestamp - previous;
+  previous = timestamp;
+  accumulator += dt;
+
+  // Fixed timestep: advance simulation in discrete steps
+  while (accumulator >= tickDuration) {
+    prevState = currState;
+    currState = simulateTick(currState);
+    accumulator -= tickDuration;
+  }
+
+  // Render: interpolate between prev and current state
+  const alpha = accumulator / tickDuration;
+  render(interpolate(prevState, currState, alpha));
+
+  requestAnimationFrame(loop);
+}
+```
+
+This separation ensures:
+- Game logic is deterministic and tick-aligned (no frame rate dependency)
+- Rendering is smooth at any refresh rate (60Hz, 120Hz, 144Hz)
+- Visual positions are always between two valid game states — no overshoot artifacts
+
+### Client Game Loop
+
+See `boilerplate/game-loop-client.ts` for a full TypeScript implementation of the client game loop that combines all the above concepts: fixed timestep, input sampling, client-side prediction, server reconciliation, and `requestAnimationFrame`-based rendering.
+
+```typescript
+import { ClientGameLoop } from './game-loop-client';
+
+const gameLoop = new ClientGameLoop({
+  tickRate: 20,
+  inputBufferSize: 128,
+  interpolationDelay: 2,
+  maxExtrapolationMs: 500,
+});
+
+gameLoop.onTick = (state, tick) => {
+  // Your game simulation step
+  return applyPhysics(applyInputs(state, getLocalInput()));
+};
+
+gameLoop.onRender = (state, alpha) => {
+  // Your rendering code
+  renderer.draw(state, alpha);
+};
+
+gameLoop.onServerUpdate = (serverState, serverTick) => {
+  // Automatic reconciliation + input replay
+};
+
+gameLoop.start();
+```
+
 ## Cross-References
 
 - **game-backend-architecture** — Server tick loop, authority model, input processing pipeline. The sync engine sits on top of the game loop.

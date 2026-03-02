@@ -1,0 +1,55 @@
+{
+	"version": "1.0",
+	"description": "Eval suite for game-dev skill ecosystem core skills",
+	"evals": [
+		{
+			"id": 1,
+			"skill": "postgres-game-schema",
+			"prompt": "Create a database schema for a real-time card game with players, decks, cards, matches, and match history",
+			"expected_output": "Drizzle ORM schema using pgTable with: players table (id, username, email, stats JSONB, timestamps, soft delete), item_definitions for card definitions (name, type enum, rarity enum, baseStats JSONB for flexible card properties, metadata JSONB), inventory table for player-owned cards (playerId FK, itemDefinitionId FK, properties JSONB for card-specific state), a sessions/matches table (playerId FK, gameMode, state JSONB for match state, startedAt, endedAt), events table for match history (playerId FK, type, data JSONB). Must include: indexes on playerId and type columns, composite indexes for common queries like player's cards filtered by type, JSONB for flexible card properties instead of hardcoded columns, UUID primary keys via crypto.randomUUID(), timestamps on all tables, soft deletes with deletedAt.",
+			"tags": ["database", "schema", "card-game"]
+		},
+		{
+			"id": 2,
+			"skill": "postgres-game-schema",
+			"prompt": "I need to add a leaderboard to my game that shows weekly and all-time rankings",
+			"expected_output": "Uses the existing leaderboards table pattern with: playerId FK, category text, score real, rank integer, period using leaderboardPeriodEnum ('daily','weekly','monthly','seasonal','alltime'). Must include: unique composite index on (playerId, category, period) to prevent duplicates, composite index on (category, period, score) for efficient ranked queries, a window function query using ROW_NUMBER() OVER (PARTITION BY category, period ORDER BY score DESC) for computing ranks, separate rows per period (weekly + alltime) rather than computed views, updatedAt timestamp for cache invalidation.",
+			"tags": ["database", "leaderboard", "ranking"]
+		},
+		{
+			"id": 3,
+			"skill": "postgres-game-schema",
+			"prompt": "Design inventory system for an idle game where players collect resources and craft items",
+			"expected_output": "Uses generic item_definitions table with itemTypeEnum for different resource/item types, rarity enum, baseStats JSONB for resource properties, stackable boolean with maxStack. Inventory table with playerId FK, itemDefinitionId FK, quantity for stackable resources, properties JSONB for instance-specific state. Currencies table with playerId FK, currencyType text, amount integer, lifetimeEarned for tracking. Must use entity system pattern — no hardcoded resource columns, all extensible via JSONB metadata. Composite index on (playerId, itemDefinitionId) for efficient lookups. Events table for transaction history logging crafting and resource changes.",
+			"tags": ["database", "inventory", "idle-game"]
+		},
+		{
+			"id": 4,
+			"skill": "quest-narrative-coherence",
+			"prompt": "Add a new quest: 'The Merchant's Secret' — player must steal a letter from the royal archives for a suspicious merchant",
+			"expected_output": "Agent reads quest-narrative-coherence SKILL.md FIRST before any content creation. Runs the 5-step coherence check: (1) loads world-lore.md to understand existing factions, locations, and political structure, (2) checks quest-registry.md for existing quests involving the merchant, royal archives, or theft themes to avoid contradictions, (3) validates the merchant character against established NPCs and faction alignments, (4) confirms the royal archives exist as a location in the world, (5) checks that the quest rewards and difficulty fit the progression curve. Only after all 5 checks pass does content creation begin. Output includes coherence report documenting each check result.",
+			"tags": ["narrative", "quest", "coherence"]
+		},
+		{
+			"id": 5,
+			"skill": "quest-narrative-coherence",
+			"prompt": "Create a character: General Mira, head of the city guard, who secretly works for the thieves guild",
+			"expected_output": "Agent reads quest-narrative-coherence SKILL.md FIRST before creating the character. Runs coherence checks: (1) loads world-lore.md to check existing city guard leadership and thieves guild membership, (2) validates that no existing character already holds the 'head of city guard' position, (3) checks faction relationships — city guard and thieves guild must not be in a state that makes dual membership impossible, (4) reviews existing quests in quest-registry.md for any that reference the city guard leadership or thieves guild hierarchy that would contradict, (5) validates temporal consistency — the character's backstory must fit the world timeline. Flags any contradictions found before proceeding with character creation.",
+			"tags": ["narrative", "character", "coherence"]
+		},
+		{
+			"id": 6,
+			"skill": "game-backend-architecture",
+			"prompt": "Set up a WebSocket game server that handles 100 concurrent players in separate rooms",
+			"expected_output": "Elysia WebSocket server using Bun runtime with: typed message protocol (MessageType enum, ServerMessage/ClientMessage discriminated unions), RoomManager class that creates/joins/leaves rooms with player capacity limits, player connection lifecycle (onOpen registers player, onClose cleans up room membership, heartbeat timeout detection), server-authoritative message handling where client sends intentions and server validates before broadcasting. Room pattern with Map<roomId, Room> where Room tracks connected players, game state, and tick loop. WebSocket upgrade handler with authentication. Must NOT trust client state — all game logic runs server-side.",
+			"tags": ["backend", "websocket", "multiplayer"]
+		},
+		{
+			"id": 7,
+			"skill": "game-backend-architecture",
+			"prompt": "Add a game loop to my server that runs at 20 ticks per second and broadcasts state to all players",
+			"expected_output": "Fixed-timestep game loop at 20Hz (50ms per tick) using setInterval or Bun timer. Delta time computation tracking previous tick timestamp and computing dt = (now - lastTick) / 1000 for frame-independent simulation. Each tick: process input queue, update game state with dt, generate state snapshot, broadcast to all connected players in the room via WebSocket. State snapshot should be minimal — only changed entities or use delta compression. Broadcast uses room pattern to send only to players in the same room. Includes tick budget monitoring — log warning if tick processing exceeds 50ms budget. Loop cleanup on room empty or server shutdown.",
+			"tags": ["backend", "game-loop", "tick-system"]
+		}
+	]
+}

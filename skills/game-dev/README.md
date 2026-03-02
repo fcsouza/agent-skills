@@ -1,6 +1,6 @@
 # Game Development Skill Ecosystem
 
-Genre-agnostic game development skills — 21 skills across engineering, design, narrative, and infrastructure. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
+Genre-agnostic game development skills — 25 skills across engineering, design, narrative, and infrastructure. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
 
 ## Quick Start
 
@@ -14,7 +14,7 @@ Genre-agnostic game development skills — 21 skills across engineering, design,
 
 ## Skill Index
 
-### Engineering (8 skills)
+### Engineering (10 skills)
 
 | Skill | Trigger Keywords | Description |
 |-------|-----------------|-------------|
@@ -25,9 +25,11 @@ Genre-agnostic game development skills — 21 skills across engineering, design,
 | [betterauth-integration](engineering/betterauth-integration/) | auth, login, OAuth, JWT, roles | BetterAuth with RBAC for game players |
 | [stripe-game-payments](engineering/stripe-game-payments/) | payments, IAP, subscription, Stripe | Stripe integration for game monetization |
 | [elevenlabs-sound-music](engineering/elevenlabs-sound-music/) | audio, music, SFX, voice, ElevenLabs, Lyria | AI audio generation (ElevenLabs + Lyria) |
-| [game-state-sync](engineering/game-state-sync/) | state sync, netcode, delta, rollback | Client-server state reconciliation |
+| [game-state-sync](engineering/game-state-sync/) | state sync, netcode, delta, rollback, client prediction | Client-server state reconciliation + client game loop |
+| [gameplay-analytics](engineering/gameplay-analytics/) | analytics, telemetry, retention, D1 D7 D30, events, funnel | Player event tracking and retention metrics |
+| [matchmaking-system](engineering/matchmaking-system/) | matchmaking, lobby, ELO, queue, rank, skill-based | Skill-based matchmaking and lobby lifecycle |
 
-### Design (5 skills)
+### Design (6 skills)
 
 | Skill | Trigger Keywords | Description |
 |-------|-----------------|-------------|
@@ -36,6 +38,7 @@ Genre-agnostic game development skills — 21 skills across engineering, design,
 | [quest-mission-design](design/quest-mission-design/) | quest, mission, objectives, quest tree | Quest types, objective trees, and rewards |
 | [game-economy-design](design/game-economy-design/) | economy, currency, sinks, loot, inflation | Virtual economies and monetization balance |
 | [ui-ux-game](design/ui-ux-game/) | HUD, menu, onboarding, accessibility | Game interface patterns and feedback |
+| [procedural-gen](design/procedural-gen/) | procedural, dungeon gen, loot table, world seed, BSP, noise | Procedural content generation for replayability |
 
 ### Narrative (4 skills)
 
