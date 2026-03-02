@@ -13,20 +13,34 @@ Built by [Fabricio Cavalcante](https://github.com/fcsouza) — Software Engineer
 
 ## Structure
 
-Each skill follows the same convention:
+Simple skills follow a flat layout:
 
 ```
 skills/<skill-name>/
 ├── README.md           # Overview and installation instructions
 ├── SKILL.md            # Main skill file (YAML frontmatter + body)
 └── references/         # Deep-dive reference files (optional)
-    ├── topic-a.md
-    └── topic-b.md
+    └── topic-a.md
 ```
 
-- `SKILL.md` provides the overview and links to reference files
-- Reference files keep the main skill concise while offering depth on demand
-- Progressive disclosure: metadata → body → references
+Larger skill ecosystems (like `game-dev`) use a nested layout with domain sub-skills:
+
+```
+skills/<skill-name>/
+├── README.md           # Ecosystem overview and skill index
+├── AGENTS.md           # How AI agents should navigate the ecosystem
+├── <domain>/
+│   └── <sub-skill>/
+│       ├── SKILL.md        # Skill knowledge and principles
+│       ├── ARCHITECTURE.md # System diagrams (optional)
+│       ├── boilerplate/    # Starter code to copy and customize
+│       └── templates/      # Document and config templates
+```
+
+- `SKILL.md` is always the entry point — read this first
+- `boilerplate/` files are starter code, copy and customize
+- `templates/` are document/config templates to fill in
+- `ARCHITECTURE.md` explains system design decisions
 
 ## Installation
 

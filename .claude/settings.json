@@ -26,7 +26,18 @@
       "Bash([ -d \"$skill/boilerplate\" ])",
       "Bash(bunx biome check --write skills/game-dev/)",
       "Bash(bunx biome check --write --unsafe skills/game-dev/)",
-      "Bash(bunx biome check skills/game-dev/)"
+      "Bash(bunx biome check skills/game-dev/)",
+      "Read(//Users/fabricio/.claude/**)",
+      "Bash(npx skills find claude-code)",
+      "Bash(python3 -m json.tool)",
+      "Bash(for p in agent-sdk-dev explanatory-output-style learning-output-style security-guidance)",
+      "Bash(do echo \"=== $p ===\" cat ~/.claude/plugins/marketplaces/claude-plugins-official/plugins/$p/plugin.json)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\(''description'',''''\\)[:120]\\)\" done)",
+      "Bash(for p in asana firebase gitlab greptile laravel-boost linear serena slack supabase)",
+      "Bash(do echo \"=== $p ===\" cat ~/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/$p/plugin.json)",
+      "Bash(claude mcp list)",
+      "Bash(npx skills find claude-code-guide)",
+      "Bash(npx skills find \"anthropics claude code\")"
     ]
   }
 }

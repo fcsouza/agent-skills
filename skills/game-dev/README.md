@@ -4,10 +4,12 @@ Genre-agnostic game development skills — 21 skills across engineering, design,
 
 ## Quick Start
 
-1. Read `infrastructure/claude-code-game-workflow` — understand the ecosystem
-2. Read `design/game-design-fundamentals` — define your core loop
-3. Read `engineering/postgres-game-schema` — set up your database
-4. Read `engineering/game-backend-architecture` — set up your server
+> AI agents: read `AGENTS.md` first — it maps every task to the right skill.
+
+1. Read `infrastructure/claude-code-game-workflow/SKILL.md` — understand the ecosystem
+2. Read `design/game-design-fundamentals/SKILL.md` — define your core loop
+3. Read `engineering/postgres-game-schema/SKILL.md` — set up your database
+4. Read `engineering/game-backend-architecture/SKILL.md` — set up your server
 5. Pick domain skills as needed
 
 ## Skill Index
