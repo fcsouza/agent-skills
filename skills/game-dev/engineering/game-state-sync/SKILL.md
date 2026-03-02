@@ -1,3 +1,9 @@
+---
+name: game-state-sync
+description: >-
+  Use when implementing client-server state synchronization, delta compression, optimistic updates, rollback netcode, or real-time game state reconciliation. Triggers: state sync, netcode, delta, rollback, interpolation, prediction.
+---
+
 # Game State Sync
 
 ## Purpose

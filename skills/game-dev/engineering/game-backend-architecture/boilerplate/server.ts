@@ -2,7 +2,6 @@ import { cors } from "@elysiajs/cors";
 import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 import type { ClientMessage, ServerMessage } from "../templates/message-types";
-import { GameLoop } from "./game-loop";
 import { RoomManager } from "./room-manager";
 
 // ---------------------------------------------------------------------------

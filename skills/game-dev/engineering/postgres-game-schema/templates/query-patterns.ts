@@ -5,7 +5,7 @@
  * Adapt them to your game's specific needs.
  */
 
-import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "../boilerplate/migrations";
 import {
 	achievements,

@@ -126,7 +126,7 @@ class AudioManager {
 
 		const duration =
 			transitionKey && this.config.transitions[transitionKey]
-				? this.config.transitions[transitionKey]!.duration
+				? this.config.transitions[transitionKey]?.duration
 				: this.config.defaultTransitionDuration;
 
 		const musicTrack = this.config.tracks[newState];

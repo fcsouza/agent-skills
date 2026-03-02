@@ -29,7 +29,7 @@ export class GameEventBus {
 		if (!this.listeners.has(type)) {
 			this.listeners.set(type, new Set());
 		}
-		this.listeners.get(type)!.add(handler);
+		this.listeners.get(type)?.add(handler);
 		return () => this.off(type, handler);
 	}
 

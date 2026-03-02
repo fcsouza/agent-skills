@@ -41,9 +41,6 @@ export class StateSyncEngine<T extends Record<string, unknown>> {
 	private currentState: T;
 	private rollbackBuffer: RollbackBuffer<T>;
 	private pendingInputs: PlayerInput[] = [];
-	private lastAcknowledgedSequence = 0;
-	private serverState: T | null = null;
-	private serverTick = 0;
 
 	constructor(initialState: T, config: Partial<SyncEngineConfig> = {}) {
 		this.config = { ...DEFAULT_CONFIG, ...config };

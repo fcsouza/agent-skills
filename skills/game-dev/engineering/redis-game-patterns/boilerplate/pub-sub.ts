@@ -53,7 +53,7 @@ export const subscriber = {
 			handlers.set(channel, new Set());
 			subClient.subscribe(channel);
 		}
-		handlers.get(channel)!.add(handler as EventHandler);
+		handlers.get(channel)?.add(handler as EventHandler);
 
 		return () => {
 			handlers.get(channel)?.delete(handler as EventHandler);

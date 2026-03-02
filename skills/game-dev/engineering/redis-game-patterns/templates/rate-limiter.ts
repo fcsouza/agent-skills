@@ -45,7 +45,8 @@ export const checkRateLimit = async (
 		const retryAfter =
 			oldest.length >= 2
 				? Math.ceil(
-						(parseInt(oldest[1]) + config.windowSeconds * 1000 - now) / 1000,
+						(parseInt(oldest[1], 10) + config.windowSeconds * 1000 - now) /
+							1000,
 					)
 				: config.windowSeconds;
 

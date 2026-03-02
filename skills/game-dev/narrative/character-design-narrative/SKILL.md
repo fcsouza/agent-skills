@@ -1,3 +1,9 @@
+---
+name: character-design-narrative
+description: >-
+  Use when creating game characters, NPCs, character arcs, dialogue systems, archetypes, or character bibles. Triggers: character, NPC, dialogue, archetype, character bible, motivation arc.
+---
+
 # Character Design (Narrative)
 
 ## Purpose

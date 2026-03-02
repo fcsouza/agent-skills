@@ -1,3 +1,9 @@
+---
+name: postgres-game-schema
+description: >-
+  Use when designing game database schemas, player data models, inventory systems, or working with Drizzle ORM and PostgreSQL for games. Triggers: database, schema, Drizzle, players, inventory, leaderboards, game data.
+---
+
 # PostgreSQL Game Schema
 
 ## Purpose

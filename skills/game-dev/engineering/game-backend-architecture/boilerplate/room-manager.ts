@@ -111,7 +111,7 @@ export class RoomManager {
 		if (!this.playerRooms.has(playerId)) {
 			this.playerRooms.set(playerId, new Set());
 		}
-		this.playerRooms.get(playerId)!.add(roomId);
+		this.playerRooms.get(playerId)?.add(roomId);
 
 		// Start the game loop if this is the first player and room was just created
 		if (room.status === "created") {
@@ -219,7 +219,7 @@ export class RoomManager {
 	// Private
 	// ---------------------------------------------------------------------------
 
-	private tickRoom(roomId: string, dt: number) {
+	private tickRoom(roomId: string, _dt: number) {
 		const room = this.rooms.get(roomId);
 		if (!room || room.status !== "active") return;
 

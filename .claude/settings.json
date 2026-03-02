@@ -16,7 +16,17 @@
       "Bash(done)",
       "Read(//Users/fabricio/Repos/agent-skills/*/$skill/**)",
       "Read(//Users/fabricio/Repos/agent-skills/skills/game-dev/engineering/**)",
-      "Read(//Users/fabricio/Repos/agent-skills/**)"
+      "Read(//Users/fabricio/Repos/agent-skills/**)",
+      "Bash(wc -l /Users/fabricio/Repos/agent-skills/skills/game-dev/*/*/SKILL.md)",
+      "Bash(for skill in /Users/fabricio/Repos/agent-skills/skills/game-dev/*/*)",
+      "Bash(do)",
+      "Bash(if [ -d \"$skill\" ])",
+      "Bash([ -f \"$skill/SKILL.md\" ])",
+      "Bash(then)",
+      "Bash([ -d \"$skill/boilerplate\" ])",
+      "Bash(bunx biome check --write skills/game-dev/)",
+      "Bash(bunx biome check --write --unsafe skills/game-dev/)",
+      "Bash(bunx biome check skills/game-dev/)"
     ]
   }
 }

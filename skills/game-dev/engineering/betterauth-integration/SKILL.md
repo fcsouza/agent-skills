@@ -1,3 +1,9 @@
+---
+name: betterauth-integration
+description: >-
+  Use when implementing authentication, login flows, OAuth, JWT sessions, or role-based access control (RBAC) for games with BetterAuth. Triggers: auth, login, OAuth, JWT, roles, permissions, RBAC.
+---
+
 # BetterAuth Integration
 
 ## Purpose

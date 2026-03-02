@@ -1,3 +1,9 @@
+---
+name: claude-code-game-workflow
+description: >-
+  Use when starting a game project, choosing which skill to read, or navigating the game-dev skill ecosystem. Entry point for AI agents working on game development. Triggers: workflow, which skill, how to start, game project setup.
+---
+
 # Claude Code Game Workflow
 
 ## Purpose

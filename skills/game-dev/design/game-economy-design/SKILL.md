@@ -1,3 +1,9 @@
+---
+name: game-economy-design
+description: >-
+  Use when designing virtual economies, currencies, sink/faucet balance, loot tables, crafting systems, shops, or inflation control. Triggers: economy, currency, sinks, loot, inflation, crafting, shop.
+---
+
 # Game Economy Design
 
 ## Purpose

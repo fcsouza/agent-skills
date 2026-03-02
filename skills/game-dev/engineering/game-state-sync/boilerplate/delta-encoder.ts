@@ -303,7 +303,7 @@ function parsePath(path: string): (string | number)[] {
 			segments.push(parseInt(bracketMatch[2], 10));
 		} else {
 			const num = parseInt(part, 10);
-			segments.push(isNaN(num) ? part : num);
+			segments.push(Number.isNaN(num) ? part : num);
 		}
 	}
 

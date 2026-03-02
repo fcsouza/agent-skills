@@ -182,9 +182,7 @@ function getCrossfadeDuration(
 	to: GameAudioState,
 ): number {
 	return (
-		CROSSFADE_DURATIONS[`${from}->${to}`] ??
-		CROSSFADE_DURATIONS["default"] ??
-		1000
+		CROSSFADE_DURATIONS[`${from}->${to}`] ?? CROSSFADE_DURATIONS.default ?? 1000
 	);
 }
 

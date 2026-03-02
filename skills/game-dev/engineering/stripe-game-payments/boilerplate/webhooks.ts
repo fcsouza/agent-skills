@@ -19,7 +19,7 @@ async function fulfillPurchase(
 ): Promise<FulfillmentResult> {
 	const playerId = session.metadata?.playerId;
 	const productType = session.metadata?.productType;
-	const quantity = Number(session.metadata?.quantity ?? 1);
+	const _quantity = Number(session.metadata?.quantity ?? 1);
 
 	if (!playerId || !productType) {
 		return { success: false, error: "Missing metadata" };
@@ -40,7 +40,7 @@ async function handleSubscriptionChange(
 	const playerId = subscription.metadata?.playerId;
 	if (!playerId) return;
 
-	const status = subscription.status;
+	const _status = subscription.status;
 	// Update player subscription status in database
 	// await db.update(players).set({ subscriptionStatus: status }).where(eq(players.id, playerId));
 }
@@ -66,7 +66,7 @@ export const stripeWebhooks = new Elysia({ prefix: "/webhooks" }).post(
 		let event: Stripe.Event;
 		try {
 			event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-		} catch (err) {
+		} catch (_err) {
 			return new Response("Invalid signature", { status: 400 });
 		}
 
