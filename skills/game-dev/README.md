@@ -74,6 +74,12 @@ Genre-agnostic game development skills — 25 skills across engineering, design,
 | Image Gen | Gemini (Nano Banano) |
 | Audio/Music | ElevenLabs + Vertex AI Lyria |
 
+## Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/game-architect` | Interviews you about your game idea in progressive groups, researches genre conventions and reference games, then produces an actionable MVP First Draft with file/folder structure, build sequence, and starter project files |
+
 ## Narrative Coherence Rule
 
 > Every quest, mission, or story beat **MUST** pass the 5-step coherence check in `quest-narrative-coherence` before creation. No exceptions.
