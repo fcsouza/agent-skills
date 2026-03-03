@@ -19,7 +19,7 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | Skill | Description | Platform |
 |-------|-------------|----------|
 | [openclaw-genie](skills/openclaw-genie/) | Comprehensive OpenClaw gateway skill — installation, configuration, 38+ channels, memory, tools, hooks, deployment, multi-agent | [OpenClaw](https://openclaw.ai) |
-| [game-dev](skills/game-dev/) | **21-skill game development ecosystem** — genre-agnostic engineering, design, narrative, and infrastructure skills with TypeScript boilerplate | Game Dev |
+| [game-dev](skills/game-dev/) | **25 individual game development skills** — cherry-pick engineering, design, narrative, and infrastructure skills | Game Dev |
 
 ## Structure
 
@@ -56,9 +56,12 @@ skills/<skill-name>/
 
 ### Via [skills.sh](https://skills.sh) (recommended)
 
-Install any skill from this repo to 37+ supported agents (Claude Code, OpenClaw, Cursor, Copilot, Windsurf, and more):
+Works with 37+ agents — Claude Code, OpenClaw, Cursor, Copilot, Windsurf, and more.
 
 ```bash
+# Install a plugin (full workflow: skills + agents + hooks)
+npx skills add fcsouza/agent-skills --skill game-dev
+
 # Install a specific skill
 npx skills add fcsouza/agent-skills --skill openclaw-genie
 
@@ -68,24 +71,21 @@ npx skills add fcsouza/agent-skills --skill openclaw-genie -g
 # Target a specific agent
 npx skills add fcsouza/agent-skills --skill openclaw-genie -a claude-code
 
-# List all available skills from this repo
+# List all available skills
 npx skills add fcsouza/agent-skills --list
-```
-
-### Via ClawHub (OpenClaw only)
-
-```bash
-clawhub install <skill-name>
 ```
 
 ### Manual
 
 ```bash
+# For Claude Code — plugin (full bundle)
+cp -r plugins/game-dev/ .claude/plugins/game-dev/
+
+# For Claude Code — individual skill
+cp -r skills/game-dev/<category>/<skill-name>/ .claude/skills/<skill-name>/
+
 # For OpenClaw
 cp -r skills/<skill-name>/ ~/.openclaw/workspace/skills/<skill-name>/
-
-# For Claude Code
-cp -r skills/<skill-name>/ .claude/skills/<skill-name>/
 ```
 
 ## License

@@ -1,16 +1,15 @@
-# Game Development Skill Ecosystem
+# Game Development Skills
 
-Genre-agnostic game development skills — 25 skills across engineering, design, narrative, and infrastructure. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
+Genre-agnostic game development skills — 25 individual skills across engineering, design, narrative, and infrastructure. Cherry-pick what you need.
+
+> For the full plugin experience (agents + hooks + evals), see [plugins/game-dev](../../plugins/game-dev/).
 
 ## Quick Start
 
-> AI agents: read `AGENTS.md` first — it maps every task to the right skill.
-
-1. Read `infrastructure/claude-code-game-workflow/SKILL.md` — understand the ecosystem
-2. Read `design/game-design-fundamentals/SKILL.md` — define your core loop
-3. Read `engineering/postgres-game-schema/SKILL.md` — set up your database
-4. Read `engineering/game-backend-architecture/SKILL.md` — set up your server
-5. Pick domain skills as needed
+1. Read `design/game-design-fundamentals/SKILL.md` — define your core loop
+2. Read `engineering/postgres-game-schema/SKILL.md` — set up your database
+3. Read `engineering/game-backend-architecture/SKILL.md` — set up your server
+4. Pick domain skills as needed
 
 ## Skill Index
 
@@ -47,7 +46,7 @@ Genre-agnostic game development skills — 25 skills across engineering, design,
 | [worldbuilding](narrative/worldbuilding/) | lore, factions, geography, world bible | World creation and consistency |
 | [story-structure-game](narrative/story-structure-game/) | branching narrative, player agency, story arc | Interactive narrative frameworks |
 | [character-design-narrative](narrative/character-design-narrative/) | character, NPC, dialogue, archetype | Character creation and dialogue systems |
-| [quest-narrative-coherence](narrative/quest-narrative-coherence/) | coherence check, lore validation, quest registry | **MANDATORY** narrative consistency enforcement |
+| [quest-narrative-coherence](narrative/quest-narrative-coherence/) | coherence check, lore validation, quest registry | Narrative consistency enforcement |
 
 ### Infrastructure (4 skills)
 
@@ -76,32 +75,28 @@ Genre-agnostic game development skills — 25 skills across engineering, design,
 
 ## Installation
 
-### As Claude Code Plugin (recommended — includes agents + hooks)
+### Via [skills.sh](https://skills.sh) (recommended)
 
 ```bash
-# 1. Add the marketplace
-/plugin marketplace add fcsouza/agent-skills
+# Install all game-dev skills
+npx skills add fcsouza/agent-skills --skill game-dev
 
-# 2. Install the game-dev plugin
-/plugin install game-dev@fcsouza-agent-skills
+# Install to a specific agent
+npx skills add fcsouza/agent-skills --skill game-dev -a claude-code
+
+# Install globally (available across projects)
+npx skills add fcsouza/agent-skills --skill game-dev -g
+
+# Preview available skills
+npx skills add fcsouza/agent-skills --list
 ```
 
-### For local development
+### Manual
 
 ```bash
-claude --plugin-dir ./skills/game-dev
+# Copy individual skills
+cp -r skills/game-dev/<category>/<skill-name>/ .claude/skills/<skill-name>/
+
+# Example: copy just the database schema skill
+cp -r skills/game-dev/engineering/postgres-game-schema/ .claude/skills/postgres-game-schema/
 ```
-
-### Plugin Components
-
-| Component | Location | Description |
-|-----------|----------|-------------|
-| `/game-dev:game-architect` | `skills/game-architect/SKILL.md` | MVP interviewer — interviews you, researches your genre, produces an actionable first draft plan |
-| `game-engineer` agent | `agents/game-engineer.md` | Backend implementation (schemas, APIs, WebSocket, queues) |
-| `game-designer` agent | `agents/game-designer.md` | Design documents (core loops, economy, levels, UX) |
-| `narrative-writer` agent | `agents/narrative-writer.md` | Narrative content (quests, characters, lore) with coherence enforcement |
-| 4 hooks | `hooks/hooks.json` | Skill routing, narrative guards, Biome auto-format, registry reminders |
-
-## Narrative Coherence Rule
-
-> Every quest, mission, or story beat **MUST** pass the 5-step coherence check in `quest-narrative-coherence` before creation. No exceptions.

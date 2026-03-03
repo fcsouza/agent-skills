@@ -1,9 +1,0 @@
-{
-  "name": "game-dev",
-  "description": "Complete game development skill ecosystem — 25 skills across engineering, design, narrative, and infrastructure. Genre-agnostic patterns for any game type.",
-  "version": "1.0.0",
-  "author": {
-    "name": "Fabricio"
-  },
-  "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript", "multiplayer", "mvp"]
-}
