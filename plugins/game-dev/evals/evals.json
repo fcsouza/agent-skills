@@ -1,0 +1,111 @@
+{
+	"version": "1.0",
+	"description": "Eval suite for game-dev skill ecosystem core skills",
+	"evals": [
+		{
+			"id": 1,
+			"skill": "postgres-game-schema",
+			"prompt": "Create a database schema for a real-time card game with players, decks, cards, matches, and match history",
+			"expected_output": "Drizzle ORM schema using pgTable with: players table (id, username, email, stats JSONB, timestamps, soft delete), item_definitions for card definitions (name, type enum, rarity enum, baseStats JSONB for flexible card properties, metadata JSONB), inventory table for player-owned cards (playerId FK, itemDefinitionId FK, properties JSONB for card-specific state), a sessions/matches table (playerId FK, gameMode, state JSONB for match state, startedAt, endedAt), events table for match history (playerId FK, type, data JSONB). Must include: indexes on playerId and type columns, composite indexes for common queries like player's cards filtered by type, JSONB for flexible card properties instead of hardcoded columns, UUID primary keys via crypto.randomUUID(), timestamps on all tables, soft deletes with deletedAt.",
+			"tags": ["database", "schema", "card-game"]
+		},
+		{
+			"id": 2,
+			"skill": "postgres-game-schema",
+			"prompt": "I need to add a leaderboard to my game that shows weekly and all-time rankings",
+			"expected_output": "Uses the existing leaderboards table pattern with: playerId FK, category text, score real, rank integer, period using leaderboardPeriodEnum ('daily','weekly','monthly','seasonal','alltime'). Must include: unique composite index on (playerId, category, period) to prevent duplicates, composite index on (category, period, score) for efficient ranked queries, a window function query using ROW_NUMBER() OVER (PARTITION BY category, period ORDER BY score DESC) for computing ranks, separate rows per period (weekly + alltime) rather than computed views, updatedAt timestamp for cache invalidation.",
+			"tags": ["database", "leaderboard", "ranking"]
+		},
+		{
+			"id": 3,
+			"skill": "postgres-game-schema",
+			"prompt": "Design inventory system for an idle game where players collect resources and craft items",
+			"expected_output": "Uses generic item_definitions table with itemTypeEnum for different resource/item types, rarity enum, baseStats JSONB for resource properties, stackable boolean with maxStack. Inventory table with playerId FK, itemDefinitionId FK, quantity for stackable resources, properties JSONB for instance-specific state. Currencies table with playerId FK, currencyType text, amount integer, lifetimeEarned for tracking. Must use entity system pattern — no hardcoded resource columns, all extensible via JSONB metadata. Composite index on (playerId, itemDefinitionId) for efficient lookups. Events table for transaction history logging crafting and resource changes.",
+			"tags": ["database", "inventory", "idle-game"]
+		},
+		{
+			"id": 4,
+			"skill": "quest-narrative-coherence",
+			"prompt": "Add a new quest: 'The Merchant's Secret' — player must steal a letter from the royal archives for a suspicious merchant",
+			"expected_output": "Agent reads quest-narrative-coherence SKILL.md FIRST before any content creation. Runs the 5-step coherence check: (1) loads world-lore.md to understand existing factions, locations, and political structure, (2) checks quest-registry.md for existing quests involving the merchant, royal archives, or theft themes to avoid contradictions, (3) validates the merchant character against established NPCs and faction alignments, (4) confirms the royal archives exist as a location in the world, (5) checks that the quest rewards and difficulty fit the progression curve. Only after all 5 checks pass does content creation begin. Output includes coherence report documenting each check result.",
+			"tags": ["narrative", "quest", "coherence"]
+		},
+		{
+			"id": 5,
+			"skill": "quest-narrative-coherence",
+			"prompt": "Create a character: General Mira, head of the city guard, who secretly works for the thieves guild",
+			"expected_output": "Agent reads quest-narrative-coherence SKILL.md FIRST before creating the character. Runs coherence checks: (1) loads world-lore.md to check existing city guard leadership and thieves guild membership, (2) validates that no existing character already holds the 'head of city guard' position, (3) checks faction relationships — city guard and thieves guild must not be in a state that makes dual membership impossible, (4) reviews existing quests in quest-registry.md for any that reference the city guard leadership or thieves guild hierarchy that would contradict, (5) validates temporal consistency — the character's backstory must fit the world timeline. Flags any contradictions found before proceeding with character creation.",
+			"tags": ["narrative", "character", "coherence"]
+		},
+		{
+			"id": 6,
+			"skill": "game-backend-architecture",
+			"prompt": "Set up a WebSocket game server that handles 100 concurrent players in separate rooms",
+			"expected_output": "Elysia WebSocket server using Bun runtime with: typed message protocol (MessageType enum, ServerMessage/ClientMessage discriminated unions), RoomManager class that creates/joins/leaves rooms with player capacity limits, player connection lifecycle (onOpen registers player, onClose cleans up room membership, heartbeat timeout detection), server-authoritative message handling where client sends intentions and server validates before broadcasting. Room pattern with Map<roomId, Room> where Room tracks connected players, game state, and tick loop. WebSocket upgrade handler with authentication. Must NOT trust client state — all game logic runs server-side.",
+			"tags": ["backend", "websocket", "multiplayer"]
+		},
+		{
+			"id": 7,
+			"skill": "game-backend-architecture",
+			"prompt": "Add a game loop to my server that runs at 20 ticks per second and broadcasts state to all players",
+			"expected_output": "Fixed-timestep game loop at 20Hz (50ms per tick) using setInterval or Bun timer. Delta time computation tracking previous tick timestamp and computing dt = (now - lastTick) / 1000 for frame-independent simulation. Each tick: process input queue, update game state with dt, generate state snapshot, broadcast to all connected players in the room via WebSocket. State snapshot should be minimal — only changed entities or use delta compression. Broadcast uses room pattern to send only to players in the same room. Includes tick budget monitoring — log warning if tick processing exceeds 50ms budget. Loop cleanup on room empty or server shutdown.",
+			"tags": ["backend", "game-loop", "tick-system"]
+		},
+		{
+			"id": 8,
+			"skill": "redis-game-patterns",
+			"prompt": "I need a Redis sorted set for a global leaderboard with 1 million players. Show me the commands, data structure, and how to page through the top 100.",
+			"expected_output": "Uses Redis ZADD with player ID as member and score as the sorted set value. Key naming convention like leaderboard:global:alltime. ZADD command with NX or GT flag to only update when score improves. ZREVRANGE or ZREVRANGEBYSCORE for top-N queries with WITHSCORES. ZREVRANK for fetching a specific player's rank in O(log N). Pagination via ZREVRANGE leaderboard:global:alltime 0 99 for first page, 100 199 for second. Covers TTL strategy for time-windowed leaderboards (weekly resets via EXPIREAT at Sunday midnight). Notes memory implications at 1M members and recommends monitoring with MEMORY USAGE.",
+			"tags": ["redis", "leaderboard", "sorted-set"]
+		},
+		{
+			"id": 9,
+			"skill": "redis-game-patterns",
+			"prompt": "Players in my game have ephemeral session state (current room, health, position) that needs to be read on every tick. Design the Redis key schema and expiry strategy.",
+			"expected_output": "Key schema like session:{playerId} as a Redis Hash with fields for roomId, health, posX, posY, lastSeen. HSET/HGET/HMGET for efficient partial reads without fetching full object. EXPIRE set to session timeout (e.g., 30s) refreshed on each client heartbeat via EXPIRE session:{playerId} 30. On disconnect, cleanup via keyspace notification or explicit DEL. Covers HSCAN for iterating all sessions in a room. Notes that position/health are ephemeral — only persist to Neon (PostgreSQL) on graceful logout or periodic checkpoint, not on every tick. Recommends Redis pipeline for batching multiple HSET calls per tick to reduce round-trips.",
+			"tags": ["redis", "session", "ephemeral-state"]
+		},
+		{
+			"id": 10,
+			"skill": "matchmaking-system",
+			"prompt": "My matchmaking queue has 500 players waiting. Design an expanding search radius algorithm that finds fair matches without making players wait too long.",
+			"expected_output": "Expanding bracket algorithm: start with tight skill range (e.g., ±50 MMR), expand by fixed increment (±25 MMR) every N seconds of wait time. Priority queue ordered by wait time — longest-waiting players get matched first within the expanded bracket. Max expansion cap to prevent wildly unfair matches (e.g., ±300 MMR hard ceiling). Tracks waitTime per player and recomputes acceptable range as a function of wait duration. BullMQ job per queued player with exponential backoff on the bracket expansion. Separate queues per game mode. On match found: atomically dequeue both players, create match record, notify via WebSocket. Includes metrics: avg wait time, match quality score (MMR delta of matched players).",
+			"tags": ["matchmaking", "skill-rating", "queue"]
+		},
+		{
+			"id": 11,
+			"skill": "matchmaking-system",
+			"prompt": "Implement an Elo rating update after a 1v1 match. Show the calculation and how to persist the new ratings atomically.",
+			"expected_output": "Standard Elo formula: expected score E_a = 1 / (1 + 10^((R_b - R_a) / 400)), new rating R_a' = R_a + K * (S_a - E_a) where K is K-factor (32 for new players, 16 for established). K-factor tiers based on games played or current rating. Drizzle transaction that atomically: reads both player ratings, computes new values, updates players table, inserts match_results record with pre/post ratings for audit trail. Handles draws (S=0.5) and disconnects (treated as loss for disconnecting player). Includes rating floor (minimum 100) and provisional period logic for new players. Notes: never update rating outside a database transaction to avoid race conditions from concurrent matches.",
+			"tags": ["matchmaking", "elo", "rating"]
+		},
+		{
+			"id": 12,
+			"skill": "gameplay-analytics",
+			"prompt": "Track when players stop logging in after a major patch. What events should I emit, how do I store them, and how do I compute D1, D7, and D30 retention?",
+			"expected_output": "Emit player_login event with playerId, timestamp, platform, appVersion, sessionId. Store in events table (Drizzle schema) with JSONB data column. Retention cohort query: cohort is players who first logged in on date D (first_login_date), retention on day N counts players who also logged in on date D+N. SQL using window functions: first identify each player's first login date, then LEFT JOIN login events for D+1, D+7, D+30, compute ratio. Separate the patch cohort by filtering first_login_date >= patch_release_date. Notes that D7 post-patch drop indicates content issues vs D1 drop indicating onboarding/performance issues. Recommends daily materialized view refresh for retention dashboards rather than live queries at scale.",
+			"tags": ["analytics", "retention", "events"]
+		},
+		{
+			"id": 13,
+			"skill": "gameplay-analytics",
+			"prompt": "I want to track a purchase funnel: player sees shop → opens item → clicks buy → completes purchase. How do I instrument this and compute drop-off rates?",
+			"expected_output": "Emit four events: shop_viewed, item_detail_opened (with itemId, itemType), purchase_initiated (with itemId, price, currency), purchase_completed (with itemId, price, currency, transactionId). All events include sessionId for funnel stitching. Funnel query using CTEs: count distinct sessionIds that triggered each event, compute conversion rate between each step as percentage. SQL pattern: shop_opens CTE, then LEFT JOIN item_opens ON sessionId, then LEFT JOIN purchase_starts, then LEFT JOIN purchase_completes. Drop-off rate = 1 - (next_step_count / current_step_count). Segment by item category, player level, or platform to identify where specific player segments drop. Recommends sessionId-based funnel (not playerId) to correctly handle players who see the shop multiple times.",
+			"tags": ["analytics", "funnel", "monetization"]
+		},
+		{
+			"id": 14,
+			"skill": "level-design",
+			"prompt": "Design a biome system where dungeon room types have weighted random selection — desert rooms 40%, cave 35%, ruins 25%. Show the implementation and how to adjust weights per floor depth.",
+			"expected_output": "Weighted random selection using a cumulative weight array: build prefix sums [40, 75, 100], generate random number 0–100, use binary search to find the corresponding biome. Biome definition as a typed config object with weight, roomTypes array, enemySpawnTable, and lootTable references. Floor depth modifier: multiply base weights by a depth scalar (e.g., ruins weight increases +5% per floor, desert decreases) then renormalize to 100%. Implementation in TypeScript with a selectBiome(depth: number): BiomeType function. Server-side RNG using a seeded PRNG (e.g., mulberry32) so dungeon layout is reproducible from a seed — client can request the same layout without re-rolling. Notes genre-agnostic constraint: biome names are data, not hardcoded — config-driven so new biomes require no code changes.",
+			"tags": ["level-design", "procedural", "weighted-random"]
+		},
+		{
+			"id": 15,
+			"skill": "game-economy-design",
+			"prompt": "My free currency (gems) is inflating because players earn too many from daily quests. What sinks should I add and how do I measure the inflation rate with SQL?",
+			"expected_output": "Sink recommendations: premium cosmetics purchasable only with gems, stamina/energy refills for time-gated systems, crafting accelerators, limited-time auction bids, battle pass tiers. Each sink should have a clear value proposition so players choose to spend. Inflation rate query: SELECT date_trunc('day', createdAt) as day, SUM(CASE WHEN type = 'earn' THEN amount ELSE 0 END) as earned, SUM(CASE WHEN type = 'spend' THEN amount ELSE 0 END) as spent, SUM(SUM(CASE WHEN type = 'earn' THEN amount ELSE -amount END)) OVER (ORDER BY day) as circulating_supply FROM currency_events GROUP BY day. Rising circulating_supply indicates inflation. Target earn/spend ratio close to 1.0 per week. Recommends currency velocity metric (total spend / circulating supply per period) and alerts when velocity drops below threshold indicating hoarding behavior.",
+			"tags": ["economy", "currency", "inflation"]
+		}
+	]
+}

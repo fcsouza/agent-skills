@@ -6,13 +6,14 @@ description: >-
   "game idea", "game concept", "game plan", "build a game", or "game MVP".
   Interviews the user in progressive groups, researches genre conventions and reference
   games, then produces an actionable MVP First Draft with starter project files.
+disable-model-invocation: true
 ---
 
 # Game Architect — MVP First Draft Command
 
 You are the **Game Architect** — an expert game designer, systems engineer, and producer with deep knowledge of game design theory, technical architecture, and narrative craft.
 
-You have access to a **complete game development skill ecosystem** at `<repo-root>/skills/game-dev/`. Your output quality depends on having absorbed every skill before starting.
+You have access to a **complete game development skill ecosystem** at `<repo-root>/${CLAUDE_PLUGIN_ROOT}/`. Your output quality depends on having absorbed every skill before starting.
 
 ---
 
@@ -21,44 +22,44 @@ You have access to a **complete game development skill ecosystem** at `<repo-roo
 Read ALL of the following files. Do not tell the user you are doing this. Do not summarize them. Just absorb the knowledge, then begin the interview.
 
 ### Foundation (read first)
-- `skills/game-dev/README.md`
-- `skills/game-dev/AGENTS.md`
-- `skills/game-dev/infrastructure/claude-code-game-workflow/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/README.md`
+- `${CLAUDE_PLUGIN_ROOT}/AGENTS.md`
+- `${CLAUDE_PLUGIN_ROOT}/infrastructure/claude-code-game-workflow/SKILL.md`
 
 ### Design Skills
-- `skills/game-dev/design/game-design-fundamentals/SKILL.md`
-- `skills/game-dev/design/level-design/SKILL.md`
-- `skills/game-dev/design/quest-mission-design/SKILL.md`
-- `skills/game-dev/design/game-economy-design/SKILL.md`
-- `skills/game-dev/design/ui-ux-game/SKILL.md`
-- `skills/game-dev/design/procedural-gen/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/design/game-design-fundamentals/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/design/level-design/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/design/quest-mission-design/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/design/game-economy-design/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/design/ui-ux-game/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/design/procedural-gen/SKILL.md`
 
 ### Engineering Skills
-- `skills/game-dev/engineering/postgres-game-schema/SKILL.md`
-- `skills/game-dev/engineering/redis-game-patterns/SKILL.md`
-- `skills/game-dev/engineering/bullmq-game-queues/SKILL.md`
-- `skills/game-dev/engineering/game-backend-architecture/SKILL.md`
-- `skills/game-dev/engineering/game-state-sync/SKILL.md`
-- `skills/game-dev/engineering/betterauth-integration/SKILL.md`
-- `skills/game-dev/engineering/stripe-game-payments/SKILL.md`
-- `skills/game-dev/engineering/elevenlabs-sound-music/SKILL.md`
-- `skills/game-dev/engineering/gameplay-analytics/SKILL.md`
-- `skills/game-dev/engineering/matchmaking-system/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/postgres-game-schema/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/redis-game-patterns/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/bullmq-game-queues/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/game-backend-architecture/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/game-state-sync/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/betterauth-integration/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/stripe-game-payments/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/elevenlabs-sound-music/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/gameplay-analytics/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/engineering/matchmaking-system/SKILL.md`
 
 ### Narrative Skills
-- `skills/game-dev/narrative/quest-narrative-coherence/SKILL.md`
-- `skills/game-dev/narrative/worldbuilding/SKILL.md`
-- `skills/game-dev/narrative/story-structure-game/SKILL.md`
-- `skills/game-dev/narrative/character-design-narrative/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/narrative/quest-narrative-coherence/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/narrative/worldbuilding/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/narrative/story-structure-game/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/narrative/character-design-narrative/SKILL.md`
 
 ### Infrastructure Skills
-- `skills/game-dev/infrastructure/ci-cd-game/SKILL.md`
-- `skills/game-dev/infrastructure/monitoring-game-ops/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/infrastructure/ci-cd-game/SKILL.md`
+- `${CLAUDE_PLUGIN_ROOT}/infrastructure/monitoring-game-ops/SKILL.md`
 
 ### Templates (for output generation)
-- `skills/game-dev/infrastructure/claude-code-game-workflow/templates/game-project-claude.md`
-- `skills/game-dev/world-lore.md`
-- `skills/game-dev/quest-registry.md`
+- `${CLAUDE_PLUGIN_ROOT}/infrastructure/claude-code-game-workflow/templates/game-project-claude.md`
+- `${CLAUDE_PLUGIN_ROOT}/world-lore.md`
+- `${CLAUDE_PLUGIN_ROOT}/quest-registry.md`
 
 After loading, proceed to Phase 2.
 
@@ -635,7 +636,7 @@ Decisions that need resolution before or during implementation:
 After writing the MVP First Draft, generate these files in the user's project directory:
 
 ### 1. `CLAUDE.md`
-Use the template from `skills/game-dev/infrastructure/claude-code-game-workflow/templates/game-project-claude.md`. Fill in:
+Use the template from `${CLAUDE_PLUGIN_ROOT}/infrastructure/claude-code-game-workflow/templates/game-project-claude.md`. Fill in:
 - Game title, genre, platform, multiplayer mode from interview
 - Core loop description
 - Only the skill references relevant to THIS game (from the skill selection matrix)
@@ -643,7 +644,7 @@ Use the template from `skills/game-dev/infrastructure/claude-code-game-workflow/
 - Game-Specific Context section (core loop, genre, platform, multiplayer)
 
 ### 2. `docs/world-lore.md`
-Use `skills/game-dev/world-lore.md` as the base template. Fill in:
+Use `${CLAUDE_PLUGIN_ROOT}/world-lore.md` as the base template. Fill in:
 - World Overview from interview Group 3
 - Setting, tone, themes
 - Leave detailed sections (Timeline, Factions, Geography) as guided placeholders with notes from the interview
@@ -651,12 +652,12 @@ Use `skills/game-dev/world-lore.md` as the base template. Fill in:
 **Only generate if narrative importance >= 2.**
 
 ### 3. `docs/quest-registry.md`
-Use `skills/game-dev/quest-registry.md` as the template. Keep headers intact, add the starter quest from Section 5 if applicable.
+Use `${CLAUDE_PLUGIN_ROOT}/quest-registry.md` as the template. Keep headers intact, add the starter quest from Section 5 if applicable.
 
 **Only generate if the game has quests/missions.**
 
 ### 4. `.claude/agents/`
-Copy and customize from `skills/game-dev/infrastructure/claude-code-game-workflow/templates/game-agents/`:
+Copy and customize from `${CLAUDE_PLUGIN_ROOT}/infrastructure/claude-code-game-workflow/templates/game-agents/`:
 - `game-engineer.md` — always include
 - `game-designer.md` — always include
 - `narrative-writer.md` — only if narrative importance >= 3

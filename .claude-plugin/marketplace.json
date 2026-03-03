@@ -1,0 +1,19 @@
+{
+  "name": "fcsouza-agent-skills",
+  "owner": {
+    "name": "Fabricio"
+  },
+  "metadata": {
+    "description": "Agent skills and plugins for game development, React, and more."
+  },
+  "plugins": [
+    {
+      "name": "game-dev",
+      "source": "./plugins/game-dev",
+      "description": "Complete game development plugin — 25 skills, 3 agents, 4 hooks. Genre-agnostic patterns for any game type.",
+      "version": "1.0.0",
+      "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript"],
+      "category": "development"
+    }
+  ]
+}

@@ -4,7 +4,17 @@ Production-grade skills for AI coding agents (OpenClaw, Claude Code, and others)
 
 Built by [Fabricio Cavalcante](https://github.com/fcsouza) — Software Engineer & AI Specialist.
 
+## Available Plugins
+
+Plugins are complete workflow bundles — skills + agents + hooks working together as an integrated system. Install a plugin to get the full experience.
+
+| Plugin | Description | Platform |
+|--------|-------------|----------|
+| [game-dev](plugins/game-dev/) | **25 skills, 3 agents, 4 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
+
 ## Available Skills
+
+Skills are individual, cherry-pickable modules. Install only what you need.
 
 | Skill | Description | Platform |
 |-------|-------------|----------|

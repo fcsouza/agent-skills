@@ -1,0 +1,9 @@
+{
+  "name": "game-dev",
+  "description": "Complete game development plugin — 25 skills, 3 agents, 4 hooks. Genre-agnostic patterns for any game type.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Fabricio"
+  },
+  "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript", "multiplayer", "mvp"]
+}

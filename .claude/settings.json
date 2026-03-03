@@ -44,10 +44,16 @@
       "Bash(find /Users/fabricio/Repos/agent-skills/skills/game-dev/*/*/boilerplate -name \"*.ts\")",
       "Bash([ -f \"$skill/ARCHITECTURE.md\" ])",
       "Bash(grep -l \"custom-agents.md\\\\|worktrees.md\\\\|mcp-setup.md\\\\|plan-mode.md\\\\|todo-patterns.md\\\\|vision-multimodal.md\\\\|settings-full.md\" *.md)",
-      "Read(//Users/fabricio/Repos/agent-skills/skills/game-dev/infrastructure/claude-code-game-workflow/**)"
+      "Read(//Users/fabricio/Repos/agent-skills/skills/game-dev/infrastructure/claude-code-game-workflow/**)",
+      "WebFetch(domain:skills.sh)",
+      "Bash(git mv skills/game-dev plugins/game-dev)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "additionalDirectories": [
-      "/Users/fabricio/.claude"
+      "/Users/fabricio/.claude",
+      "/Users/fabricio/Repos/agent-skills/skills/game-dev/.claude/skills",
+      "/Users/fabricio/Repos/agent-skills/skills/game-dev/.claude/skills/game-architect"
     ]
   }
 }
