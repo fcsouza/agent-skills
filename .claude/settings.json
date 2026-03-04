@@ -48,7 +48,8 @@
       "WebFetch(domain:skills.sh)",
       "Bash(git mv skills/game-dev plugins/game-dev)",
       "WebFetch(domain:api.github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(chmod +x /Users/fabricio/Repos/agent-skills/plugins/game-dev/scripts/*.sh)"
     ],
     "additionalDirectories": [
       "/Users/fabricio/.claude",

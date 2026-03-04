@@ -10,8 +10,8 @@
     {
       "name": "game-dev",
       "source": "./plugins/game-dev",
-      "description": "Complete game development plugin — 25 skills, 3 agents, 4 hooks. Genre-agnostic patterns for any game type.",
-      "version": "1.0.0",
+      "description": "Complete game development plugin — 26 skills, 3 agents, 4 hooks. Genre-agnostic patterns for any game type.",
+      "version": "1.1.0",
       "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript"],
       "category": "development"
     }

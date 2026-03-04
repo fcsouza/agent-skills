@@ -1,5 +1,5 @@
 ---
-name: story-structure-game
+name: narrative-story-structure-game
 description: >-
   Use when designing interactive narratives, branching storylines, player agency systems, non-linear story structures, or act frameworks for games. Triggers: branching narrative, player agency, story arc, interactive story, dialogue.
 ---

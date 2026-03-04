@@ -1,5 +1,5 @@
 ---
-name: matchmaking-system
+name: engineering-matchmaking-system
 description: >-
   Use when implementing player matchmaking, skill-based match selection, lobby systems, queue management, or rank-based grouping. Triggers: matchmaking, lobby, queue, ELO, skill-based, rank, match players, pairing, bracket.
 ---

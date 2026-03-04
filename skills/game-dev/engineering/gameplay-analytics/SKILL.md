@@ -1,5 +1,5 @@
 ---
-name: gameplay-analytics
+name: engineering-gameplay-analytics
 description: >-
   Use when tracking player events, implementing retention analytics, building engagement funnels, measuring D1/D7/D30 retention, or setting up gameplay telemetry. Triggers: analytics, telemetry, events, retention, D1 D7 D30, funnel, engagement, session tracking, player behavior.
 ---

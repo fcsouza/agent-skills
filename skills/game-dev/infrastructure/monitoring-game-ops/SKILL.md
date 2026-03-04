@@ -1,5 +1,5 @@
 ---
-name: monitoring-game-ops
+name: infrastructure-monitoring-game-ops
 description: >-
   Use when implementing game monitoring, structured logging, player telemetry, alerting rules, or performance budgets. Triggers: monitoring, logging, telemetry, alerts, observability, metrics.
 ---

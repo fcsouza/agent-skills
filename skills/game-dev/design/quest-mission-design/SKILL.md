@@ -1,5 +1,5 @@
 ---
-name: quest-mission-design
+name: design-quest-mission-design
 description: >-
   Use when designing quests, missions, objectives, quest trees, or reward structures. Requires quest-narrative-coherence check before any quest creation. Triggers: quest, mission, objectives, quest tree, rewards.
 ---

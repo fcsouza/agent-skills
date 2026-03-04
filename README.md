@@ -10,7 +10,7 @@ Plugins are complete workflow bundles — skills + agents + hooks working togeth
 
 | Plugin | Description | Platform |
 |--------|-------------|----------|
-| [game-dev](plugins/game-dev/) | **25 skills, 3 agents, 4 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
+| [game-dev](plugins/game-dev/) | **26 skills, 3 agents, 4 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
 
 ## Available Skills
 
@@ -19,7 +19,7 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | Skill | Description | Platform |
 |-------|-------------|----------|
 | [openclaw-genie](skills/openclaw-genie/) | Comprehensive OpenClaw gateway skill — installation, configuration, 38+ channels, memory, tools, hooks, deployment, multi-agent | [OpenClaw](https://openclaw.ai) |
-| [game-dev](skills/game-dev/) | **25 individual game development skills** — cherry-pick engineering, design, narrative, and infrastructure skills | Game Dev |
+| [game-dev](skills/game-dev/) | **26 individual game development skills** — cherry-pick engineering, design, narrative, and infrastructure skills | Game Dev |
 
 ## Structure
 

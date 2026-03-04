@@ -1,5 +1,5 @@
 ---
-name: redis-game-patterns
+name: engineering-redis-game-patterns
 description: >-
   Use when implementing Redis patterns for games — caching, leaderboards, pub/sub messaging, session storage, rate limiting, or ephemeral game state. Triggers: Redis, cache, leaderboard, pub/sub, rate limit, session.
 ---

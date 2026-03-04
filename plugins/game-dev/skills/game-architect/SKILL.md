@@ -6,7 +6,6 @@ description: >-
   "game idea", "game concept", "game plan", "build a game", or "game MVP".
   Interviews the user in progressive groups, researches genre conventions and reference
   games, then produces an actionable MVP First Draft with starter project files.
-disable-model-invocation: true
 ---
 
 # Game Architect — MVP First Draft Command

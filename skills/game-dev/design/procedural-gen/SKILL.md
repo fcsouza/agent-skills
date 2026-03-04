@@ -1,5 +1,5 @@
 ---
-name: procedural-gen
+name: design-procedural-gen
 description: >-
   Use when implementing procedural content generation, dungeon or map generation, procedural loot tables, world seeds, noise-based terrain, NPC behavior variation, or wave function collapse. Triggers: procedural, dungeon gen, map gen, loot table, world seed, noise, BSP, wave function collapse, randomization.
 ---

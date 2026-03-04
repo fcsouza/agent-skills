@@ -1,5 +1,5 @@
 ---
-name: level-design
+name: design-level-design
 description: >-
   Use when designing game levels, environments, difficulty curves, pacing, encounter placement, or spatial layouts for any game genre. Triggers: level, pacing, difficulty curve, encounter, environment, spatial design.
 ---

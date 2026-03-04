@@ -1,5 +1,5 @@
 ---
-name: elevenlabs-sound-music
+name: engineering-elevenlabs-sound-music
 version: 1.0.0
 description: >-
   SFX generation, adaptive music, voice acting, and audio state machine

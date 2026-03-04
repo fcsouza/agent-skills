@@ -1,5 +1,5 @@
 ---
-name: skill-progression-trees
+name: design-skill-progression-trees
 description: >-
   Use when designing or implementing skill trees, talent trees, ability progression systems, or unlock graphs. Triggers: skill tree, talent tree, ability tree, progression system, unlock, prestige, node, skill points.
 ---

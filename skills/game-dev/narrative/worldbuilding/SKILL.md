@@ -1,5 +1,5 @@
 ---
-name: worldbuilding
+name: narrative-worldbuilding
 description: >-
   Use when creating game worlds, lore, factions, geography, timelines, or establishing world consistency rules. Genre-agnostic — works for fantasy, sci-fi, modern, or abstract settings. Triggers: lore, factions, geography, world bible, world creation.
 ---

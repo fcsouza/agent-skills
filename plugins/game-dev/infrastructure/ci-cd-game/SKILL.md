@@ -1,5 +1,5 @@
 ---
-name: ci-cd-game
+name: infrastructure-ci-cd-game
 description: >-
   Use when setting up CI/CD pipelines, GitHub Actions workflows, deployment automation, migration safety, or staging environments for game projects. Triggers: CI/CD, GitHub Actions, deployment, pipeline, staging.
 ---

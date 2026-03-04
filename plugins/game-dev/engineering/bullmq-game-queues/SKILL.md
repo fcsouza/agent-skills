@@ -1,5 +1,5 @@
 ---
-name: bullmq-game-queues
+name: engineering-bullmq-game-queues
 description: >-
   Use when implementing job queues, matchmaking systems, async game events, delayed jobs, or scheduled tasks with BullMQ. Triggers: queue, matchmaking, async events, jobs, workers, scheduling.
 ---

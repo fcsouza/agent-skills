@@ -1,5 +1,5 @@
 ---
-name: stripe-game-payments
+name: engineering-stripe-game-payments
 description: >-
   Use when implementing game payments, in-app purchases, subscriptions, Stripe webhooks, or monetization flows. Triggers: payments, IAP, subscription, Stripe, checkout, webhooks, monetization.
 ---

@@ -1,5 +1,5 @@
 ---
-name: cursor-codex-integration
+name: infrastructure-cursor-codex-integration
 description: >-
   Use when configuring Cursor IDE or OpenAI Codex for game development — .cursorrules files, prompt conventions, context injection. Triggers: cursor, .cursorrules, codex, IDE setup.
 ---

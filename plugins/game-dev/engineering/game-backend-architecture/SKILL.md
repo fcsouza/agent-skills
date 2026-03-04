@@ -1,5 +1,5 @@
 ---
-name: game-backend-architecture
+name: engineering-game-backend-architecture
 description: >-
   Use when building game servers, WebSocket connections, room management, game tick loops, or server-authoritative architecture with Elysia. Triggers: game server, WebSocket, rooms, tick loop, server architecture, multiplayer backend.
 ---

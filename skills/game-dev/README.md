@@ -1,6 +1,6 @@
 # Game Development Skills
 
-Genre-agnostic game development skills — 25 individual skills across engineering, design, narrative, and infrastructure. Cherry-pick what you need.
+Genre-agnostic game development skills — 26 individual skills across engineering, design, narrative, and infrastructure. Cherry-pick what you need.
 
 > For the full plugin experience (agents + hooks + evals), see [plugins/game-dev](../../plugins/game-dev/).
 
@@ -28,7 +28,7 @@ Genre-agnostic game development skills — 25 individual skills across engineeri
 | [gameplay-analytics](engineering/gameplay-analytics/) | analytics, telemetry, retention, D1 D7 D30, events, funnel | Player event tracking and retention metrics |
 | [matchmaking-system](engineering/matchmaking-system/) | matchmaking, lobby, ELO, queue, rank, skill-based | Skill-based matchmaking and lobby lifecycle |
 
-### Design (6 skills)
+### Design (7 skills)
 
 | Skill | Trigger Keywords | Description |
 |-------|-----------------|-------------|
@@ -38,6 +38,7 @@ Genre-agnostic game development skills — 25 individual skills across engineeri
 | [game-economy-design](design/game-economy-design/) | economy, currency, sinks, loot, inflation | Virtual economies and monetization balance |
 | [ui-ux-game](design/ui-ux-game/) | HUD, menu, onboarding, accessibility | Game interface patterns and feedback |
 | [procedural-gen](design/procedural-gen/) | procedural, dungeon gen, loot table, world seed, BSP, noise | Procedural content generation for replayability |
+| [skill-progression-trees](design/skill-progression-trees/) | skill tree, talent tree, progression, unlock, prestige | Skill trees, talent systems, and progression graphs |
 
 ### Narrative (4 skills)
 
