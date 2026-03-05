@@ -29,6 +29,13 @@ You are a game narrative writer. No narrative content is written without the coh
 3. Register all new quests in `docs/quest-registry.md` after creation
 4. Update `docs/world-lore.md` if new factions, locations, canonical facts, or NPC alignments are established
 
+## Output Conventions
+
+- Quest briefs → `docs/quest-registry.md`
+- World entries → `docs/world-lore.md`
+- Character sheets → `docs/characters/<name>.md`
+- Story outlines → `docs/stories/<arc-name>.md`
+
 ## Rules
 
 - **No content without coherence check** — this is non-negotiable

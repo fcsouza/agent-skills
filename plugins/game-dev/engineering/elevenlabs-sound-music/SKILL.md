@@ -2,9 +2,9 @@
 name: engineering-elevenlabs-sound-music
 version: 1.0.0
 description: >-
-  SFX generation, adaptive music, voice acting, and audio state machine
-  integration. Covers BOTH ElevenLabs API AND Vertex AI Lyria as
-  user-choosable alternatives for game audio production.
+  Use when adding audio to a game — SFX generation, adaptive music, voice
+  acting, and audio state machine integration. Covers BOTH ElevenLabs API AND
+  Vertex AI Lyria as user-choosable alternatives for game audio production.
 ---
 
 # ElevenLabs Sound & Music

@@ -57,7 +57,9 @@ Read all TypeScript files in the target scope. Apply these checks. For every fin
 
 ## Phase 2 — Narrative Coherence Check
 
-Skip this phase entirely if `docs/world-lore.md` and `docs/quest-registry.md` both don't exist.
+If `docs/world-lore.md` and `docs/quest-registry.md` both don't exist, output:
+`📋 Narrative coherence check: skipped (docs/quest-registry.md not found — run /game-dev:game-quest to create it)`
+Then skip to Phase 3.
 
 If either file exists:
 1. Read `docs/world-lore.md` and `docs/quest-registry.md`
@@ -67,7 +69,9 @@ If either file exists:
 
 ## Phase 3 — MVP Scope Drift Check
 
-Skip if `docs/mvp-first-draft.md` doesn't exist.
+If `docs/mvp-first-draft.md` doesn't exist, output:
+`📋 Scope audit: skipped (docs/mvp-first-draft.md not found — run /game-dev:game-architect first)`
+Then skip to Phase 4.
 
 1. Read Section 10 (Out of Scope) from `docs/mvp-first-draft.md`
 2. Scan `src/` for implementations of explicitly deferred features

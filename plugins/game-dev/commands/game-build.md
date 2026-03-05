@@ -13,6 +13,7 @@ Execute in this exact order:
 3. Check if `docs/mvp-first-draft.md` exists in the project
    - If it does NOT exist: output `⛔ Cannot proceed. Run /game-dev:game-architect first to generate the MVP plan. /game-build requires an existing plan to avoid architectural drift.` and stop.
 4. READ `docs/mvp-first-draft.md` (the MVP plan from /game-architect)
+   - Check Section 10 (Out of Scope / Deferred): if `$ARGUMENTS` matches any deferred item, output `⚠️ [component] was explicitly deferred: "[reason]". Building now may increase scope. Continue?` and wait for confirmation before proceeding.
 5. IDENTIFY which skills are relevant to `$ARGUMENTS` — load only those SKILL.md files from `${CLAUDE_PLUGIN_ROOT}/engineering/`, `${CLAUDE_PLUGIN_ROOT}/design/`, `${CLAUDE_PLUGIN_ROOT}/narrative/`, `${CLAUDE_PLUGIN_ROOT}/infrastructure/`
 6. READ `docs/build-registry.md` if it exists (create it if not, using the template below)
 7. READ `docs/world-lore.md` if component touches narrative/quests
