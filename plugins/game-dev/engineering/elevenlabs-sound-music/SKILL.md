@@ -1,6 +1,5 @@
 ---
 name: engineering-elevenlabs-sound-music
-version: 1.0.0
 description: >-
   Use when adding audio to a game — SFX generation, adaptive music, voice
   acting, and audio state machine integration. Covers BOTH ElevenLabs API AND

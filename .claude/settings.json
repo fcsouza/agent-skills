@@ -50,7 +50,8 @@
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(chmod +x /Users/fabricio/Repos/agent-skills/plugins/game-dev/scripts/*.sh)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(grep -h \"^description:\" /Users/fabricio/Repos/agent-skills/skills/game-dev/*/*.md /Users/fabricio/Repos/agent-skills/skills/game-dev/*/*/*.md)"
     ],
     "additionalDirectories": [
       "/Users/fabricio/.claude",

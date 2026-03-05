@@ -1,6 +1,5 @@
 ---
 name: design-game-design-fundamentals
-version: 1.0.0
 description: >-
   Use when designing core game loops, feedback systems, player motivation models,
   MDA framework analysis, progression curves, difficulty tuning, reward schedules,
