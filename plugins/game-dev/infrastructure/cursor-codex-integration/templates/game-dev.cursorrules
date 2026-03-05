@@ -1,0 +1,53 @@
+# Game Dev Stack Rules
+# TypeScript strict, Bun, Elysia, Drizzle ORM, Neon, Redis, BullMQ
+
+## Language & Runtime
+- Use TypeScript strict mode. Never use `any` — use proper types or `unknown` with type guards.
+- Use ES modules (import/export). Never CommonJS (require).
+- Runtime is Bun. Always use `bun`, `bun add`, `bun run`, `bunx`. Never npm, npx, or yarn.
+- Use `const` over `let`. Never `var`.
+
+## Backend
+- Backend framework is Elysia. Never suggest Express, Hapi, or Fastify.
+- Use Elysia's type-safe route handlers with Zod schemas for validation.
+- WebSocket connections use Elysia's built-in WebSocket support.
+- All game logic runs server-side. Client is display only (server-authoritative).
+
+## Database
+- ORM is Drizzle. Never use raw SQL, Prisma, TypeORM, or Sequelize.
+- Database is Neon (PostgreSQL). Use Drizzle schemas in `db/schema.ts`.
+- Use JSONB columns for flexible entity attributes.
+- Always include createdAt, updatedAt timestamps.
+- Soft deletes via `deletedAt` nullable timestamp — never hard-delete game data.
+- New schemas require migration: `bunx drizzle-kit migrate`.
+
+## Game Architecture
+- Game logic is server-authoritative. Never trust client-sent game state.
+- State changes happen at discrete tick boundaries — no floating-point time drift.
+- Delta compression for state sync — send only changed fields.
+- Use Redis for ephemeral state (sessions, presence, leaderboards). Neon for persistent state.
+
+## Game Design Constraints
+- All shared code must be genre-agnostic. No hardcoded RPG/MMO/FPS mechanics.
+- Use generic type parameters (TState, TInput, TEntity) not game-specific names in engine code.
+- Player-facing code may be genre-specific — shared library code must not.
+
+## Narrative Content (MANDATORY)
+- NEVER create quests, characters, story beats, or lore without first reading quest-narrative-coherence/SKILL.md.
+- All new quests must be registered in quest-registry.md.
+- Faction relationships defined in world-lore.md are canonical — never contradict them.
+
+## Skills Reference
+- For database: read engineering/postgres-game-schema/SKILL.md
+- For game server: read engineering/game-backend-architecture/SKILL.md
+- For multiplayer: read engineering/game-state-sync/SKILL.md
+- For matchmaking: read engineering/matchmaking-system/SKILL.md
+- For analytics: read engineering/gameplay-analytics/SKILL.md
+- For quests: read design/quest-mission-design/SKILL.md
+- For economy: read design/game-economy-design/SKILL.md
+- For narrative: read narrative/quest-narrative-coherence/SKILL.md (ALWAYS FIRST)
+
+## Formatting
+- Use Biome (not ESLint/Prettier): `bunx biome check --write .`
+- Single quotes, semicolons, trailing commas, 2-space indent.
+- Run Biome before finishing any task.

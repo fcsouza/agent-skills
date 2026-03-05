@@ -1,0 +1,13 @@
+{
+  "name": "game-dev",
+  "description": "Complete game development plugin — 26 skills, 7 commands, 3 agents, 4 hooks. Genre-agnostic patterns for any game type.",
+  "version": "1.3.0",
+  "author": {
+    "name": "Fabricio",
+    "url": "https://github.com/fcsouza"
+  },
+  "repository": "https://github.com/fcsouza/agent-skills",
+  "license": "MIT",
+  "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript", "multiplayer", "mvp"],
+  "skills": ["./design", "./engineering", "./narrative", "./infrastructure"]
+}
