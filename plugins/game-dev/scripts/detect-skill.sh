@@ -2,6 +2,16 @@
 # Detects keywords in user prompts and suggests relevant game-dev skills.
 # Called by hooks.json UserPromptSubmit hook.
 
+# Only run in game projects
+is_game_project() {
+  [ -f "$CLAUDE_PROJECT_DIR/docs/mvp-first-draft.md" ] && return 0
+  [ -f "$CLAUDE_PROJECT_DIR/docs/world-lore.md" ] && return 0
+  [ -f "$CLAUDE_PROJECT_DIR/docs/quest-registry.md" ] && return 0
+  grep -qi "game\|genre\|core.loop\|game-dev" "$CLAUDE_PROJECT_DIR/CLAUDE.md" 2>/dev/null && return 0
+  return 1
+}
+is_game_project || exit 0
+
 PROMPT=$(echo "$CLAUDE_HOOK_INPUT" | jq -r '.prompt // ""')
 
 suggest() {

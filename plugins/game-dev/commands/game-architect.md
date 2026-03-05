@@ -1,11 +1,6 @@
 ---
-name: game-architect
-description: >-
-  Comprehensive game MVP interviewer and planner. Use when starting a new game project,
-  brainstorming a game idea, planning a game MVP, or when the user says "new game",
-  "game idea", "game concept", "game plan", "build a game", or "game MVP".
-  Interviews the user in progressive groups, researches genre conventions and reference
-  games, then produces an actionable MVP First Draft with starter project files.
+description: Comprehensive game MVP interviewer and planner. Interviews you in progressive groups, researches genre conventions and reference games, then produces an actionable MVP First Draft with starter project files.
+argument-hint: Optional brief game description or genre hint
 ---
 
 # Game Architect — MVP First Draft Command

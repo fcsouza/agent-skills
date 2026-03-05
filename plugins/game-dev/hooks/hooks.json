@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "matcher": "",
@@ -37,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && [ -f biome.json ] || [ -f biome.jsonc ] && bunx biome check --write . 2>/dev/null || true"
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/biome-format.sh"
           }
         ]
       }

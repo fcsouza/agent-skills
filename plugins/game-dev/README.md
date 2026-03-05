@@ -36,8 +36,8 @@ claude --plugin-dir ./plugins/game-dev
 
 ### Command
 
-| Skill | Invocation | Description |
-|-------|-----------|-------------|
+| Command | Invocation | Description |
+|---------|-----------|-------------|
 | game-architect | `/game-dev:game-architect` | MVP interviewer — interviews you, researches your genre, produces an actionable first draft plan |
 
 ### Agents (3)
