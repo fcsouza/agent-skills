@@ -1,6 +1,6 @@
 # Game Development Plugin
 
-Genre-agnostic game development plugin — 26 skills, 3 agents, 4 hooks. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
+Genre-agnostic game development plugin — 26 skills, 7 commands, 3 agents, 4 hooks. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
 
 > For individual skills without agents/hooks, see [skills/game-dev](../../skills/game-dev/).
 
@@ -13,6 +13,12 @@ Genre-agnostic game development plugin — 26 skills, 3 agents, 4 hooks. Works f
 3. `/game-dev:engineering-postgres-game-schema` — set up your database
 4. `/game-dev:engineering-game-backend-architecture` — set up your server
 5. Pick domain skills as needed
+
+> **Workflow**: `/game-dev:game-architect` → `/game-dev:game-build [component]` (repeat) → `/game-dev:game-review`
+>
+> **Narrative workflow**: `/game-dev:game-lore [entry]` → `/game-dev:game-quest [name]` (repeat) → `/game-dev:game-balance`
+>
+> **Post-MVP**: `/game-dev:game-expand [feature]` → `/game-dev:game-build [new-component]`
 
 ## Installation
 
@@ -34,11 +40,17 @@ claude --plugin-dir ./plugins/game-dev
 
 ## Plugin Components
 
-### Command
+### Commands (7)
 
 | Command | Invocation | Description |
 |---------|-----------|-------------|
 | game-architect | `/game-dev:game-architect` | MVP interviewer — interviews you, researches your genre, produces an actionable first draft plan |
+| game-build | `/game-dev:game-build [component]` | Builds a component from the MVP plan — TypeScript + Vitest tests + mock deps + build registry |
+| game-review | `/game-dev:game-review` | Audits existing code against plugin patterns — flags architectural drift, security issues, lore conflicts |
+| game-quest | `/game-dev:game-quest [name]` | Designs a quest end-to-end — coherence check, objective tree, quest brief, and registry entry |
+| game-balance | `/game-dev:game-balance [system]` | Analyzes economy/difficulty/progression/rewards against plugin design principles with quantified metrics |
+| game-expand | `/game-dev:game-expand [feature]` | Adds a new feature to an existing MVP plan — scoped interview, scope validation, build sequence update |
+| game-lore | `/game-dev:game-lore [type name]` | Adds or updates a single world lore entry (faction, location, NPC, event) with consistency validation |
 
 ### Agents (3)
 

@@ -1,0 +1,20 @@
+{
+  "_description": "Template: copy to your game project root as .mcp.json and set env vars. Never commit actual token values. Add .env to .gitignore.",
+  "mcpServers": {
+    "github": {
+      "command": "bunx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "context7": {
+      "command": "bunx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "playwright": {
+      "command": "bunx",
+      "args": ["-y", "@executeautomation/playwright-mcp-server"]
+    }
+  }
+}

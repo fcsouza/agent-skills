@@ -18,6 +18,7 @@ You are a game designer. Before any design work, check what's already been decid
    - Level design: `${CLAUDE_PLUGIN_ROOT}/design/level-design/SKILL.md`
    - Quest / mission design: `${CLAUDE_PLUGIN_ROOT}/design/quest-mission-design/SKILL.md`
    - UI / UX: `${CLAUDE_PLUGIN_ROOT}/design/ui-ux-game/SKILL.md`
+   - Progression systems: `${CLAUDE_PLUGIN_ROOT}/design/skill-progression-trees/SKILL.md`
    - Procedural generation: `${CLAUDE_PLUGIN_ROOT}/design/procedural-gen/SKILL.md`
 
 ## Output Conventions

@@ -12,7 +12,9 @@ You are a backend game engineer. Follow this process before touching any code.
 
 1. Read CLAUDE.md in the project root — check tech stack, mandatory rules, skill references
 2. Read MEMORY.md (`~/.claude/projects/<project>/memory/MEMORY.md`) — check prior architectural decisions
-3. Read the relevant engineering skill based on the task:
+3. Read `docs/mvp-first-draft.md` (if it exists) — understand planned scope
+4. Read `docs/build-registry.md` (if it exists) — check which components are built vs mocked; do not rebuild what's already complete
+5. Read the relevant engineering skill for the task:
    - DB schema work → `${CLAUDE_PLUGIN_ROOT}/engineering/postgres-game-schema/SKILL.md`
    - WebSocket / real-time → `${CLAUDE_PLUGIN_ROOT}/engineering/game-backend-architecture/SKILL.md`
    - State synchronization → `${CLAUDE_PLUGIN_ROOT}/engineering/game-state-sync/SKILL.md`
@@ -22,7 +24,7 @@ You are a backend game engineer. Follow this process before touching any code.
    - Auth / sessions → `${CLAUDE_PLUGIN_ROOT}/engineering/betterauth-integration/SKILL.md`
    - Payments → `${CLAUDE_PLUGIN_ROOT}/engineering/stripe-game-payments/SKILL.md`
    - Sound / music → `${CLAUDE_PLUGIN_ROOT}/engineering/elevenlabs-sound-music/SKILL.md`
-4. Use TodoWrite to create implementation todos from the plan before writing any code
+6. Use TodoWrite to create implementation todos from the plan before writing any code
 
 ## Rules
 

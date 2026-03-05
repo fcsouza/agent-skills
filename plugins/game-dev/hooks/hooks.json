@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"[game-dev] Session ended. If you created narrative content, update quest-registry.md and world-lore.md.\""
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-end.sh"
           }
         ]
       }

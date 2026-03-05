@@ -10,11 +10,22 @@ When an AI agent encounters a game development task, it should:
 4. **Copy boilerplate/ files** as starting code
 5. **Use templates/** for configuration and document structure
 
+## Commands (use these first)
+
+| Task | Command |
+|------|---------|
+| Start a new game project | `/game-dev:game-architect` |
+| Build a component from the plan | `/game-dev:game-build [component]` |
+| Audit existing code | `/game-dev:game-review` |
+| Design a quest end-to-end | `/game-dev:game-quest [name]` |
+| Check economy / difficulty balance | `/game-dev:game-balance [system]` |
+| Add a post-MVP feature | `/game-dev:game-expand [feature]` |
+| Add a lore entry (faction/location/NPC/event) | `/game-dev:game-lore [type name]` |
+
 ## Skill Selection by Task
 
 | Task | Read First | Then |
 |------|-----------|------|
-| Start a new game project | `claude-code-game-workflow` | `game-design-fundamentals` → `postgres-game-schema` |
 | Set up the server | `game-backend-architecture` | `redis-game-patterns` → `betterauth-integration` |
 | Design game mechanics | `game-design-fundamentals` | `game-economy-design` + domain-specific skills |
 | Create quests | `quest-narrative-coherence` | `quest-mission-design` → `worldbuilding` |
