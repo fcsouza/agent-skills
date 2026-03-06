@@ -1,6 +1,6 @@
 # Game Development Plugin
 
-Genre-agnostic game development plugin — 26 skills, 7 commands, 3 agents, 4 hooks. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
+Genre-agnostic game development plugin — 26 skills, 7 commands, 3 agents, 5 hooks. Works for RPGs, MMOs, idle games, puzzlers, platformers, strategy, card games, shooters, and any other genre.
 
 > For individual skills without agents/hooks, see [skills/game-dev](../../skills/game-dev/).
 
@@ -22,17 +22,19 @@ Genre-agnostic game development plugin — 26 skills, 7 commands, 3 agents, 4 ho
 
 ## Installation
 
-### Via marketplace
+**Step 1 — Add the marketplace** (one-time):
 
 ```bash
-# Add the marketplace
 /plugin marketplace add fcsouza/agent-skills
+```
 
-# Install the plugin
+**Step 2 — Install the plugin**:
+
+```bash
 /plugin install game-dev@fcsouza-agent-skills
 ```
 
-### For local development
+### Local development
 
 ```bash
 claude --plugin-dir ./plugins/game-dev
