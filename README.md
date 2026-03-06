@@ -10,7 +10,7 @@ Plugins are complete workflow bundles — skills + agents + hooks working togeth
 
 | Plugin | Description | Platform |
 |--------|-------------|----------|
-| [game-dev](plugins/game-dev/) | **26 skills, 3 agents, 4 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
+| [game-dev](plugins/game-dev/) | **26 skills, 7 commands, 3 agents, 5 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
 
 ## Available Skills
 
@@ -54,18 +54,22 @@ skills/<skill-name>/
 
 ## Installation
 
-### Via [skills.sh](https://skills.sh) (recommended)
-
-Works with 37+ agents — Claude Code, OpenClaw, Cursor, Copilot, Windsurf, and more.
+### game-dev plugin (Claude Code)
 
 ```bash
-# Install a plugin (full workflow: skills + agents + hooks)
-npx skills add fcsouza/agent-skills --skill game-dev
+/plugin marketplace add fcsouza/agent-skills
+/plugin install game-dev@fcsouza-agent-skills
+```
 
-# Install a specific skill
+See [plugins/game-dev/README.md](plugins/game-dev/README.md) for the full skill index, commands, and agents.
+
+### Individual skills (cherry-pick)
+
+```bash
+# Via skills.sh
 npx skills add fcsouza/agent-skills --skill openclaw-genie
 
-# Install globally (available across projects)
+# Install globally
 npx skills add fcsouza/agent-skills --skill openclaw-genie -g
 
 # Target a specific agent
@@ -78,10 +82,10 @@ npx skills add fcsouza/agent-skills --list
 ### Manual
 
 ```bash
-# For Claude Code — plugin (full bundle)
+# Plugin (full bundle)
 cp -r plugins/game-dev/ .claude/plugins/game-dev/
 
-# For Claude Code — individual skill
+# Individual skill
 cp -r skills/game-dev/<category>/<skill-name>/ .claude/skills/<skill-name>/
 
 # For OpenClaw
