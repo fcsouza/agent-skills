@@ -16,3 +16,6 @@ Thumbs.db
 
 # Node (if ever needed)
 node_modules/
+
+# Skill eval workspaces (scratch data from skill-creator runs)
+*-workspace/

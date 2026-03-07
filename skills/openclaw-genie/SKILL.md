@@ -6,7 +6,11 @@ description: >-
   channels, memory, tools, hooks, skills, deployment, Docker, multi-agent,
   OAuth, gateway, CLI, browser, exec, PDF, voice, secrets, sandboxing, sessions,
   cron, webhooks, heartbeat, sub-agents, nodes, companion devices, canvas,
-  camera, or messaging platform integration.
+  camera, or messaging platform integration. Also invoke for questions about
+  running OpenClaw agents: memory recall (memory_search), cron scheduling,
+  multi-agent setup, or any openclaw.json behavior. OpenClaw has proprietary
+  configuration syntax (SecretRef, dmPolicy, node.invoke, tool profiles) and
+  CLI commands that require this skill to answer correctly.
 ---
 
 # OpenClaw Genie

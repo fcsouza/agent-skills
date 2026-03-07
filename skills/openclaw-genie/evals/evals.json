@@ -1,0 +1,38 @@
+{
+  "skill_name": "openclaw-genie",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Hey, I just installed OpenClaw and ran `openclaw onboard`. I want to connect my Telegram bot — I already have a token from BotFather. What's the exact command to add it, and how do I make sure only I can DM the bot (not random people)?",
+      "expected_output": "Explains `openclaw channels add --channel telegram --token ...`, sets dmPolicy to pairing or allowlist, mentions BotFather privacy mode",
+      "files": [],
+      "assertions": [
+        "Response mentions the command `openclaw channels add --channel telegram` or `botToken` config key",
+        "Response explains dmPolicy options (pairing or allowlist) to restrict who can DM the bot",
+        "Response mentions BotFather privacy mode (/setprivacy) or equivalent access control mechanism"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm running OpenClaw on a VPS and want to store my Telegram bot token and gateway auth token as secrets instead of putting them in plain text in openclaw.json. How do I do that? Also I saw something about needing to set gateway.auth.mode explicitly now — what's that about?",
+      "expected_output": "Explains SecretRef ($secret syntax), gateway.auth.mode breaking change in v2026.3.7, env var resolution",
+      "files": [],
+      "assertions": [
+        "Response explains the `$secret` SecretRef syntax (e.g. `{ \"$secret\": \"TELEGRAM_BOT_TOKEN\" }`)",
+        "Response mentions the gateway.auth.mode breaking change introduced in v2026.3.7",
+        "Response explains that SecretRefs are resolved from environment variables at runtime"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I paired my iPhone with OpenClaw as a node. Now I want my agent to be able to take a photo from my phone's camera when I ask it to, and also display web pages on the phone screen. What tools does the agent use for this, and are there any limitations I should know about?",
+      "expected_output": "Explains nodes tool, camera.snap, canvas.present, foreground app requirement, node.invoke surface",
+      "files": [],
+      "assertions": [
+        "Response mentions `camera.snap` action or `node.invoke` as the mechanism to take a photo",
+        "Response mentions `canvas.present` for displaying web pages/HTML on the device",
+        "Response mentions the foreground app requirement (canvas/camera require the app to be in the foreground on mobile)"
+      ]
+    }
+  ]
+}
