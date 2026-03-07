@@ -16,35 +16,70 @@ Plugins are complete workflow bundles — skills + agents + hooks working togeth
 
 Skills are individual, cherry-pickable modules. Install only what you need.
 
+### Core
+
 | Skill | Description | Platform |
 |-------|-------------|----------|
 | [openclaw-genie](skills/openclaw-genie/) | Comprehensive OpenClaw gateway skill — installation, configuration, 38+ channels, memory, tools, hooks, deployment, multi-agent | [OpenClaw](https://openclaw.ai) |
-| [game-dev](skills/game-dev/) | **26 individual game development skills** — cherry-pick engineering, design, narrative, and infrastructure skills | Game Dev |
+| [react-animations](skills/react-animations/) | React animation patterns and utilities | React |
+
+### Game Dev — Design
+
+| Skill | Description |
+|-------|-------------|
+| [game-design-fundamentals](skills/game-design-fundamentals/) | Core loops, MDA framework, progression curves |
+| [game-economy-design](skills/game-economy-design/) | Virtual economies, currencies, loot tables |
+| [level-design](skills/level-design/) | Levels, environments, difficulty curves |
+| [procedural-gen](skills/procedural-gen/) | Dungeon gen, noise terrain, wave function collapse |
+| [quest-mission-design](skills/quest-mission-design/) | Quests, objectives, quest trees |
+| [skill-progression-trees](skills/skill-progression-trees/) | Skill trees, talent trees, unlock graphs |
+| [ui-ux-game](skills/ui-ux-game/) | HUD, menus, onboarding, accessibility |
+
+### Game Dev — Engineering
+
+| Skill | Description |
+|-------|-------------|
+| [betterauth-integration](skills/betterauth-integration/) | Auth, OAuth, JWT, RBAC |
+| [bullmq-game-queues](skills/bullmq-game-queues/) | Job queues, async events, scheduled tasks |
+| [elevenlabs-sound-music](skills/elevenlabs-sound-music/) | SFX generation, adaptive music, voice acting |
+| [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
+| [game-state-sync](skills/game-state-sync/) | Client-server sync, rollback netcode, delta compression |
+| [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
+| [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, ELO, skill-based queues |
+| [postgres-game-schema](skills/postgres-game-schema/) | Game DB schemas, Drizzle ORM, inventory |
+| [redis-game-patterns](skills/redis-game-patterns/) | Caching, leaderboards, pub/sub, rate limiting |
+| [stripe-game-payments](skills/stripe-game-payments/) | In-app purchases, subscriptions, webhooks |
+
+### Game Dev — Infrastructure
+
+| Skill | Description |
+|-------|-------------|
+| [ci-cd-game](skills/ci-cd-game/) | CI/CD pipelines, GitHub Actions, deployment |
+| [claude-code-game-workflow](skills/claude-code-game-workflow/) | Entry point for AI agents on game projects |
+| [cursor-codex-integration](skills/cursor-codex-integration/) | Cursor IDE, .cursorrules, Codex setup |
+| [monitoring-game-ops](skills/monitoring-game-ops/) | Monitoring, logging, telemetry, alerts |
+
+### Game Dev — Narrative
+
+| Skill | Description |
+|-------|-------------|
+| [character-design-narrative](skills/character-design-narrative/) | Characters, NPCs, dialogue, archetypes |
+| [quest-narrative-coherence](skills/quest-narrative-coherence/) | Narrative coherence check, lore validation |
+| [story-structure-game](skills/story-structure-game/) | Branching narratives, player agency, story arcs |
+| [worldbuilding](skills/worldbuilding/) | Lore, factions, geography, world bibles |
 
 ## Structure
 
-Simple skills follow a flat layout:
+All skills follow a flat layout:
 
 ```
 skills/<skill-name>/
 ├── README.md           # Overview and installation instructions
 ├── SKILL.md            # Main skill file (YAML frontmatter + body)
-└── references/         # Deep-dive reference files (optional)
-    └── topic-a.md
-```
-
-Larger skill ecosystems (like `game-dev`) use a nested layout with domain sub-skills:
-
-```
-skills/<skill-name>/
-├── README.md           # Ecosystem overview and skill index
-├── AGENTS.md           # How AI agents should navigate the ecosystem
-├── <domain>/
-│   └── <sub-skill>/
-│       ├── SKILL.md        # Skill knowledge and principles
-│       ├── ARCHITECTURE.md # System diagrams (optional)
-│       ├── boilerplate/    # Starter code to copy and customize
-│       └── templates/      # Document and config templates
+├── boilerplate/        # Starter code to copy and customize (optional)
+├── templates/          # Document and config templates (optional)
+├── references/         # Deep-dive reference files (optional)
+└── ARCHITECTURE.md     # System design decisions (optional)
 ```
 
 - `SKILL.md` is always the entry point — read this first
@@ -66,14 +101,11 @@ See [plugins/game-dev/README.md](plugins/game-dev/README.md) for the full skill 
 ### Individual skills (cherry-pick)
 
 ```bash
-# Via skills.sh
-npx skills add fcsouza/agent-skills --skill openclaw-genie
+# Install a specific skill
+npx skills add fcsouza/agent-skills --skill game-design-fundamentals
 
-# Install globally
-npx skills add fcsouza/agent-skills --skill openclaw-genie -g
-
-# Target a specific agent
-npx skills add fcsouza/agent-skills --skill openclaw-genie -a claude-code
+# Install all game-dev engineering skills at once
+npx skills add fcsouza/agent-skills --skill betterauth-integration --skill postgres-game-schema --skill game-backend-architecture
 
 # List all available skills
 npx skills add fcsouza/agent-skills --list
@@ -86,7 +118,7 @@ npx skills add fcsouza/agent-skills --list
 cp -r plugins/game-dev/ .claude/plugins/game-dev/
 
 # Individual skill
-cp -r skills/game-dev/<category>/<skill-name>/ .claude/skills/<skill-name>/
+cp -r skills/<skill-name>/ .claude/skills/<skill-name>/
 
 # For OpenClaw
 cp -r skills/<skill-name>/ ~/.openclaw/workspace/skills/<skill-name>/
