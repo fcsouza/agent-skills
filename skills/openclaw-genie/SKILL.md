@@ -1,18 +1,20 @@
 ---
 name: openclaw-genie
-version: 1.0.0
+version: 1.2.0
 description: >-
   Use when the user asks about OpenClaw — installation, configuration, agents,
   channels, memory, tools, hooks, skills, deployment, Docker, multi-agent,
-  OAuth, gateway, CLI, browser, exec, sandboxing, sessions, cron, webhooks,
-  heartbeat, sub-agents, or messaging platform integration.
+  OAuth, gateway, CLI, browser, exec, PDF, voice, secrets, sandboxing, sessions,
+  cron, webhooks, heartbeat, sub-agents, nodes, companion devices, canvas,
+  camera, or messaging platform integration.
 ---
 
 # OpenClaw Genie
 
-OpenClaw is a self-hosted personal AI agent gateway (MIT license, ~229k GitHub
-stars). It connects LLM agents to 38+ messaging platforms (WhatsApp, Telegram,
-Discord, Slack, Signal, iMessage, MS Teams, Matrix, and more) through a single
+OpenClaw is a self-hosted personal AI agent gateway (MIT license, open source).
+It connects LLM agents to 22+ messaging platforms natively (WhatsApp, Telegram,
+Discord, Slack, Signal, iMessage, MS Teams, Matrix, and more) with 50+
+integrations (Gmail, GitHub, Obsidian, Spotify, and more) through a single
 Gateway process. All data stays local.
 
 ---
@@ -48,11 +50,14 @@ Channels (WhatsApp, Discord, Telegram, Slack, Signal, …)
     Agents   ← isolated workspaces, sessions, memory, tools
         ↓
     Tools    ← exec, browser, skills, hooks, messaging, sub-agents
+        ↓
+    Nodes    ← companion devices (macOS/iOS/Android): camera, canvas, screen
 ```
 
 - **Gateway**: Multiplexed port (WebSocket + HTTP + Control UI). Hot-reloads config.
 - **Agents**: Fully isolated — own workspace, session store, memory, auth profiles, sandbox.
-- **Channels**: 38+ adapters run simultaneously. Deterministic routing: replies return to origin.
+- **Channels**: 22+ native adapters run simultaneously. Deterministic routing: replies return to origin.
+- **Nodes**: Paired companion devices that expose `canvas.*`, `camera.*`, `screen.*`, `device.*`, `notifications.*` via `node.invoke`.
 - **Sessions**: Key format `agent:<agentId>:<channel>:<scope>:<chatId>`. DM scopes: `main`, `per-peer`, `per-channel-peer`, `per-account-channel-peer`.
 
 ---
@@ -126,6 +131,9 @@ For full reference, read `references/configuration.md`.
 | IRC | `openclaw channels add irc` | NickServ, channels + DMs |
 | MS Teams | `openclaw plugins install @openclaw/msteams` | Adaptive Cards, polls |
 | Matrix | `openclaw plugins install @openclaw/matrix` | E2EE, threads, rooms |
+| Mattermost | `openclaw plugins install @openclaw/mattermost` | Self-hosted |
+| Nextcloud Talk | `openclaw plugins install @openclaw/nextcloud-talk` | Self-hosted |
+| WebChat | Built-in web UI | Browser-based access at gateway URL |
 
 **Access control**: DM policy (`pairing`/`allowlist`/`open`/`disabled`), group policy, mention gating. Multi-account per channel supported.
 
@@ -162,8 +170,11 @@ For full memory config, read `references/memory.md`.
 | `message` | Cross-channel messaging (send, react, thread, pin, poll) |
 | `sessions_spawn` | Sub-agent runs (one-shot or persistent, up to depth 5) |
 | `canvas` | Node Canvas UI (HTML display on connected devices) |
+| `nodes` | Paired device control: camera snap/clip, screen record, notifications, canvas A2UI |
+| `pdf` | Native PDF analysis (up to 10 PDFs, Anthropic/Google native mode, extraction fallback) |
 
-**Access control**: Profiles (`minimal`, `coding`, `messaging`, `full`), allow/deny lists, tool groups (`group:fs`, `group:runtime`, `group:web`, `group:ui`, `group:automation`).
+**Access control**: Profiles (`minimal`, `coding`, `messaging`, `full`), allow/deny lists, tool groups (`group:fs`, `group:runtime`, `group:sessions`, `group:web`, `group:ui`, `group:automation`).
+**Default profile** (since v2026.3.2): onboarding defaults to `messaging` (not `coding`).
 
 For full tools, skills, and hooks reference, read `references/tools.md`.
 
@@ -185,6 +196,8 @@ For full tools, skills, and hooks reference, read `references/tools.md`.
 - **Cron**: Scheduled jobs (cron expressions, intervals, one-shot). Isolated or main-session.
 - **Webhooks**: `/hooks/wake` (system events), `/hooks/agent` (isolated turns), custom mapped endpoints.
 - **Heartbeat**: Periodic check-ins (default 30min), batches multiple checks per turn.
+
+**Voice** — macOS/iOS wake word + talk mode overlay; continuous voice on Android with ElevenLabs or system TTS; OpenAI-compatible STT endpoint (`messages.tts.openai.baseUrl`).
 
 ---
 
@@ -225,11 +238,14 @@ For full deployment guide, read `references/deployment.md`.
 | `openclaw sessions` | List/manage sessions |
 | `openclaw browser` | Browser control (50+ subcommands) |
 | `openclaw cron list/add/run` | Scheduled jobs |
-| `openclaw config get/set/unset` | Config helpers |
+| `openclaw nodes status` | List paired companion nodes |
+| `openclaw devices list/approve` | Manage device pairing requests |
+| `openclaw config get/set/unset/validate` | Config helpers (`validate` checks file before startup) |
 | `openclaw doctor [--fix]` | Health checks + auto-repair |
 | `openclaw security audit [--deep]` | Security audit |
 | `openclaw logs [--follow]` | Tail gateway logs |
 | `openclaw memory search "query"` | Vector search |
+| `openclaw dns setup` | CoreDNS + Tailscale discovery |
 | `openclaw tui` | Terminal UI |
 
 **Global flags**: `--dev`, `--profile <name>`, `--json`, `--no-color`
@@ -243,6 +259,6 @@ For full deployment guide, read `references/deployment.md`.
 | Full openclaw.json, model providers, env vars, auth, OAuth | `references/configuration.md` |
 | Per-channel setup, routing, access control, streaming, multi-account | `references/channels.md` |
 | Memory files, vector search, QMD, embeddings, hybrid search | `references/memory.md` |
-| Exec, browser, skills, hooks, tool access, sub-agents | `references/tools.md` |
+| Exec, browser, skills, hooks, tool access, sub-agents, nodes | `references/tools.md` |
 | Docker, cloud deploy, sandboxing, native install, security | `references/deployment.md` |
 | Multi-agent config, bindings, broadcast, sub-agents, workspaces | `references/multi-agent.md` |

@@ -153,12 +153,37 @@ openclaw --dev agent                     # ~/.openclaw-dev/ (isolated)
 
 Modes: `off`, `hot`, `restart`, `hybrid` (default). Most settings hot-apply (channels, models, tools, skills, hooks, cron, sessions). Gateway infrastructure (`gateway.*`, `discovery`) requires restart. Config RPC: `config.apply` (full replace) and `config.patch` (merge), rate-limited 3 req/60s.
 
+## Secrets Management (SecretRef)
+
+Store sensitive values outside config using a SecretRef instead of inline strings (64 credential targets supported).
+
+```jsonc
+{
+  "channels": {
+    "telegram": {
+      "botToken": { "$secret": "TELEGRAM_BOT_TOKEN" }
+    }
+  },
+  "gateway": {
+    "auth": {
+      "token": { "$secret": "GATEWAY_TOKEN" },
+      "mode": "token"   // REQUIRED when both token and password are set (v2026.3.7+)
+    }
+  }
+}
+```
+
+SecretRefs are resolved at runtime from env vars or a secrets backend. Run `openclaw secrets audit` to check coverage.
+
+⚠️ **Breaking (v2026.3.7)**: If `gateway.auth` has both `token` and `password` configured (including via SecretRefs), `gateway.auth.mode` must now be explicitly set to `"token"` or `"password"` or the gateway will refuse to start.
+
 ## CLI Quick Reference
 
 ```bash
 openclaw config get models.primary
 openclaw config set models.primary '"anthropic/claude-opus-4-6"' --json
 openclaw config unset channels.irc
+openclaw config validate [--json]   # Validate config file before startup (v2026.3.2+)
 openclaw models list [--all --provider anthropic]
 openclaw models set anthropic/claude-opus-4-6
 openclaw models scan            # Probe available models

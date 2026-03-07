@@ -13,6 +13,7 @@ openclaw config set channels.discord.enabled true --json
 - **Streaming**: `off`, `partial`, `block`, `progress`. Preview streaming uses send+edit pattern.
 - **Routing**: Role-based bindings via `bindings[].match.roles` (role IDs). Evaluate in sequence.
 - **Config**: `historyLimit` (20), `dmHistoryLimit`, `replyToMode` (`off`/`first`/`all`), `textChunkLimit`, `status`, `activity`, `activityType` (0-5), `execApprovals.enabled` (button-based), `pluralkit.enabled`.
+- **Persistent bindings** (v2026.3.7): Thread bindings survive gateway restarts; ACP management supported.
 
 ### Telegram
 ```bash
@@ -22,7 +23,8 @@ openclaw channels add --channel telegram --token "BOT_TOKEN"
 - **Auth**: Token from @BotFather (`/newbot`). Env fallback: `TELEGRAM_BOT_TOKEN`.
 - **Features**: Groups, forum topics, inline buttons, custom commands, webhook mode, reactions.
 - **Webhook mode**: Set `webhookUrl` + `webhookSecret`. Default: long polling via grammY.
-- **Streaming**: `off` (default), `partial`, `block`, `progress`.
+- **Streaming**: `partial` (default since v2026.3.2), `off`, `block`, `progress`. DM streaming uses `sendMessageDraft` for private previews.
+- **Topic agent routing** (v2026.3.7): Individual forum topics can route to dedicated agents with isolated sessions.
 - **Config**: `textChunkLimit` (4000), `chunkMode` (`length`/`newline`), `mediaMaxMb` (5), `linkPreview`, `reactionLevel` (`off`/`ack`/`minimal`/`extensive`), `historyLimit` (50), `dmHistoryLimit`.
 - **Privacy**: Disable via BotFather `/setprivacy` for full group visibility. Remove/re-add bot after.
 - **Network**: `proxy` (SOCKS/HTTP), `network.dnsResultOrder` (`ipv4first`/`verbatim`).
@@ -81,9 +83,9 @@ openclaw channels add bluebubbles --http-url <url> --password <password>
 ```bash
 openclaw plugins install @openclaw/matrix      # E2EE, threads, rooms
 openclaw plugins install @openclaw/msteams     # Adaptive Cards, polls
-openclaw plugins install @openclaw/<channel>   # mattermost, feishu, line, nostr, etc.
+openclaw plugins install @openclaw/<channel>   # mattermost, feishu, line, nostr, nextcloud-talk, twitch, zalo, synology-chat, etc.
 ```
-Matrix supports encryption (`encryption: true`), auto-join, thread replies. MS Teams supports Adaptive Cards, polls stored locally.
+Matrix supports encryption (`encryption: true`), auto-join, thread replies. MS Teams supports Adaptive Cards, polls stored locally. Nextcloud Talk and Mattermost support self-hosted deployments.
 
 ## Access Control (All Channels)
 

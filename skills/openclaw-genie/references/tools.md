@@ -151,7 +151,77 @@ export default handler;
 
 **Groups**: `group:fs`, `group:runtime`, `group:sessions`, `group:web`, `group:ui`, `group:automation`.
 
+**Default allow in sandbox**: exec, process, read, write, edit, sessions_list/history/send/spawn.
+**Default deny in sandbox**: browser, canvas, nodes, cron, discord, gateway. Deny wins over allow.
+
 **Loop detection**: `genericRepeat`, `knownPollNoProgress`, `pingPong`. Configurable warning/critical thresholds.
+
+## PDF Tool
+
+First-class native PDF analysis (added v2026.3.2).
+
+| Parameter | Description |
+|-----------|-------------|
+| `pdf` | Single PDF path or URL |
+| `pdfs` | Array of up to 10 PDFs |
+| `prompt` | Analysis prompt (default: "Analyze this PDF document") |
+| `pages` | Page filter range, e.g. `1-5` or `1,3,7-9` |
+| `model` | Override model for this call |
+
+**Supported references**: Local paths (`~` expanded), `file://`, `http://`, `https://`.
+
+**Processing modes**:
+- **Native** (Anthropic, Google): sends raw PDF bytes directly — page filtering not supported
+- **Extraction fallback** (all other providers): extracts text (max 20 pages default); falls back to PNG render if fewer than 200 chars extracted
+
+**Config**:
+```jsonc
+{
+  "agents": {
+    "defaults": {
+      "pdfModel": "anthropic/claude-sonnet-4-5",  // preferred over imageModel
+      "imageModel": "openai/gpt-4o"               // fallback
+    }
+  }
+}
+```
+
+Defaults: max 10MB per PDF, max 20 pages. Output in `content[0].text` with metadata in `details`.
+
+## Nodes (Companion Devices)
+
+Paired macOS/iOS/Android/headless devices that connect to the Gateway as peripherals, exposing hardware surfaces.
+
+**Pairing**:
+```bash
+openclaw devices list                    # List pending pairing requests
+openclaw devices approve <requestId>     # Approve a device
+openclaw nodes status                    # Show connected nodes
+```
+
+**Command surfaces** (via `node.invoke`):
+
+| Surface | Actions |
+|---------|---------|
+| `canvas.*` | `present` (URL/HTML), `hide`, `navigate`, `eval` (JS), `snapshot` (PNG), A2UI push |
+| `camera.*` | `snap` (JPG photo), `clip` (MP4 video, duration param) |
+| `screen.*` | `record` (MP4, ≤60s, `--fps`, `--no-audio`) |
+| `device.*` | `status`, `info`, `permissions`, `health` (Android) |
+| `notifications.*` | `list`, `actions` (Android) |
+| `system.*` | `run`, `which`, `notify`, exec approvals (macOS/headless) |
+| `photos.*` | `latest` (Android) |
+| `sms.*` | `send` (Android, requires telephony permission) |
+
+**Remote node host** — route `system.run` calls to a separate machine:
+```bash
+openclaw node run --host <gateway-host> --port 18789 --display-name "Build Node"
+```
+
+**Key constraints**:
+- Canvas/camera require foreground app on mobile
+- Screen recordings capped at 60 seconds
+- `exec` approvals required for `system.run` (stored in `~/.openclaw/exec-approvals.json`)
+- Sandbox default: `browser` and `canvas` denied; `nodes` denied in sandboxed sessions
 
 ## Messaging & Sub-Agents
 
@@ -160,6 +230,7 @@ export default handler;
 **`sessions_spawn`**: Sub-agent runs. One-shot or persistent, thread-bound. Returns run ID immediately. Results announce back to requester.
 - Nested spawning via `maxSpawnDepth` (1-5). Depth-1 = orchestrator, depth-2+ = leaf (no session tools).
 - Config: `subagents.maxConcurrent` (8), `runTimeoutSeconds` (900), `model`, `thinking`.
-- Slash commands: `/subagents list|kill|log|info|send|steer`, `/focus`, `/unfocus`.
+- Slash commands: `/subagents spawn|list|kill|log|info|send|steer`, `/focus <target>`, `/unfocus`, `/session ttl`.
+- Config: `subagents.maxChildrenPerAgent` (1-20, default 5), `maxConcurrent` (8), `runTimeoutSeconds` (900), `archiveAfterMinutes` (60).
 
 **`canvas`**: HTML display on connected nodes (macOS/iOS/Android). Actions: `present`, `hide`, `navigate`, `eval`, `snapshot`.
