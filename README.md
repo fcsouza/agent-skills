@@ -126,4 +126,4 @@ cp -r skills/<skill-name>/ ~/.openclaw/workspace/skills/<skill-name>/
 
 ## License
 
-MIT
+GPL-3.0
