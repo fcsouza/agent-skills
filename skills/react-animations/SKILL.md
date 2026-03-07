@@ -1,18 +1,12 @@
 ---
 name: react-animations
 description: >-
-  Use when implementing animations, transitions, or motion in React apps. Triggers: animation, transition, motion, animate, framer motion, react spring, GSAP, keyframe, entrance, exit, layout animation, gesture, drag, scroll animation, parallax.
+  Use when implementing animations, transitions, or motion effects in React apps. Invoke this skill whenever someone asks about animation, transition, motion, framer motion, react spring, GSAP, entrance/exit effects, scroll animation, parallax, gesture, drag, card flip, screen shake, health bar, damage numbers, loading states, page transitions, hover effects, or any element that should move, fade, scale, or respond to interaction — even if they don't use the word "animation".
 ---
 
 # React Animations
 
-## Purpose
-
-Production-quality animations in React using Framer Motion (primary), React Spring (physics), GSAP (timelines), and CSS/Tailwind (simple cases). Covers entrance/exit, layout, gesture-driven, scroll-triggered, and game UI animations.
-
-## When to Use
-
-Trigger: animation, transition, motion, animate, framer motion, react spring, GSAP, keyframe, entrance animation, exit animation, layout animation, gesture, drag, scroll animation, parallax, game UI effects, card flip, screen shake, health bar, damage numbers
+Production-quality animations in React using Framer Motion (primary), React Spring (physics), GSAP (timelines), and CSS/Tailwind (simple cases).
 
 ## Library Decision Table
 
@@ -22,23 +16,22 @@ Trigger: animation, transition, motion, animate, framer motion, react spring, GS
 | Shared element transitions | Framer Motion | layoutId |
 | Physics-based (spring, bounce) | Framer Motion or React Spring | spring config |
 | Complex timelines / sequences | GSAP | Timeline API |
-| Scroll-triggered | Framer Motion (useScroll) or GSAP ScrollTrigger | Built-in scroll hooks |
+| Scroll-triggered | Framer Motion (whileInView / useScroll) | Built-in scroll hooks |
 | Simple hover/focus states | CSS Tailwind | No JS needed |
 | Drag and drop | Framer Motion | Built-in gesture support |
 | SVG path animations | GSAP or Framer Motion | Both support SVG |
+| Imperative / programmatic | Framer Motion useAnimate | Modern imperative API |
 
 ## Core Principles
 
 > Matt Perry (Framer Motion creator): "Animations should be declared, not imperatively managed. Describe the target state — the library handles the rest."
 > Sarah Drasner: "Animation is not decoration — it's communication. Every motion should serve a purpose."
-> Lea Verou: "Use CSS transitions for what CSS can handle. Reach for JavaScript only when CSS falls short."
-> Tom Occhino: "Performance isn't an afterthought — it's a feature. 60fps or nothing."
 
 1. **CSS for simple, JS for complex** — if Tailwind `transition` works, use it; don't add Framer Motion for hover states
 2. **Only animate composited properties** — `transform` and `opacity`; never `width`, `height`, `top`, `left` (causes reflow)
 3. **AnimatePresence wraps conditional renders** — without it, exit animations are skipped
-4. **Variants for coordinated animations** — define animation states as objects, not inline values
-5. **layoutId for shared element transitions** — React handles the interpolation between positions
+4. **Variants for coordinated animations** — define animation states as objects outside the component, not inline values
+5. **layoutId for shared element transitions** — Framer Motion handles the interpolation between positions
 6. **useMotionValue for gesture-driven** — don't use useState for values that drive animations
 7. **60fps budget** — keep animation logic out of render cycle; use transforms
 
@@ -51,6 +44,16 @@ Trigger: animation, transition, motion, animate, framer motion, react spring, GS
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
   transition={{ duration: 0.3 }}
+/>
+```
+
+### Gesture States (whileHover, whileTap)
+
+```tsx
+<motion.button
+  whileHover={{ scale: 1.05 }}
+  whileTap={{ scale: 0.95 }}
+  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
 />
 ```
 
@@ -79,8 +82,13 @@ const item = {
 
 ### AnimatePresence with Exit
 
+The `mode` prop controls how entering/exiting elements interact:
+- `"sync"` (default) — enter and exit happen simultaneously
+- `"wait"` — exit completes before enter starts (good for page transitions)
+- `"popLayout"` — exiting element is removed from layout flow immediately
+
 ```tsx
-<AnimatePresence>
+<AnimatePresence mode="wait">
   {isVisible && (
     <motion.div
       key="modal"
@@ -90,6 +98,30 @@ const item = {
     />
   )}
 </AnimatePresence>
+```
+
+### whileInView for Scroll-Triggered Animations
+
+The simplest approach — no scroll hooks needed:
+
+```tsx
+<motion.div
+  initial={{ opacity: 0, y: 40 }}
+  whileInView={{ opacity: 1, y: 0 }}
+  viewport={{ once: true, margin: '-100px' }}
+  transition={{ duration: 0.5 }}
+/>
+```
+
+Use `viewport.once: true` so the animation doesn't replay on scroll back.
+
+### useScroll + useTransform for Parallax
+
+```tsx
+const { scrollYProgress } = useScroll();
+const y = useTransform(scrollYProgress, [0, 1], [0, -200]);
+
+<motion.div style={{ y }} />
 ```
 
 ### layoutId Shared Element
@@ -106,15 +138,6 @@ const item = {
 </motion.div>
 ```
 
-### useScroll + useTransform for Parallax
-
-```tsx
-const { scrollYProgress } = useScroll();
-const y = useTransform(scrollYProgress, [0, 1], [0, -200]);
-
-<motion.div style={{ y }} />
-```
-
 ### Drag with Constraints
 
 ```tsx
@@ -126,6 +149,49 @@ const y = useTransform(scrollYProgress, [0, 1], [0, -200]);
 />
 ```
 
+### useAnimate — Imperative Animations (v11+)
+
+Prefer `useAnimate` over `useAnimation` for programmatic sequences. It's scoped to a ref and works with any selector within that scope:
+
+```tsx
+const [scope, animate] = useAnimate();
+
+const handleClick = async () => {
+  await animate(scope.current, { scale: 1.2 }, { duration: 0.2 });
+  await animate(scope.current, { scale: 1 }, { duration: 0.1 });
+};
+
+<div ref={scope}>
+  <button onClick={handleClick}>Click me</button>
+</div>
+```
+
+### MotionConfig — Global Animation Settings
+
+Wrap your app (or a subtree) to set defaults like reduced motion or spring presets:
+
+```tsx
+<MotionConfig reducedMotion="user">
+  <App />
+</MotionConfig>
+```
+
+`reducedMotion="user"` automatically disables animations for users with OS-level "reduce motion" preferences. This is the easiest way to handle accessibility at scale.
+
+### LazyMotion — Bundle Size Optimization
+
+For production apps, replace `motion` with `LazyMotion` + `m` to code-split the animation engine:
+
+```tsx
+import { LazyMotion, domAnimation, m } from 'framer-motion';
+
+<LazyMotion features={domAnimation}>
+  <m.div animate={{ opacity: 1 }} />
+</LazyMotion>
+```
+
+Use `domMax` instead of `domAnimation` if you need drag or layout animations.
+
 ## Game UI Patterns
 
 ### Health Bar Smooth Tweening
@@ -133,6 +199,10 @@ const y = useTransform(scrollYProgress, [0, 1], [0, -200]);
 ```tsx
 const motionWidth = useMotionValue(current / max);
 const springWidth = useSpring(motionWidth, { stiffness: 200, damping: 30 });
+
+useEffect(() => {
+  motionWidth.set(Math.max(0, Math.min(1, current / max)));
+}, [current, max]);
 
 <motion.div style={{ scaleX: springWidth, transformOrigin: 'left' }} />
 ```
@@ -159,16 +229,16 @@ const springWidth = useSpring(motionWidth, { stiffness: 200, damping: 30 });
 </motion.div>
 ```
 
-### Screen Shake
+### Screen Shake (useAnimate)
 
 ```tsx
-const x = useMotionValue(0);
-const controls = useAnimation();
+const [scope, animate] = useAnimate();
 
-const shake = () => controls.start({
-  x: [0, -10, 10, -10, 10, 0],
-  transition: { duration: 0.4 },
-});
+const shake = async () => {
+  await animate(scope.current, { x: [0, -10, 10, -10, 10, 0] }, { duration: 0.4 });
+};
+
+<div ref={scope}>{children}</div>
 ```
 
 ### Menu Slide-In / Slide-Out
@@ -196,53 +266,57 @@ const shake = () => controls.start({
 />
 ```
 
+## Accessibility
+
+Always respect the user's motion preferences. Two approaches:
+
+**1. MotionConfig (recommended for apps)** — wraps your entire component tree:
+```tsx
+<MotionConfig reducedMotion="user">
+  <App />
+</MotionConfig>
+```
+
+**2. useReducedMotion hook** — for component-level control:
+```tsx
+const shouldReduceMotion = useReducedMotion();
+
+<motion.div
+  animate={{ opacity: 1, y: shouldReduceMotion ? 0 : -20 }}
+/>
+```
+
 ## Performance
 
-- Use `transform` and `opacity` only — these are GPU-composited and don't trigger layout/paint
-- `will-change: transform` for elements that always animate — hints to the browser to promote to own layer
-- Don't wrap expensive React components in `motion.div` — use `motion.create(Component)` to avoid re-renders
-- `layout` prop triggers automatic layout animations — expensive on large DOM trees; use sparingly
+- Animate only `transform` and `opacity` — GPU-composited, no layout/paint triggered
+- `will-change: transform` for elements that always animate (promotes to own layer)
+- Use `motion.create(Component)` to animate custom components without wrapper divs
+- `layout` prop triggers automatic layout animations — expensive on large DOM trees; scope to smallest possible subtree
 - Prefer `useMotionValue` over `useState` for animation-driving values — motion values don't trigger re-renders
-- Batch animation updates — avoid triggering multiple independent animations on the same frame
-- Use `useReducedMotion` hook to respect user accessibility preferences
+- `LazyMotion` with `domAnimation` saves ~15kb gzip vs the full bundle
 
-## Step-by-Step Instructions
-
-### 1. Install Framer Motion
+## Setup
 
 ```bash
 bun add framer-motion
 ```
 
-### 2. No Setup Needed
+Zero-config — no providers required. Import and use `motion.div` directly.
 
-Framer Motion is zero-config. No providers, no context, no wrappers required.
-
-### 3. Replace `div` with `motion.div`
-
-Only where animation is needed. Don't wrap everything in motion components.
-
-### 4. Define Variants Outside Components
-
+For global accessibility handling, wrap your app root:
 ```tsx
-// Stable reference — no re-creation on render
-const fadeVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1 },
-};
+import { MotionConfig } from 'framer-motion';
+
+<MotionConfig reducedMotion="user">
+  <App />
+</MotionConfig>
 ```
 
-### 5. Wrap Conditional Renders with AnimatePresence
+## Boilerplate
 
-```tsx
-<AnimatePresence>
-  {show && <motion.div key="item" exit={{ opacity: 0 }} />}
-</AnimatePresence>
-```
+`boilerplate/motion-components.tsx` — ready-to-use components: `FadeIn`, `SlideIn`, `ScaleIn`, `StaggerList`, `FloatingNumber`, `HealthBar`, `AnimatedCard`
 
-### 6. Use layoutId for Shared Elements
-
-Add matching `layoutId` props on elements that represent the same item across different views. Framer Motion automatically interpolates between positions.
+`templates/animation-variants.ts` — reusable variant objects and spring transition presets
 
 ## Cross-References
 
@@ -254,11 +328,13 @@ Add matching `layoutId` props on elements that represent the same item across di
 
 - **Animating layout-triggering properties** (`width`, `height`, `top`, `left`) — use `scaleX`/`scaleY` or the `layout` prop instead
 - **Forgetting AnimatePresence** when using `exit` prop — exit animations silently skip without the wrapper
-- **Creating motion values in render** — use `useMotionValue` hook; creating in render causes memory leaks and broken animations
+- **Creating motion values in render** — use `useMotionValue` hook; creating in render causes memory leaks
 - **Using CSS `transition` AND Framer Motion on same element** — they conflict; pick one
 - **Over-animating** — every interaction animated is sensory overload; animate to communicate, not to decorate
-- **Animating on mount without `initial`** — component flashes in default state before animating; always set `initial`
+- **Animating on mount without `initial`** — component flashes before animating; always set `initial`
+- **Using `useAnimation`** — deprecated; use `useAnimate` for imperative animations instead
 - **Large `layout` animations** — `layout` prop on deeply nested trees causes expensive recalculations; scope to smallest possible subtree
+- **Skipping accessibility** — always use `MotionConfig reducedMotion="user"` or `useReducedMotion`
 
 ## Sources
 
@@ -266,5 +342,3 @@ Add matching `layoutId` props on elements that represent the same item across di
 - Matt Perry — Framer Motion creator, API design talks
 - Sarah Drasner — "SVG Animations", animation design patterns
 - GSAP documentation — https://gsap.com
-- Web Animations API specification — W3C
-- "Animation at Work" — Rachel Nabors

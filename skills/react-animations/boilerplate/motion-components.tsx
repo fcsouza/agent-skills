@@ -5,7 +5,9 @@ import {
   type Variants,
   AnimatePresence,
   motion,
+  useAnimate,
   useMotionValue,
+  useReducedMotion,
   useSpring,
   useTransform,
 } from 'framer-motion';
@@ -70,14 +72,15 @@ export function SlideIn({
   className,
   ...props
 }: SlideInProps) {
-  const offset = slideOffsets[from](distance);
+  const shouldReduceMotion = useReducedMotion();
+  const offset = shouldReduceMotion ? {} : slideOffsets[from](distance);
 
   return (
     <motion.div
       initial={{ opacity: 0, ...offset }}
       animate={{ opacity: 1, x: 0, y: 0 }}
       exit={{ opacity: 0, ...offset }}
-      transition={{ duration, ease: 'easeOut' }}
+      transition={{ duration: shouldReduceMotion ? 0 : duration, ease: 'easeOut' }}
       className={className}
       {...props}
     >
@@ -103,11 +106,13 @@ export function ScaleIn({
   className,
   ...props
 }: ScaleInProps) {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0 }}
+      initial={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0 }}
+      exit={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0 }}
       transition={{ type: 'spring', stiffness: 400, damping: 20, delay }}
       className={className}
       {...props}
@@ -122,7 +127,9 @@ export function ScaleIn({
 // ---------------------------------------------------------------------------
 
 interface StaggerListProps extends HTMLMotionProps<'ul'> {
-  children: ReactNode[];
+  items: ReactNode[];
+  // Provide stable keys for your items — avoids reconciliation issues
+  itemKeys?: (string | number)[];
   staggerDelay?: number;
 }
 
@@ -140,7 +147,8 @@ const staggerItem: Variants = {
 };
 
 export function StaggerList({
-  children,
+  items,
+  itemKeys,
   staggerDelay = 0.08,
   className,
   ...props
@@ -154,8 +162,8 @@ export function StaggerList({
       className={className}
       {...props}
     >
-      {children.map((child, i) => (
-        <motion.li key={i} variants={staggerItem}>
+      {items.map((child, i) => (
+        <motion.li key={itemKeys?.[i] ?? i} variants={staggerItem}>
           {child}
         </motion.li>
       ))}
@@ -214,7 +222,8 @@ export function HealthBar({
   color = '#22c55e',
   className,
 }: HealthBarProps) {
-  const ratio = useMotionValue(current / max);
+  const initialRatio = Math.max(0, Math.min(1, current / max));
+  const ratio = useMotionValue(initialRatio);
   const spring = useSpring(ratio, { stiffness: 200, damping: 30 });
   const width = useTransform(spring, (v) => `${v * 100}%`);
 
@@ -288,6 +297,35 @@ export function AnimatedCard({
           {back}
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ScreenShake — wraps children; call shake() to trigger
+// ---------------------------------------------------------------------------
+
+interface ScreenShakeProps {
+  children: ReactNode;
+  className?: string;
+  onShakeRef?: (shake: () => Promise<void>) => void;
+}
+
+export function ScreenShake({ children, className, onShakeRef }: ScreenShakeProps) {
+  const [scope, animate] = useAnimate();
+
+  const shake = async () => {
+    await animate(scope.current, { x: [0, -10, 10, -10, 10, 0] }, { duration: 0.4 });
+  };
+
+  // Expose the shake function via ref callback so parent can trigger it
+  useEffect(() => {
+    onShakeRef?.(shake);
+  }, []);
+
+  return (
+    <div ref={scope} className={className}>
+      {children}
     </div>
   );
 }
