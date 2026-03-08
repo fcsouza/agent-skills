@@ -13,91 +13,91 @@
     {
       "name": "game-dev",
       "source": "./plugins/game-dev",
-      "description": "Complete game development plugin — 26 skills, 7 commands, 3 agents, 5 hooks. Genre-agnostic patterns for any game type.",
+      "description": "Complete game development plugin — 25 skills, 7 commands, 3 agents, 5 hooks. Genre-agnostic patterns for any game type.",
       "version": "1.3.0",
       "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript", "multiplayer", "mvp"],
       "category": "development"
     },
     {
       "name": "game-dev-design",
-      "source": "./plugins/game-dev",
+      "source": "./",
       "description": "Game design skills — core loops, economy, levels, procedural generation, quests, skill trees, and UI/UX patterns.",
       "version": "1.3.0",
       "keywords": ["game-design", "level-design", "economy", "procedural-gen", "quest", "skill-tree", "ui-ux"],
       "category": "development",
       "skills": [
-        "./design/game-design-fundamentals",
-        "./design/game-economy-design",
-        "./design/level-design",
-        "./design/procedural-gen",
-        "./design/quest-mission-design",
-        "./design/skill-progression-trees",
-        "./design/ui-ux-game"
+        "./skills/game-design-fundamentals",
+        "./skills/game-economy-design",
+        "./skills/level-design",
+        "./skills/procedural-gen",
+        "./skills/quest-mission-design",
+        "./skills/skill-progression-trees",
+        "./skills/ui-ux-game"
       ]
     },
     {
       "name": "game-dev-engineering",
-      "source": "./plugins/game-dev",
+      "source": "./",
       "description": "Game engineering skills — backend architecture, state sync, auth, payments, analytics, matchmaking, Redis, BullMQ, and audio.",
       "version": "1.3.0",
       "keywords": ["game-backend", "websockets", "matchmaking", "redis", "stripe", "analytics", "auth", "bullmq"],
       "category": "development",
       "skills": [
-        "./engineering/betterauth-integration",
-        "./engineering/bullmq-game-queues",
-        "./engineering/elevenlabs-sound-music",
-        "./engineering/game-backend-architecture",
-        "./engineering/game-state-sync",
-        "./engineering/gameplay-analytics",
-        "./engineering/matchmaking-system",
-        "./engineering/postgres-game-schema",
-        "./engineering/redis-game-patterns",
-        "./engineering/stripe-game-payments"
+        "./skills/betterauth-integration",
+        "./skills/bullmq-game-queues",
+        "./skills/elevenlabs-sound-music",
+        "./skills/game-backend-architecture",
+        "./skills/game-state-sync",
+        "./skills/gameplay-analytics",
+        "./skills/matchmaking-system",
+        "./skills/postgres-game-schema",
+        "./skills/redis-game-patterns",
+        "./skills/stripe-game-payments"
       ]
     },
     {
       "name": "game-dev-narrative",
-      "source": "./plugins/game-dev",
+      "source": "./",
       "description": "Game narrative skills — character design, quest coherence, worldbuilding, and story structure for interactive games.",
       "version": "1.3.0",
       "keywords": ["narrative", "worldbuilding", "character-design", "story", "quest", "lore"],
       "category": "development",
       "skills": [
-        "./narrative/character-design-narrative",
-        "./narrative/quest-narrative-coherence",
-        "./narrative/story-structure-game",
-        "./narrative/worldbuilding"
+        "./skills/character-design-narrative",
+        "./skills/quest-narrative-coherence",
+        "./skills/story-structure-game",
+        "./skills/worldbuilding"
       ]
     },
     {
       "name": "game-dev-infrastructure",
-      "source": "./plugins/game-dev",
+      "source": "./",
       "description": "Game infrastructure skills — CI/CD pipelines, Claude Code workflows, Cursor integration, and monitoring/ops.",
       "version": "1.3.0",
       "keywords": ["ci-cd", "github-actions", "monitoring", "cursor", "claude-code", "devops"],
       "category": "development",
       "skills": [
-        "./infrastructure/ci-cd-game",
-        "./infrastructure/claude-code-game-workflow",
-        "./infrastructure/cursor-codex-integration",
-        "./infrastructure/monitoring-game-ops"
+        "./skills/ci-cd-game",
+        "./skills/claude-code-game-workflow",
+        "./skills/cursor-codex-integration",
+        "./skills/monitoring-game-ops"
       ]
     },
     {
       "name": "game-dev-commands",
-      "source": "./plugins/game-dev",
+      "source": "./",
       "description": "Game development workflow commands as skills — architect, build, review, balance, expand, quest, and lore generation.",
       "version": "1.3.0",
       "keywords": ["game-dev", "game-architect", "game-build", "game-review", "quest", "lore", "workflow"],
       "category": "development",
       "skills": [
-        "./commands/game-architect",
-        "./commands/game-balance",
-        "./commands/game-build",
-        "./commands/game-expand",
-        "./commands/game-lore",
-        "./commands/game-quest",
-        "./commands/game-review"
+        "./plugins/game-dev/commands/game-architect",
+        "./plugins/game-dev/commands/game-balance",
+        "./plugins/game-dev/commands/game-build",
+        "./plugins/game-dev/commands/game-expand",
+        "./plugins/game-dev/commands/game-lore",
+        "./plugins/game-dev/commands/game-quest",
+        "./plugins/game-dev/commands/game-review"
       ]
     },
     {
