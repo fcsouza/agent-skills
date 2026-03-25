@@ -53,12 +53,14 @@ None. Provider-specific setup is covered in each client boilerplate.
 |------|----------|-----|
 | Character voice lines | ElevenLabs TTS | Natural speech, voice cloning for consistency |
 | Sound effects | ElevenLabs SFX | Text-described SFX generation |
-| Background music | Vertex AI Lyria | 32.8s instrumental WAV, prompt-driven |
-| Ambient loops | Either | Lyria for musical ambience, ElevenLabs for environmental SFX |
+| Background music | ElevenLabs Music API | Prompt-driven, up to 5 min, vocals or instrumental |
+| Background music (alt) | Vertex AI Lyria | 32.8s instrumental WAV, fixed duration |
+| Ambient loops | ElevenLabs Music API or Lyria | ElevenLabs for flexible duration, Lyria for WAV output |
 
 ### 2. Set up API clients
 
 - Copy `boilerplate/elevenlabs-client.ts` for voice and SFX generation
+- Copy `boilerplate/elevenlabs-music-client.ts` for ElevenLabs music generation (preferred for most games)
 - Copy `boilerplate/lyria-client.ts` for music generation
 - Configure environment variables for your chosen provider(s)
 
@@ -125,7 +127,44 @@ const sfxBuffer = await client.generateSfx(
 await Bun.write('public/audio/sfx/sword_clash.mp3', sfxBuffer);
 ```
 
-### Lyria: Generate a combat track
+### ElevenLabs Music API: Generate a combat track
+
+```typescript
+// Uses @elevenlabs/elevenlabs-js directly (not the wrapper in elevenlabs-client.ts)
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
+import { writeFileSync } from 'node:fs';
+
+const client = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
+
+// Basic generation
+const audio = await client.music.compose({
+  prompt: 'Intense battle music, driving and urgent, 150 BPM, electric guitar riffs, pounding drums, brass stabs, instrumental only',
+  musicLengthMs: 60000,
+});
+
+const chunks: Buffer[] = [];
+for await (const chunk of audio) {
+  chunks.push(Buffer.from(chunk));
+}
+writeFileSync('public/audio/music/combat_standard.mp3', Buffer.concat(chunks));
+```
+
+For granular control, generate a composition plan first:
+
+```typescript
+// compositionPlan API may require a recent ElevenLabs SDK version; check docs if unavailable
+const plan = await client.music.compositionPlan.create({
+  prompt: 'Intense battle music, 150 BPM, no vocals',
+  musicLengthMs: 60000,
+});
+// Inspect plan.positiveGlobalStyles, modify if needed
+const audio = await client.music.compose({
+  compositionPlan: plan,
+  musicLengthMs: 60000,
+});
+```
+
+### Lyria: Generate a combat track (alternative)
 
 ```typescript
 import { LyriaClient } from './lyria-client';
@@ -173,7 +212,7 @@ audio.playVoice('npc_greeting'); // Voice line on top
 1. **Playing audio without user interaction on mobile** -- iOS/Android will silently fail. Always gate behind a tap/click.
 2. **No crossfade between states** -- Hard cuts between combat and exploration music break immersion. Always crossfade.
 3. **Single volume slider** -- Players need separate music, SFX, voice, and ambient controls. Provide per-layer sliders.
-4. **Generating music without negative prompts** -- Lyria may add vocals or sound effects. Always include `no vocals, no sound effects`.
+4. **Music API: forgetting 'instrumental only'** -- ElevenLabs Music API may add vocals unless you include `instrumental only` in your prompt. For Lyria, include `no vocals, no sound effects` as a negative prompt.
 5. **Not preloading combat audio** -- If combat starts and the track is still loading, the player hears silence. Preload combat tracks during exploration.
 6. **Ignoring audio file size** -- OGG is smaller than MP3 at similar quality. Use OGG primary, MP3 fallback. Compress aggressively for ambient loops.
 7. **Hardcoding track paths** -- Use a config mapping (state to path). Swapping tracks during iteration becomes trivial.
@@ -189,6 +228,8 @@ audio.playVoice('npc_greeting'); // Voice line on top
 
 - [ElevenLabs API Documentation](https://elevenlabs.io/docs)
 - [ElevenLabs Sound Effects API](https://elevenlabs.io/docs/api-reference/sound-generation)
+- [ElevenLabs Music API Documentation](https://elevenlabs.io/docs/eleven-api/guides/cookbooks/music)
+- [ElevenLabs Music Best Practices](https://elevenlabs.io/docs/overview/capabilities/music/best-practices)
 - [Vertex AI Lyria Documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/lyria)
 - [GDC Vault -- Game Audio Talks](https://www.gdcvault.com/)
 - [Web Audio API -- MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
