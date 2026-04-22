@@ -20,6 +20,7 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 
 | Skill | Description | Platform |
 |-------|-------------|----------|
+| [claude-agent-sdk](skills/claude-agent-sdk/) | Build production AI agents with the Claude Agent SDK — query(), hooks, subagents, custom tools, MCP servers, sessions, permissions, hosting | Claude Code / API |
 | [openclaw-genie](skills/openclaw-genie/) | Comprehensive OpenClaw gateway skill — installation, configuration, 38+ channels, memory, tools, hooks, deployment, multi-agent | [OpenClaw](https://openclaw.ai) |
 | [react-animations](skills/react-animations/) | React animation patterns and utilities | React |
 
