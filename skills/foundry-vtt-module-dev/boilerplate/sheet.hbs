@@ -1,0 +1,146 @@
+{{!-- Actor Sheet — Body Part --}}
+{{!-- Rendered as modules/my-module/templates/actor-body.hbs --}}
+
+<form class="hero-sheet-body sheet-body" autocomplete="off">
+
+  {{!-- ── Character Info ─────────────────────────────────────────────────────── --}}
+  <section class="character-info">
+    <h2>{{localize "MY_MODULE.section.characterInfo"}}</h2>
+
+    <div class="form-group">
+      <label>{{localize "MY_MODULE.hero.name"}}</label>
+      <input type="text"
+             name="name"
+             value="{{actor.name}}"
+             placeholder="{{localize "MY_MODULE.hero.namePlaceholder"}}"
+             {{unless isEditable disabled=true}}>
+    </div>
+
+    <div class="form-group">
+      <label>{{localize "MY_MODULE.hero.class"}}</label>
+      <select name="system.characterClass" {{unless isEditable disabled=true}}>
+        {{#each classChoices as |label key|}}
+          <option value="{{key}}" {{selected key ../system.characterClass}}>
+            {{localize label}}
+          </option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="form-group form-group-split">
+      <label>{{localize "MY_MODULE.hero.health"}}</label>
+      <div class="form-fields">
+        <input type="number"
+               name="system.health"
+               value="{{system.health}}"
+               min="0"
+               max="{{system.maxHealth}}"
+               {{unless isEditable disabled=true}}>
+        <span class="sep">/</span>
+        <span class="max-value">{{system.maxHealth}}</span>
+      </div>
+    </div>
+
+    <div class="form-group form-group-split">
+      <label>{{localize "MY_MODULE.hero.mana"}}</label>
+      <div class="form-fields">
+        <input type="number"
+               name="system.mana"
+               value="{{system.mana}}"
+               min="0"
+               max="{{system.maxMana}}"
+               {{unless isEditable disabled=true}}>
+        <span class="sep">/</span>
+        <span class="max-value">{{system.maxMana}}</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>{{localize "MY_MODULE.hero.armorClass"}}</label>
+      <span class="derived-value">{{system.armorClass}}</span>
+    </div>
+  </section>
+
+  {{!-- ── Abilities ───────────────────────────────────────────────────────────── --}}
+  <section class="abilities">
+    <h2>{{localize "MY_MODULE.section.abilities"}}</h2>
+
+    <div class="ability-grid">
+      {{#each abilities as |ability|}}
+        <div class="ability" data-ability="{{ability.key}}">
+          <label class="ability-label">{{ability.label}}</label>
+
+          <input type="number"
+                 name="system.abilities.{{ability.key}}"
+                 value="{{ability.score}}"
+                 min="1"
+                 max="20"
+                 class="ability-score"
+                 {{unless ../isEditable disabled=true}}>
+
+          <span class="ability-mod">
+            {{#if (gte ability.mod 0)}}+{{/if}}{{ability.mod}}
+          </span>
+
+          <button type="button"
+                  class="ability-roll"
+                  data-action="rollAbility"
+                  data-ability="{{ability.key}}"
+                  {{unless ../isOwner disabled=true}}>
+            <i class="fa-solid fa-dice-d20"></i>
+          </button>
+        </div>
+      {{/each}}
+    </div>
+  </section>
+
+  {{!-- ── Inventory ───────────────────────────────────────────────────────────── --}}
+  <section class="inventory">
+    <header class="inventory-header">
+      <h2>{{localize "MY_MODULE.section.inventory"}}</h2>
+      {{#if isEditable}}
+        <button type="button" data-action="addItem" class="add-item">
+          <i class="fa-solid fa-plus"></i>
+          {{localize "MY_MODULE.action.addItem"}}
+        </button>
+      {{/if}}
+    </header>
+
+    <ol class="inventory-list">
+      {{#each items as |item|}}
+        <li class="item" data-item-id="{{item.id}}">
+          <img src="{{item.img}}" alt="{{item.name}}" class="item-img">
+
+          <span class="item-name">{{item.name}}</span>
+
+          <span class="item-type">
+            {{localize (concat "TYPES.Item." item.type)}}
+          </span>
+
+          {{#if ../isEditable}}
+            <div class="item-controls">
+              <button type="button"
+                      data-action="editItem"
+                      data-item-id="{{item.id}}"
+                      aria-label="{{localize "MY_MODULE.action.editItem"}}">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+
+              <button type="button"
+                      data-action="deleteItem"
+                      data-item-id="{{item.id}}"
+                      aria-label="{{localize "MY_MODULE.action.deleteItem"}}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          {{/if}}
+        </li>
+      {{else}}
+        <li class="item empty">
+          {{localize "MY_MODULE.inventory.empty"}}
+        </li>
+      {{/each}}
+    </ol>
+  </section>
+
+</form>
