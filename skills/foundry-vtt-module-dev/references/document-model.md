@@ -695,3 +695,76 @@ const id = foundry.utils.randomID();   // "a1b2c3d4e5f6g7h8"
 ```
 
 `mergeObject` is critical — it's how Foundry processes document updates internally. Understanding it prevents bugs when working with `actor.update()` and `item.update()`.
+
+---
+
+## 12. Folder API
+
+Folders organize documents in the sidebar. Supported types: `Actor`, `Item`, `JournalEntry`, `Scene`, `RollTable`, `Macro`.
+
+### Creating folders
+
+```js
+// Root-level folder
+const folder = await Folder.create({
+  name: "NPCs",
+  type: "Actor",
+  sorting: "a",              // "a" = alphabetical, "m" = manual
+  color: "#ff0000"            // optional sidebar color
+});
+
+// Nested folder — use `folder` field (NOT `parent`)
+const subfolder = await Folder.create({
+  name: "Bandits",
+  type: "Actor",
+  folder: folder.id,          // nest under parent folder
+  sorting: "a"
+});
+```
+
+### Moving documents into folders
+
+```js
+// Move an actor into a folder
+await actor.update({ folder: folder.id });
+
+// Batch move multiple items
+const updates = items.map(i => ({ _id: i.id, folder: folder.id }));
+await Item.updateDocuments(updates);
+```
+
+### Querying folder structure
+
+```js
+// Get all Actor folders
+const actorFolders = game.folders.filter(f => f.type === "Actor");
+
+// Get child folders
+const children = folder.getSubfolders();         // direct children
+const allDescendants = folder.getSubfolders(true); // recursive
+
+// Get parent chain
+const parents = folder.getParentFolders();
+
+// Get documents in a folder
+const contents = folder.contents;   // documents directly in this folder
+
+// Folder depth in the sidebar tree
+console.log(folder.depth);   // 0 = root, 1 = nested, etc.
+```
+
+### Bulk export to compendium
+
+```js
+// Export an entire folder to a compendium pack
+const pack = game.packs.get("my-module.monsters");
+await folder.exportToCompendium(pack, {
+  folderName: "Imported Monsters",
+  keepId: true                // preserve document IDs
+});
+```
+
+Key rules:
+- Nesting uses the `folder` field in the data object, NOT `parent`. `parent` is a runtime property for document embedding (e.g., Actor → Item).
+- A folder's `type` must match the documents it contains — you can't put Items in an Actor folder.
+- `Folder.TYPES` lists all valid types at runtime.

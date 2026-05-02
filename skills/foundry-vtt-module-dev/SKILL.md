@@ -682,7 +682,7 @@ Copy these as starting points for new modules:
 3. **Missing socket prefix** — Socket events must use `"module.my-module"` format. Without the `module.` prefix, messages won't route.
 4. **Accessing game.user in init** — `game.user` is not set during `init`. Use `ready` hook for user-dependent logic.
 5. **Non-GM modifying world documents** — Only GM clients can modify world-level documents. Use the GM-authoritative socket pattern for player-initiated changes.
-6. **Using `scripts` instead of `esmodules`** — The `scripts` field loads files as classic scripts (no module scope). Always use `esmodules` for proper ES module support.
+6. **Using `scripts` instead of `esmodules`** — The `scripts` field loads files as classic scripts (no module scope). Always use `esmodules` for proper ES module support. There is no separate `worldScripts` field — the concept is a community misnomer. All module scripts run client-side via `esmodules`/`scripts` in your manifest. Use hooks (`init`, `setup`, `ready`) with conditional checks to control when and where your code executes.
 7. **Forgetting `config: false` for internal settings** — Settings with `config: true` show in the module settings menu. Use `config: false` for programmatic-only values like schema versions.
 8. **Hardcoded English strings** — Use `game.i18n.localize()` for any user-visible text, even if you only support English. It makes future localization trivial.
 9. **Not cleaning up hooks** — Store the hook ID from `Hooks.on()` and call `Hooks.off()` when your application closes. Leaked hooks cause memory issues and duplicate behavior.
@@ -701,7 +701,7 @@ Read these for deep API details — they're loaded on demand:
 
 | File | When to read |
 |---|---|
-| `references/document-model.md` | Building custom Actor/Item types, TypeDataModel, defineSchema, flags, lifecycle hooks, Journal Pages |
+| `references/document-model.md` | Building custom Actor/Item types, TypeDataModel, defineSchema, flags, lifecycle hooks, Journal Pages, Folder API |
 | `references/application-v2.md` | Building sheets, windows, dialogs — ApplicationV2, DocumentSheetV2, HandlebarsApplicationMixin, drag & drop |
 | `references/hooks-and-settings.md` | Hook lifecycle, document hooks, canvas hooks, settings API, submenus, keybindings, DataModel settings |
 | `references/chat-and-ui.md` | Chat commands, message rendering, context menus, enrichHTML, FilePicker, security/authorization, ProseMirror editor |
