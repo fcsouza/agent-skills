@@ -1,5 +1,6 @@
 ---
 name: foundry-vtt-module-dev
+version: 3.0.0
 description: >-
   Covers building, extending, debugging, and maintaining Foundry VTT modules for v13+. This skill
   applies when scaffolding a new module, writing custom Actor/Item types with TypeDataModel, building
@@ -109,6 +110,43 @@ v13 uses CSS Cascade Layers (`@layer`). Wrap your module CSS in a layer to avoid
   }
 }
 ```
+
+### CSS Variables (Theme-Aware Styling)
+
+v13 provides CSS custom properties for light/dark theme support. Always prefer these over hardcoded colors:
+
+```css
+@layer my-module {
+  .my-module-panel {
+    /* Text */
+    color: var(--color-text-primary);
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+
+    /* Accent palette */
+    --my-accent: var(--color-warm-2);
+    --my-muted: var(--color-cool-2);
+
+    /* Typography */
+    font-family: var(--font-primary);
+
+    /* Elevation */
+    box-shadow: var(--box-shadow);
+    border-radius: var(--border-radius);
+  }
+}
+```
+
+Key variable categories:
+
+| Category | Variables |
+|---|---|
+| Text | `--color-text-primary`, `--color-text-secondary`, `--color-text-dark`, `--color-text-hyperlink` |
+| Background | `--color-bg-primary`, `--color-bg-secondary`, `--color-bg-tertiary` |
+| Borders | `--color-border`, `--color-border-light`, `--color-border-dark` |
+| Warm accents | `--color-warm-1`, `--color-warm-2`, `--color-warm-3` |
+| Cool accents | `--color-cool-1`, `--color-cool-2`, `--color-cool-3` |
+| Fonts | `--font-primary`, `--font-body`, `--font-size-13` through `--font-size-48` |
 
 ### Local Development
 
@@ -390,6 +428,95 @@ ApplicationV2 makes it trivial to mount reactive frameworks instead of Handlebar
 
 The League of Foundry Developers maintains a starter template with Vite, TypeScript, and ESM pre-configured: `League-of-Foundry-Developers/FoundryVTT-Module-Template` on GitHub.
 
+### Publishing to Foundry
+
+Submit modules at https://foundryvtt.com/packages/submit. The manifest and download URLs must follow this pattern for GitHub Releases:
+
+```
+manifest:  https://github.com/you/my-module/releases/latest/download/module.json
+download:  https://github.com/you/my-module/releases/download/v1.0.0/module.zip
+```
+
+The `manifest` URL always points to `latest` so Foundry auto-detects updates. The `download` URL is versioned — Foundry uses it to install a specific release.
+
+Minimal GitHub Actions workflow for automated releases:
+
+```yaml
+name: Release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: zip -r module.zip module.json scripts/ templates/ styles/ lang/ packs/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: module.zip
+          generate_release_notes: true
+```
+
+Tag a release with `git tag v1.0.0 && git push --tags` to trigger the workflow. Update `module.json` version before tagging.
+
+### Tours API
+
+Guided interactive tours that highlight UI elements and walk users through features step by step. Tours are defined in JSON files and registered via `game.tours.register()`.
+
+Create a tour JSON file at `modules/my-module/tours/welcome.json`:
+
+```json
+{
+  "title": "MY_MODULE.Tour.welcome.title",
+  "description": "MY_MODULE.Tour.welcome.description",
+  "canBeResumed": false,
+  "display": true,
+  "steps": [
+    {
+      "id": "step1",
+      "title": "MY_MODULE.Tour.welcome.step1",
+      "content": "MY_MODULE.Tour.welcome.step1Content",
+      "selector": ".my-module-panel .header"
+    },
+    {
+      "id": "step2",
+      "title": "MY_MODULE.Tour.welcome.step2",
+      "content": "MY_MODULE.Tour.welcome.step2Content",
+      "selector": ".my-module-panel button[data-action='roll']"
+    },
+    {
+      "id": "step3",
+      "title": "MY_MODULE.Tour.welcome.step3",
+      "content": "MY_MODULE.Tour.welcome.step3Content",
+      "selector": ".my-module-panel .inventory"
+    }
+  ]
+}
+```
+
+Register in the `setup` hook:
+
+```js
+Hooks.once("setup", async () => {
+  game.tours.register(
+    "my-module",
+    "welcome",
+    await Tour.fromJSON("/modules/my-module/tours/welcome.json")
+  );
+});
+
+// Start programmatically (e.g., on first module load)
+Hooks.once("ready", async () => {
+  if (!game.settings.get("my-module", "tourCompleted")) {
+    await game.tours.get("my-module.welcome").start();
+    await game.settings.set("my-module", "tourCompleted", true);
+  }
+});
+```
+
+Each step highlights a DOM element via `selector`. The `sidebarTab` field (optional) auto-switches to a sidebar tab before the step. Steps can define `tooltipDirection` (`UP`, `DOWN`, `LEFT`, `RIGHT`) for tooltip placement.
+
 ### Testing (`@ethaks/fvtt-quench`)
 
 In-game testing framework using Mocha/Chai that runs inside the Foundry environment — necessary because Foundry's APIs require an initialized game state.
@@ -444,13 +571,64 @@ await actor.createEmbeddedDocuments("ActiveEffect", [{
 }]);
 
 // Toggle an effect
-const effect = actor.effects.find(e => e.name === "Blessed");
+const effect = Array.from(actor.allApplicableEffects()).find(e => e.name === "Blessed");
 await effect.update({ disabled: !effect.disabled });
 ```
 
 Change modes: `ADD` (numeric add), `MULTIPLY`, `OVERRIDE`, `UPGRADE` (keep higher), `DOWNGRADE` (keep lower), `CUSTOM` (system-defined).
 
 Effects apply automatically during data preparation — the `changes` array modifies the actor's data before `prepareDerivedData()` runs.
+
+### Global Status Effects
+
+Add custom conditions to the Token HUD's status effect palette:
+
+```js
+Hooks.once("init", () => {
+  CONFIG.statusEffects.push({
+    id: "my-module.burning",
+    name: "MY_MODULE.Effect.burning",
+    icon: "modules/my-module/icons/burning.svg",
+    overlay: false,
+    changes: [{
+      key: "system.abilities.dex",
+      mode: CONST.ACTIVE_EFFECT_MODES.ADD,
+      value: "-2"
+    }]
+  });
+});
+```
+
+### Retrieving all effects (v13 critical change)
+
+In v13, `actor.effects` only contains effects directly on the actor. Effects transferred from Items require `allApplicableEffects()`:
+
+```js
+// v13 — gets ALL effects including item-transferred
+for (const effect of actor.allApplicableEffects()) {
+  console.log(effect.name, effect.disabled, effect.isTemporary);
+}
+
+// Categorize for sheet display
+function prepareActiveEffectCategories(effects) {
+  const categories = {
+    temporary: { label: "Temporary", effects: [] },
+    passive:   { label: "Passive", effects: [] },
+    inactive:  { label: "Inactive", effects: [] }
+  };
+  for (const e of effects) {
+    if (e.disabled) categories.inactive.effects.push(e);
+    else if (e.isTemporary) categories.temporary.effects.push(e);
+    else categories.passive.effects.push(e);
+  }
+  return categories;
+}
+
+// Usage in _prepareContext
+context.effects = prepareActiveEffectCategories(actor.allApplicableEffects());
+```
+
+Key properties: `e.disabled` (inactive), `e.isTemporary` (has duration), `e.overlay` (token overlay icon).
 
 ---
 
@@ -523,9 +701,15 @@ Read these for deep API details — they're loaded on demand:
 
 | File | When to read |
 |---|---|
-| `references/document-model.md` | Building custom Actor/Item types, TypeDataModel, defineSchema, flags, lifecycle hooks |
-| `references/application-v2.md` | Building sheets, windows, dialogs — ApplicationV2, DocumentSheetV2, HandlebarsApplicationMixin |
-| `references/hooks-and-settings.md` | Hook lifecycle, document hooks, canvas hooks, settings API, submenus |
+| `references/document-model.md` | Building custom Actor/Item types, TypeDataModel, defineSchema, flags, lifecycle hooks, Journal Pages |
+| `references/application-v2.md` | Building sheets, windows, dialogs — ApplicationV2, DocumentSheetV2, HandlebarsApplicationMixin, drag & drop |
+| `references/hooks-and-settings.md` | Hook lifecycle, document hooks, canvas hooks, settings API, submenus, keybindings, DataModel settings |
+| `references/chat-and-ui.md` | Chat commands, message rendering, context menus, enrichHTML, FilePicker, security/authorization, ProseMirror editor |
 | `references/sockets-rolls-packs.md` | Socket communication, dice/Roll extensions, compendium packs, localization |
 | `references/canvas-and-pixi.md` | Custom canvas layers, PlaceableObject, PIXI.js integration, coordinate conversion |
+| `references/combat-and-tokens.md` | Combat tracker, initiative, Token HUD, scene controls, prototype token configuration |
+| `references/regions-and-grid.md` | Scene Regions API, RegionDocument, RegionBehavior, Grid measurement, coordinate conversion, grid highlighting |
+| `references/vision-and-lighting.md` | VisionMode, detection modes, lighting system, AmbientLight, fog of war |
+| `references/measured-templates.md` | MeasuredTemplateDocument, area-of-effect shapes, template creation and targeting |
+| `references/audio-and-macros.md` | AudioHelper, playlists, sound effects, Macro creation, hotbar integration |
 | `references/migration-guide.md` | Version migration (v11→v12→v13), deprecated API detection, data migration scripts |

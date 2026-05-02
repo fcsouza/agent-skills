@@ -522,3 +522,176 @@ const [newActor] = await Actor.createDocuments([{
 ```
 
 Dot-notation updates are the preferred pattern for partial changes — they avoid overwriting fields you didn't intend to touch and minimize the data sent to the server.
+
+---
+
+## 9. Journal Pages
+
+`JournalEntryPage` is the document type for individual pages within a `JournalEntry`. Each page has a `type` field (`text`, `image`, `video`, `pdf`) and can have a custom sheet.
+
+### Built-in page types
+
+- `text` — rich text content (ProseMirror editor)
+- `image` — a single image with optional caption
+- `video` — video or animated content
+- `pdf` — embedded PDF viewer
+
+### Register a custom page type
+
+```js
+Hooks.once("init", () => {
+  CONFIG.JournalEntryPage.dataModels["statblock"] = StatblockPageData;
+});
+
+class StatblockPageData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      creatureType: new fields.StringField({ required: true, initial: "humanoid" }),
+      challenge:    new fields.NumberField({ required: true, integer: true, min: 0, initial: 1 }),
+      abilities:    new fields.SchemaField({
+        strength:     new fields.NumberField({ initial: 10 }),
+        dexterity:    new fields.NumberField({ initial: 10 }),
+        constitution: new fields.NumberField({ initial: 10 })
+      }),
+      description:  new fields.HTMLField({ initial: "" })
+    };
+  }
+}
+```
+
+### Register a custom page sheet
+
+```js
+const { JournalPageSheet, HandlebarsApplicationMixin } = foundry.applications.sheets;
+
+class StatblockPageSheet extends HandlebarsApplicationMixin(JournalPageSheet) {
+  static PARTS = {
+    content: { template: "modules/my-module/templates/journal/statblock.hbs" }
+  };
+
+  static DEFAULT_OPTIONS = {
+    classes: ["my-module", "statblock-page"]
+  };
+
+  async _prepareContext(options) {
+    const page = this.document;
+    return {
+      page,
+      system: page.system,
+      enriched: await TextEditor.enrichHTML(page.system.description, {
+        relativeTo: page, async: true
+      })
+    };
+  }
+}
+
+// Register during init
+Hooks.once("init", () => {
+  JournalEntryPage.registerSheet("my-module", StatblockPageSheet, {
+    types: ["statblock"],
+    makeDefault: true
+  });
+});
+```
+
+### Creating pages programmatically
+
+```js
+const journal = game.journals.getName("Monster Manual");
+
+// Add a text page
+await JournalEntryPage.create({
+  name: "Goblin",
+  type: "text",
+  text: { content: "<h2>Goblin</h2><p>A small, cruel humanoid.</p>", format: 1 },
+  title: { show: true, level: 1 }
+}, { parent: journal });
+
+// Add a custom statblock page
+await JournalEntryPage.create({
+  name: "Dragon",
+  type: "statblock",
+  system: {
+    creatureType: "dragon",
+    challenge: 17,
+    abilities: { strength: 27, dexterity: 10, constitution: 25 }
+  }
+}, { parent: journal });
+```
+
+### Accessing pages
+
+```js
+const journal = game.journals.getName("Session Notes");
+for (const page of journal.pages) {
+  console.log(`${page.name} (${page.type})`);
+}
+const specificPage = journal.pages.getName("Session 1");
+```
+
+---
+
+## 10. UUID Resolution
+
+Documents are referenced by UUID strings throughout Foundry. A UUID encodes the full path to a document, including compendium and embedded document hierarchy.
+
+### UUID format
+
+```
+Actor.abc123xyz789                    — world document
+Compendium.my-module.monsters.Item.456  — compendium document
+Scene.sceneId.Token.tokenId            — embedded document
+Actor.actorId.Item.itemId              — embedded item on an actor
+```
+
+### fromUuid (async)
+
+Resolves any UUID to its document instance, including from compendiums:
+
+```js
+const actor = await fromUuid("Actor.abc123xyz789");
+const item  = await fromUuid("Compendium.my-module.monsters.Item.456");
+const token = await fromUuid("Scene.sceneId.Token.tokenId");
+
+// In drag & drop handlers
+const dropped = await fromUuid(data.uuid);
+```
+
+### fromUuidSync (synchronous)
+
+Resolves UUIDs for already-loaded documents only. Returns `null` if the document hasn't been loaded:
+
+```js
+const token = fromUuidSync("Scene.sceneId.Token.tokenId");   // null if scene not loaded
+```
+
+Use `fromUuid` (async) whenever possible — `fromUuidSync` only works for documents in memory.
+
+---
+
+## 11. Essential Utilities (foundry.utils)
+
+Foundry provides core utilities under `foundry.utils`. Always prefer these over lodash or custom implementations.
+
+```js
+// Deep merge objects (used internally by document updates)
+const merged = foundry.utils.mergeObject(target, changes, { inplace: false });
+
+// Get nested property by dot-path
+const value = foundry.utils.getProperty(actor, "system.abilities.str.mod");
+
+// Set nested property by dot-path
+foundry.utils.setProperty(data, "system.health.value", 42);
+
+// Deep clone (safe for documents and complex objects)
+const copy = foundry.utils.deepClone(original);
+
+// Check if object has no own keys
+foundry.utils.isEmpty({});   // true
+
+// Generate a random 16-char hex ID
+const id = foundry.utils.randomID();   // "a1b2c3d4e5f6g7h8"
+```
+
+`mergeObject` is critical — it's how Foundry processes document updates internally. Understanding it prevents bugs when working with `actor.update()` and `item.update()`.

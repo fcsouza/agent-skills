@@ -272,6 +272,31 @@ const actor = game.actors.getName("My Custom Goblin");
 await pack.importDocument(actor);
 ```
 
+### Compendium Index (Performance)
+
+Loading an entire compendium with `getDocuments()` is expensive. Use `getIndex()` for lightweight lookups:
+
+```js
+const pack = game.packs.get("my-module.monsters");
+
+// Get only names and images (fast — doesn't load full documents)
+const index = await pack.getIndex();
+for (const entry of index) {
+  console.log(entry.name, entry.img, entry.uuid);
+}
+
+// Include specific fields in the index
+const detailedIndex = await pack.getIndex({
+  fields: ["system.cr", "system.type", "flags.my-module.category"]
+});
+const dragons = detailedIndex.filter(e => e.system?.type === "dragon");
+
+// Get a single document by ID (only when you need the full data)
+const dragon = await pack.getDocument("someId");
+```
+
+`getIndex()` returns lightweight metadata without deserializing full documents. Always prefer it over `getDocuments()` when you only need names, images, or a few fields.
+
 ---
 
 ## Localization (i18n)

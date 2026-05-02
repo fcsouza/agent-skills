@@ -177,7 +177,7 @@ class HeroActorSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
       system,
       items:         actor.items.contents,
       weapons:       actor.items.filter(i => i.type === "weapon"),
-      effects:       actor.effects.contents,
+      effects:       Array.from(actor.allApplicableEffects()),
       abilities:     system.abilities,      // derived in prepareDerivedData
       health:        system.health,
       armorClass:    system.armorClass,
@@ -256,7 +256,9 @@ class HeroActorSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
     const ability = target.dataset.ability;  // e.g. "strength"
     const actor   = this.document;
     const mod     = actor.system.abilities[ability]?.mod ?? 0;
-    await new Roll(`1d20 + ${mod}`).toMessage({
+    const roll = new Roll(`1d20 + ${mod}`);
+    await roll.evaluate();
+    await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor }),
       flavor:  `${ability.capitalize()} Check`
     });
@@ -489,7 +491,13 @@ Complete Handlebars template for an actor sheet body part.
   {{! ── Biography (rich text editor) ───────────── }}
   <section class="biography">
     <h3>{{localize "MY_MODULE.Actor.biography"}}</h3>
-    {{editor enrichedBiography target="system.biography" button=true editable=isEditable}}
+    {{#if isEditable}}
+      <prose-mirror name="system.biography" button="true" editable="{{isEditable}}" toggled="false" value="{{system.biography}}">
+        {{{enrichedBiography}}}
+      </prose-mirror>
+    {{else}}
+      {{{enrichedBiography}}}
+    {{/if}}
   </section>
 
 </form>
@@ -500,8 +508,113 @@ Key conventions:
 - `data-action="..."` on buttons to wire the Actions system.
 - `data-*` attributes on elements to pass context to action handlers.
 - `name="system.field.path"` on inputs for automatic form submission.
-- `{{editor ...}}` for ProseMirror rich text fields.
+- `<prose-mirror>` for rich text fields (v13).
 - `{{#each}} ... {{else}} ... {{/each}}` for graceful empty states.
+
+---
+
+## 9. Drag & Drop
+
+`ActorSheetV2` provides built-in drag-drop infrastructure. Override the `_onDrop*` methods to customize what happens when documents are dropped onto your sheet.
+
+### Override _onDropItem to filter drops
+
+```js
+class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
+  // Only accept specific item types
+  async _onDropItem(event, data) {
+    const item = await fromUuid(data.uuid);
+    if (!item) return;
+
+    // Reject items that don't belong on this actor type
+    const allowedTypes = ["weapon", "armor", "consumable"];
+    if (!allowedTypes.includes(item.type)) {
+      ui.notifications.warn(`Cannot add ${item.type} items to this actor.`);
+      return;
+    }
+
+    // Call super to handle the default drop behavior
+    return super._onDropItem(event, data);
+  }
+}
+```
+
+### Transfer items between actors
+
+```js
+async _onDropItem(event, data) {
+  const item = await fromUuid(data.uuid);
+  if (!item) return;
+
+  // If the item belongs to a different actor, transfer it
+  const sourceActor = item.parent;
+  if (sourceActor && sourceActor.id !== this.document.id) {
+    // Create on the target actor
+    const [newItem] = await this.document.createEmbeddedDocuments("Item", [item.toObject()]);
+    // Remove from the source actor
+    await sourceActor.deleteEmbeddedDocuments("Item", [item.id]);
+    return newItem;
+  }
+
+  return super._onDropItem(event, data);
+}
+```
+
+### Resolve dropped data with fromUuid
+
+```js
+// fromUuid resolves any document UUID to its document instance
+const actor = await fromUuid("Actor.abc123xyz789");
+const item = await fromUuid("Item.xyz789abc123");
+const scene = await fromUuid("Scene.sceneIdHere");
+
+// fromUuidSync for synchronous access (returns null if not yet loaded)
+const token = fromUuidSync("Scene.sceneId.Token.tokenId");
+```
+
+### Custom drop zones in templates
+
+Add `data-drop-target` attributes to create specific drop zones:
+
+```hbs
+<div class="equipment-slot" data-drop-target="equipment" data-slot="head">
+  {{#if equipped.head}}
+    <img src="{{equipped.head.img}}" />
+  {{else}}
+    <p>{{localize "MY_MODULE.Actor.dropHeadgear"}}</p>
+  {{/if}}
+</div>
+```
+
+Handle custom drop zones by overriding `_onDrop` and checking the target:
+
+```js
+async _onDrop(event) {
+  const target = event.target.closest("[data-drop-target]");
+  if (target?.dataset.dropTarget === "equipment") {
+    const data = TextEditor.getDragEventData(event);
+    const item = await fromUuid(data.uuid);
+    if (item?.type === "armor") {
+      const slot = target.dataset.slot;
+      await this.document.update({ [`system.equipment.${slot}`]: item.id });
+    }
+    return;
+  }
+  return super._onDrop(event);
+}
+```
+
+### Hooks for drop events
+
+The `dropActorSheetData` hook fires after the sheet handles a drop. Use it to react to drops from other modules:
+
+```js
+Hooks.on("dropActorSheetData", (actor, sheet, data) => {
+  if (data.type === "JournalEntry") {
+    console.log(`Journal "${data.uuid}" dropped onto ${actor.name}`);
+  }
+});
+```
 
 ---
 

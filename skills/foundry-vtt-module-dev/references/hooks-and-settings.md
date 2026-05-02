@@ -86,6 +86,8 @@ Hooks.once("setup", () => {
 });
 ```
 
+Keybindings must be registered in `setup`, not `init` — `game.keybindings` is not available during `init`.
+
 ### ready
 
 ```js
@@ -298,7 +300,52 @@ async function doImportantThing(actor) {
 
 ---
 
-## 7. Settings Registration
+## 7. Keybinding API
+
+Register keyboard shortcuts in the `setup` hook. Users can rebind them in Settings → Configure Controls.
+
+### Full registration
+
+```js
+Hooks.once("setup", () => {
+  game.keybindings.register("my-module", "quickAttack", {
+    name:     "MY_MODULE.Keybinding.quickAttack.name",
+    hint:     "MY_MODULE.Keybinding.quickAttack.hint",
+    editable: [
+      { key: "KeyA", modifiers: [] },                    // default: A
+      { key: "KeyA", modifiers: ["Shift"] }              // alternate: Shift+A
+    ],
+    onDown: () => { quickAttack(); },                    // fires on key press
+    onUp:   () => { clearTargeting(); },                 // fires on key release (optional)
+    repeat: false,                                       // true = fires repeatedly while held
+    restricted: false,                                   // true = GM only
+    reservedModifiers: ["Shift"],                        // prevent Shift from being used as a modifier conflict
+    precedence: CONST.KEYBINDING_PRECEDENCE.PRIORITY     // NORMAL or PRIORITY
+  });
+});
+```
+
+### GM-only shortcut
+
+```js
+game.keybindings.register("my-module", "gmPanel", {
+  name:       "MY_MODULE.Keybinding.gmPanel.name",
+  hint:       "MY_MODULE.Keybinding.gmPanel.hint",
+  editable:   [{ key: "KeyG", modifiers: ["Control", "Shift"] }],
+  onDown:     () => { new GmPanel().render({ force: true }); },
+  restricted: true      // only GMs can use this binding
+});
+```
+
+### Modifier keys
+
+Available modifiers: `"Control"`, `"Shift"`, `"Alt"`, `"Meta"` (Cmd on Mac, Win on Windows).
+
+Key codes follow the `KeyboardEvent.code` format: `"KeyA"`, `"Digit1"`, `"Space"`, `"F1"`, `"ArrowUp"`, etc.
+
+---
+
+## 8. Settings Registration
 
 Register all settings in the `init` hook.
 
@@ -371,7 +418,7 @@ Hooks.once("init", () => {
 
 ---
 
-## 8. Settings Get / Set
+## 9. Settings Get / Set
 
 ```js
 const moduleId = "my-module";
@@ -395,7 +442,7 @@ if (currentVersion < 3) {
 
 ---
 
-## 9. Settings Submenus
+## 10. Settings Submenus
 
 For complex settings that don't fit in a single row, register a submenu pointing to an ApplicationV2.
 
@@ -460,7 +507,58 @@ The submenu's backing settings (`specialMode`, `debugLevel`, `customEndpoint`) s
 
 ---
 
-## 10. Cleanup Pattern
+## 11. DataModel-Backed Settings
+
+v13 supports using a `DataModel` subclass as the `type` in `game.settings.register()`. This replaces JSON-stringified objects with validated, typed, auto-migrated structured settings.
+
+### Define a settings DataModel
+
+```js
+class ModuleSettings extends foundry.abstract.DataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      difficulty:   new fields.StringField({
+        required: true, initial: "normal",
+        choices: ["easy", "normal", "hard"]
+      }),
+      showTooltips: new fields.BooleanField({ initial: true }),
+      maxPartySize: new fields.NumberField({ required: true, integer: true, min: 1, max: 12, initial: 6 }),
+      customColor:  new fields.ColorField({ initial: "#ff6600" })
+    };
+  }
+}
+```
+
+### Register and use
+
+```js
+Hooks.once("init", () => {
+  game.settings.register("my-module", "config", {
+    name:    "MY_MODULE.Settings.config.name",
+    hint:    "MY_MODULE.Settings.config.hint",
+    scope:   "world",
+    config:  true,
+    type:    ModuleSettings,     // DataModel class instead of Boolean/String/etc.
+    default: {}
+  });
+});
+
+// Get returns a DataModel instance — access fields as properties
+const settings = game.settings.get("my-module", "config");
+console.log(settings.difficulty);     // "normal"
+console.log(settings.maxPartySize);   // 6
+
+// Set with a plain object — partial updates work
+await game.settings.set("my-module", "config", { difficulty: "hard" });
+// Other fields (showTooltips, maxPartySize, customColor) are unchanged
+```
+
+The DataModel validates all data on set — invalid values throw before saving. The `default: {}` uses the model's `initial` values for each field.
+
+---
+
+## 12. Cleanup Pattern
 
 Always clean up hook registrations when an application closes. Unregistered hooks continue to run even after the window is gone, causing memory leaks and ghost behavior.
 
