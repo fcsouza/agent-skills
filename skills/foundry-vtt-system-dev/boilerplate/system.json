@@ -1,0 +1,54 @@
+{
+  "id": "my-system",
+  "title": "My System",
+  "description": "A custom game system for Foundry VTT.",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
+  "authors": [
+    {
+      "name": "Your Name",
+      "url": "https://github.com/yourname"
+    }
+  ],
+  "documentTypes": {
+    "Actor": {
+      "character": {},
+      "npc": {}
+    },
+    "Item": {
+      "weapon": {},
+      "spell": {}
+    }
+  },
+  "background": "systems/my-system/assets/background.webp",
+  "gridDistance": 5,
+  "gridUnits": "ft",
+  "primaryTokenAttribute": "health",
+  "secondaryTokenAttribute": "power",
+  "esmodules": ["main.mjs"],
+  "styles": ["styles/my-system.css"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "packs": [
+    {
+      "name": "core-items",
+      "label": "Core Items",
+      "path": "packs/core-items.db",
+      "type": "Item",
+      "system": "my-system"
+    }
+  ],
+  "relationships": {
+    "requires": [],
+    "systems": [],
+    "modules": []
+  }
+}

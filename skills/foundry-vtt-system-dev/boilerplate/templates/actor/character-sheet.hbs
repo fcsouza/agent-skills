@@ -1,0 +1,81 @@
+<form autocomplete="off">
+
+  {{!-- Identity --}}
+  <section class="identity">
+    <img class="profile-img" src="{{actor.img}}" data-edit="img" title="{{actor.name}}" />
+    <input class="charname" name="name" type="text" value="{{actor.name}}" placeholder="{{localize 'MY_SYSTEM.CharacterName'}}" />
+    <span class="level-badge">{{localize 'MY_SYSTEM.Level'}} {{system.level}}</span>
+  </section>
+
+  {{!-- Attributes --}}
+  <section class="attributes">
+    <h2>{{localize 'MY_SYSTEM.Sections.Attributes'}}</h2>
+    <div class="ability-grid">
+      {{#each abilities as |ability|}}
+        <div class="ability" data-ability="{{ability.key}}">
+          <label>{{ability.label}}</label>
+          <input type="number" name="system.abilities.{{ability.key}}.value" value="{{ability.value}}" min="1" max="20" />
+          <span class="ability-mod">{{numberFormat ability.mod sign=true}}</span>
+          <button type="button" data-action="rollAbility" data-ability="{{ability.key}}" title="{{localize 'MY_SYSTEM.Roll'}}">
+            <i class="fas fa-dice-d20"></i>
+          </button>
+        </div>
+      {{/each}}
+    </div>
+  </section>
+
+  {{!-- Health --}}
+  <section class="health">
+    <h2>{{localize 'MY_SYSTEM.Sections.Health'}}</h2>
+    <div class="health-bar">
+      <input type="number" name="system.health.value" value="{{system.health.value}}" min="0" />
+      <span class="separator">/</span>
+      <span class="health-max">{{system.health.max}}</span>
+    </div>
+  </section>
+
+  {{!-- Inventory --}}
+  <section class="inventory">
+    <h2>
+      {{localize 'MY_SYSTEM.Sections.Inventory'}}
+      <button type="button" data-action="addItem" data-type="weapon" title="{{localize 'MY_SYSTEM.AddItem'}}">
+        <i class="fas fa-plus"></i>
+      </button>
+    </h2>
+    <ul class="items-list">
+      {{#each weapons as |item|}}
+        <li class="item" data-item-id="{{item.id}}">
+          <img src="{{item.img}}" title="{{item.name}}" width="24" height="24" />
+          <span class="item-name">{{item.name}}</span>
+          <span class="item-damage">{{item.system.damage}}</span>
+          <button type="button" data-action="deleteItem" title="{{localize 'MY_SYSTEM.DeleteItem'}}">
+            <i class="fas fa-trash"></i>
+          </button>
+        </li>
+      {{/each}}
+    </ul>
+  </section>
+
+  {{!-- Effects --}}
+  <section class="effects">
+    <h2>{{localize 'MY_SYSTEM.Sections.Effects'}}</h2>
+    <ul class="effects-list">
+      {{#each effects as |effect|}}
+        <li class="effect" data-effect-id="{{effect.id}}">
+          <span class="effect-name">{{effect.name}}</span>
+        </li>
+      {{/each}}
+    </ul>
+  </section>
+
+  {{!-- Biography --}}
+  <section class="biography">
+    <h2>{{localize 'MY_SYSTEM.Sections.Biography'}}</h2>
+    {{#if isEditable}}
+      <prose-mirror name="system.biography" button="true" editable="{{isEditable}}" toggled="false" value="{{system.biography}}">{{{enrichedBiography}}}</prose-mirror>
+    {{else}}
+      {{{enrichedBiography}}}
+    {{/if}}
+  </section>
+
+</form>
