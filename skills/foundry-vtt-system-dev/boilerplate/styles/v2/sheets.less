@@ -1,0 +1,85 @@
+// Shared chrome for all sheets. Specific document-type styles
+// (character.less, npc.less, items.less) extend this base.
+//
+// UNLAYERED on purpose — wins over Foundry's @layer applications without
+// specificity hacks.
+
+.my-system.sheet {
+  background: var(--my-system-bg-card);
+  color: var(--my-system-text-primary);
+  border: 1px solid var(--my-system-border);
+  box-shadow: var(--my-system-shadow-card);
+
+  // Window header
+  .window-header {
+    background: var(--my-system-bg-statblock);
+    border-bottom: 2px solid var(--my-system-border);
+  }
+
+  // Sheet content area
+  .window-content {
+    padding: var(--my-system-space-3);
+    color: var(--my-system-text-primary);
+  }
+
+  // Sheet header strip (portrait + name + level/type)
+  > .sheet-header {
+    height: var(--my-system-sheet-header-height);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--my-system-space-3);
+    padding: var(--my-system-space-3);
+    border-bottom: 2px solid var(--my-system-divider);
+  }
+
+  // Tab navigation
+  .sheet-tabs {
+    height: var(--my-system-sheet-tab-bar-height);
+    display: flex;
+    gap: var(--my-system-space-2);
+    border-bottom: 1px solid var(--my-system-divider);
+
+    [role="tab"] {
+      padding: var(--my-system-space-2) var(--my-system-space-3);
+      cursor: pointer;
+      color: var(--my-system-text-secondary);
+
+      &[aria-selected="true"] {
+        color: var(--my-system-text-primary);
+        border-bottom: 2px solid var(--my-system-color-gold);
+      }
+    }
+  }
+
+  // Form inputs inside sheets
+  input[type="text"],
+  input[type="number"],
+  select,
+  textarea {
+    background: var(--my-system-bg-statblock);
+    color: var(--my-system-text-primary);
+    border: 1px solid var(--my-system-border);
+    border-radius: var(--my-system-border-radius);
+  }
+
+  // Buttons
+  button {
+    background: var(--my-system-bg-statblock);
+    color: var(--my-system-text-primary);
+    border: 1px solid var(--my-system-border);
+    border-radius: var(--my-system-border-radius);
+    padding: var(--my-system-space-1) var(--my-system-space-3);
+    font-family: var(--my-system-font-display);
+    cursor: pointer;
+
+    &:hover:not([disabled]) {
+      background: var(--my-system-color-gold);
+      color: #fff;
+    }
+
+    &[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}

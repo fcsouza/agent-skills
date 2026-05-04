@@ -1,0 +1,26 @@
+// Light theme — applies when body has .theme-light, OR when an individual
+// application has both .themed and .theme-light (popouts, per-app overrides).
+//
+// The mixin pattern avoids duplicating the variable list across the two
+// selectors below.
+
+.mixin-theme-light() {
+  // Override Foundry core variables for the light theme
+  --color-text-dark-primary: #1c1410;
+  --color-border-light-1: #c8a672;
+
+  // Namespaced system tokens — light values
+  --my-system-bg-card: #fdf6e3;
+  --my-system-bg-statblock: #f4ead0;
+  --my-system-text-primary: #1c1410;
+  --my-system-text-secondary: #5a4a30;
+  --my-system-border: #c8a672;
+  --my-system-divider: #d4c191;
+}
+
+@layer variables {
+  body.theme-light .my-system,
+  .themed.theme-light.my-system {
+    .mixin-theme-light();
+  }
+}

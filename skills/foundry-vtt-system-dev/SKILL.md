@@ -1,6 +1,6 @@
 ---
 name: foundry-vtt-system-dev
-version: 1.0.0
+version: 2.1.0
 description: >-
   Covers building, extending, and maintaining Foundry VTT game systems for v13+.
   This skill applies when scaffolding a new system, defining Actor/Item types with
@@ -180,6 +180,47 @@ Hooks.once("init", () => {
 ```
 
 > **Shared API** — see the foundry-vtt-module-dev skill for Hooks lifecycle (init/setup/ready), Settings API, and Localization.
+
+---
+
+## v13 Namespace (`foundry.*`)
+
+Nearly every core API moved into the `foundry.*` namespace in v13. Legacy globals work as deprecation shims (with console warnings) but new code should use the namespaced paths. Critical for system development:
+
+| Legacy / global | v13 namespaced path |
+|---|---|
+| `TypeDataModel`, `DataModel`, `Document` | `foundry.abstract.*` |
+| `fields.NumberField`, `fields.SchemaField`, etc. | `foundry.data.fields.*` |
+| `ApplicationV2`, `HandlebarsApplicationMixin`, `DialogV2` | `foundry.applications.api.*` |
+| `ActorSheetV2`, `ItemSheetV2` | `foundry.applications.sheets.*` |
+| `Roll`, `DiceTerm`, `Die`, `RollTerm` | `foundry.dice.*`, `foundry.dice.terms.*` |
+| `Canvas`, `CanvasLayer`, `PlaceableObject` | `foundry.canvas.*` |
+| `Actors`, `Items` (sidebar collections) | `foundry.documents.collections.*` |
+| `loadTemplates`, `renderTemplate` | `foundry.applications.handlebars.*` |
+| `mergeObject`, `isNewerVersion`, `debounce` | `foundry.utils.*` |
+| `Hooks` (still global) | `foundry.helpers.Hooks` (alias) |
+
+For the full table, see the `foundry-vtt-module-dev` skill's "v13 Namespace" section. The same migration applies — write new files against namespaced paths, update old files when you touch them.
+
+---
+
+## Production Architecture
+
+Patterns every shipping system uses, extracted from the `foundryvtt/dnd5e` reference implementation. Adopt these before your codebase grows past ~10 source files:
+
+- **Single ESM entry + barrel files** — one `my-system.mjs` declared in `system.json`; each subdirectory exports a `_module.mjs` re-exporting its public API. The entry imports namespaces (`import * as dataModels from "./data/_module.mjs"`).
+- **`globalThis.<systemId>` API surface** — expose your system API on one global so modules and macros have a stable contract (`game.mySystem.documents.MySystemActor`).
+- **`flags.hotReload` in system.json** — declare which file types Foundry should live-reload (CSS, hbs, JSON). Cuts UI iteration time dramatically.
+- **`htmlFields` and `filePathFields` per documentType** — required for proper sanitization, ProseMirror enrichment, asset migration, and search indexing.
+- **Migration version flags** — `flags.<systemId>.needsMigrationVersion` + `compatibleMigrationVersion` in `system.json`, gated by `Hooks.once("ready")` + `game.user.isGM`.
+- **Single frozen `config.mjs`** — all static system data (abilities, damage types, schools) in one file, assigned to `CONFIG.MY_SYSTEM` in `init`. One source of truth.
+- **Staged init hooks** — split work across `init` (CONFIG mutations, sheets, settings) → `i18nInit` (translate CONFIG labels) → `setup` (enrichers, packs) → `ready` (migrations, GM-only side effects).
+- **Pack folders** — group compendium packs hierarchically in the sidebar via `packFolders` in `system.json`.
+- **Build pipeline** — Rollup ESM bundle + LESS/Sass + `@foundryvtt/foundryvtt-cli` for LevelDB pack compilation.
+
+The updated `boilerplate/system.json` and `boilerplate/main.mjs` demonstrate the namespace, hotReload, htmlFields, packFolders, migration flags, and staged-hook patterns end-to-end.
+
+For the full rationale, dnd5e references, and concrete templates, read `references/production-patterns.md`.
 
 ---
 
@@ -629,6 +670,53 @@ For full details on all five topics, read `references/advanced-system-features.m
 
 ---
 
+## Styling & Themes
+
+Systems carry the bulk of CSS in any Foundry world — character sheets, item sheets, chat cards. The patterns below are extracted from the two largest production systems (`foundryvtt/dnd5e` and `foundryvtt/pf2e`) and codify what works at scale on v13.
+
+**Nine rules every shipping system follows:**
+
+1. **Single compiled CSS file** declared in `system.json` `styles[]`. Never list LESS/SCSS partials.
+2. **Marker class** on every Application root via `DEFAULT_OPTIONS.classes: ["my-system", ...]`.
+3. **Component CSS is unlayered.** Only wrap variable/token definitions in `@layer variables`. Component CSS without a layer wins against Foundry's `@layer applications` automatically.
+4. **CSS custom properties as the abstraction** — not LESS/SCSS mixins.
+5. **Two coexisting variable strategies:** override Foundry's `--color-*`/`--font-*` for skinning **and** namespace your own as `--my-system-*`.
+6. **Body-class theming** — `body.theme-light` / `body.theme-dark`. No `prefers-color-scheme`, no `[data-theme]`.
+7. **`.themed.theme-{light,dark}`** for popouts and per-application theme overrides. Always pair with body-class selectors.
+8. **Per-version sheet folders** — `styles/v1/` for AppV1 fallbacks, `styles/v2/` for current AppV2 styles.
+9. **Sheet scoping by document chain** — `.my-system.sheet.actor.character`.
+
+```less
+// styles/my-system.less — entry, only @imports
+@import "variables/base.less";    // wrapped in @layer variables
+@import "variables/light.less";   // body.theme-light + .themed.theme-light
+@import "variables/dark.less";    // body.theme-dark + .themed.theme-dark
+@import "v2/sheets.less";         // UNLAYERED — wins over Foundry's base
+@import "v2/character.less";
+@import "v2/chat.less";
+```
+
+```less
+// Per-theme variables via mixin pattern
+.mixin-theme-dark() {
+  --my-system-bg-card: #2a2018;
+  --my-system-text-primary: #e9d8a6;
+}
+
+@layer variables {
+  body.theme-dark .my-system,
+  .themed.theme-dark.my-system {
+    .mixin-theme-dark();
+  }
+}
+```
+
+The boilerplate ships a complete starter: [styles/my-system.less](boilerplate/styles/my-system.less), [variables/](boilerplate/styles/variables/) (base + light + dark), [v2/sheets.less](boilerplate/styles/v2/sheets.less), [v2/chat.less](boilerplate/styles/v2/chat.less). Compile with `lessc styles/my-system.less styles/my-system.css --source-map` or integrate via Vite (see the foundry-vtt-module-dev skill's `references/build-pipeline.md`).
+
+For the full rationale — Foundry's cascade-layer mechanics, why component CSS stays unlayered, marker class via `DEFAULT_OPTIONS.classes`, dnd5e vs PF2e tooling tradeoffs, sheet/chat scoping patterns, token & HUD customization, and 12 pitfalls — read `references/styling-and-themes.md`.
+
+---
+
 ## Shared APIs
 
 These APIs are covered in the **foundry-vtt-module-dev skill** — read that skill for deep details:
@@ -644,7 +732,7 @@ These APIs are covered in the **foundry-vtt-module-dev skill** — read that ski
 | Canvas Extensions | `references/canvas-and-pixi.md` | Custom layers for system-specific visuals |
 | Sockets | `references/sockets-rolls-packs.md` | GM-authoritative pattern for player actions |
 | Compendium Packs | `references/sockets-rolls-packs.md` | Declare packs in system.json |
-| CSS Cascade Layers | `references/migration-guide.md` | System CSS auto-enters the `system` layer; use `@layer system { }` |
+| CSS / Styling | `references/styling-and-themes.md` | Marker classes via `DEFAULT_OPTIONS.classes`, `@layer variables` for tokens, body-class theming with `.themed.theme-*` for popouts |
 | Basic Dice Rolls | `references/sockets-rolls-packs.md` | `Roll`, `evaluate()`, `toMessage()` |
 | Combat Hooks | `references/combat-and-tokens.md` | combatStart, combatTurn, combatRound |
 | Data Migration (modules) | `references/migration-guide.md` | Systems use `migrateData()` on TypeDataModel |
@@ -673,17 +761,33 @@ These APIs are covered in the **foundry-vtt-module-dev skill** — read that ski
 
 | File | Purpose |
 |---|---|
-| `boilerplate/system.json` | Valid v13 manifest with all system-specific fields |
+| `boilerplate/system.json` | Valid v13 manifest with hotReload, htmlFields/filePathFields per documentType, packFolders, migration version flags |
 | `boilerplate/template.json` | Actor/Item type definitions with template inheritance |
-| `boilerplate/main.mjs` | Entry point with init/setup/ready hooks and CONFIG registration |
+| `boilerplate/main.mjs` | Entry point — barrel imports, globalThis API, staged init/i18nInit/setup/ready hooks |
+| `boilerplate/config.mjs` | Single source of truth for system constants (MY_SYSTEM) |
+| `boilerplate/settings.mjs` | `registerSystemSettings()` — all game.settings.register calls in one place |
+| `boilerplate/migration.mjs` | `migrateWorld()` with version-gated migration registry |
 | `boilerplate/actor.mjs` | Custom Actor class with getRollData and _preCreate |
 | `boilerplate/item.mjs` | Custom Item class with roll() and getRollData |
+| `boilerplate/data/_module.mjs` | Barrel re-exporting every TypeDataModel class |
 | `boilerplate/data/character-data.mjs` | TypeDataModel for character type with prepareDerivedData |
 | `boilerplate/data/npc-data.mjs` | TypeDataModel for NPC type with simplified schema |
 | `boilerplate/data/weapon-data.mjs` | TypeDataModel for weapon type with damage, quantity, weight |
 | `boilerplate/data/spell-data.mjs` | TypeDataModel for spell type with level, school, formula |
+| `boilerplate/documents/_module.mjs` | Barrel re-exporting MySystemActor and MySystemItem |
+| `boilerplate/sheets/_module.mjs` | Barrel re-exporting CharacterSheet |
 | `boilerplate/sheets/character-sheet.mjs` | ActorSheetV2 for character type with actions |
 | `boilerplate/templates/actor/character-sheet.hbs` | Handlebars template with abilities, inventory, and effects |
+| `boilerplate/styles/my-system.less` | LESS entry — imports all partials, no rules |
+| `boilerplate/styles/variables/base.less` | Theme-agnostic `:root` tokens (spacing scale, sheet dims, namespaced colors) |
+| `boilerplate/styles/variables/light.less` | Light theme mixin + `body.theme-light` / `.themed.theme-light` selectors |
+| `boilerplate/styles/variables/dark.less` | Dark theme mixin + `body.theme-dark` / `.themed.theme-dark` selectors |
+| `boilerplate/styles/v2/sheets.less` | Shared sheet chrome — header, tabs, inputs, buttons (unlayered) |
+| `boilerplate/styles/v2/typography.less` | Font loading and typographic scale |
+| `boilerplate/styles/v2/character.less` | Character sheet specific (ability block, health bar with prefers-reduced-motion) |
+| `boilerplate/styles/v2/items.less` | Item sheet patterns chained by item type (`.weapon`, `.spell`) |
+| `boilerplate/styles/v2/apps.less` | Dialogs, configs, popout themed override pattern |
+| `boilerplate/styles/v2/chat.less` | Chat card scoping pattern under `:is(.chat-popout, #chat-log, .chat-log)` |
 
 ---
 
@@ -700,3 +804,19 @@ Read these for deep API details — they're loaded on demand:
 | `references/data-migration.md` | migrateData(), schema versioning, migration registry, bulk migration, v12→v13 changes |
 | `references/character-creation.md` | Default items, prototype tokens, creation dialogs, compendium import |
 | `references/advanced-system-features.md` | Status effects, hotbar macros, custom enrichers, token customization, journal pages |
+| `references/production-patterns.md` | Production architecture: barrel files, globalThis API, hotReload, htmlFields/filePathFields, build pipeline, migration version flags, pack folders, staged init hooks |
+| `references/styling-and-themes.md` | CSS architecture: marker classes, cascade layers (when to layer, when not), CSS variables, body-class theming, sheet/chat scoping, dnd5e vs PF2e patterns, 12 pitfalls |
+
+### Cross-Skill References
+
+These live in the `foundry-vtt-module-dev` skill but apply to systems too:
+
+| File | When to read |
+|---|---|
+| `foundry-vtt-module-dev/references/accessibility.md` | Sheet a11y — ARIA, keyboard nav, focus management |
+| `foundry-vtt-module-dev/references/testing-with-quench.md` | Writing in-game tests with Quench |
+| `foundry-vtt-module-dev/references/module-subtypes.md` | When extending your system with module-contributed subtypes |
+| `foundry-vtt-module-dev/references/build-pipeline.md` | Vite/Rollup setup, dev proxy, fixed-name output, hot reload integration |
+| `foundry-vtt-module-dev/references/handlebars-and-templates.md` | Foundry helper inventory, v13 HTML elements, form helpers, template preloading |
+| `foundry-vtt-module-dev/references/adventure-documents.md` | Shipping pre-made content (campaigns, one-shots) via the Adventure document type |
+| `foundry-vtt-module-dev/references/permissions-and-ownership.md` | Roles, ownership levels, testUserPermission, GM-authoritative pattern, USER_PERMISSIONS |

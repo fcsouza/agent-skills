@@ -1,0 +1,41 @@
+// Item sheets — one rule per item type, chained from .sheet.item.
+
+.my-system.sheet.item {
+  .item-header {
+    display: flex;
+    align-items: center;
+    gap: var(--my-system-space-3);
+    padding: var(--my-system-space-3);
+    background: var(--my-system-bg-statblock);
+    border-bottom: 1px solid var(--my-system-divider);
+
+    img {
+      width: 64px;
+      height: 64px;
+      border: 1px solid var(--my-system-border);
+      border-radius: var(--my-system-border-radius);
+    }
+
+    .item-name {
+      flex: 1;
+
+      input {
+        background: transparent;
+        border: none;
+        font-family: var(--my-system-font-display);
+        font-size: 1.25rem;
+        color: var(--my-system-text-primary);
+      }
+    }
+  }
+
+  &.weapon .damage-formula {
+    font-family: var(--my-system-font-numeric);
+    color: var(--my-system-color-hp-low);
+  }
+
+  &.spell .spell-level {
+    font-family: var(--my-system-font-display);
+    color: var(--my-system-color-gold);
+  }
+}

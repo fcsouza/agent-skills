@@ -361,3 +361,123 @@ game.settings.register("my-module", "trackResources", {
   default: true,
 });
 ```
+
+---
+
+## Performance
+
+Foundry can run worlds with thousands of compendium entries, hundreds of active scene tokens, and multiple players synchronizing in real time. The patterns below prevent the most common performance mistakes; ignore them and a 50-token combat encounter takes 5 seconds per turn.
+
+### Compendium Loads — Index, Don't Hydrate
+
+`pack.getDocuments()` deserializes **every** document in the pack into a full `Actor`/`Item` instance with a hydrated `system` model. For a 1,000-entry SRD pack that's hundreds of milliseconds of CPU and tens of MB of memory.
+
+```javascript
+// SLOW — full hydration of every document
+const monsters = await pack.getDocuments();
+const dragons = monsters.filter(m => m.system.cr >= 10);
+
+// FAST — index lookup, project only the fields you need
+const index = await pack.getIndex({ fields: ["system.cr", "system.type"] });
+const dragonIds = index.filter(e => e.system?.cr >= 10).map(e => e._id);
+const dragons = await Promise.all(dragonIds.map(id => pack.getDocument(id)));
+```
+
+Rules of thumb:
+- **Browsing / search UI** — `getIndex` only, project required fields.
+- **Need 1–10 specific docs** — `getIndex`, then `getDocument(id)` for each match.
+- **Need >50 docs** — re-evaluate. Usually you can move work into the index.
+
+### Projection Fields
+
+The `fields` array on `getIndex({ fields })` controls which fields beyond the default (`_id`, `name`, `img`, `type`, `sort`, `folder`) are loaded into the index entries. Projecting saves memory and parse time:
+
+```javascript
+const index = await pack.getIndex({ fields: ["system.level", "system.school"] });
+// each entry has: { _id, name, img, type, sort, folder, system: { level, school } }
+```
+
+Don't project the whole document — that defeats the point. Pick 1–5 fields you actually filter or sort by.
+
+### Batch CRUD (Plural Forms)
+
+Single-document CRUD methods (`Actor.create`, `actor.update`, `actor.delete`) each fire a complete hook chain (`preCreate`, `create`, `createActor`, ready chain). For N documents, that's N round trips and N hook chains.
+
+```javascript
+// SLOW — N round trips
+for (const data of monsterData) {
+  await Actor.create(data);
+}
+
+// FAST — one round trip, one batched hook chain
+await Actor.createDocuments(monsterData);
+```
+
+Plural forms exist on every Document class:
+
+| Single | Batch |
+|---|---|
+| `Actor.create(data)` | `Actor.createDocuments(dataArray)` |
+| `actor.update(changes)` | `Actor.updateDocuments(changesArray)` |
+| `actor.delete()` | `Actor.deleteDocuments(idArray)` |
+| `actor.createEmbeddedDocuments("Item", [data])` | same — already batched |
+
+For embedded documents, **always pass an array** even when creating one — there is no non-batch single-embedded API.
+
+### Avoid Render Loops in Update Hooks
+
+If your `updateActor` handler triggers another update on the same actor, you're in a loop. Move derived values to `prepareDerivedData` (not persisted, computed every prepare cycle) or use `_preUpdate` (mutates the changes object before the write).
+
+### Hook De-duplication
+
+`updateActor` fires for every connected client. If your handler does anything expensive (re-render a panel, recompute a derived view), debounce or guard:
+
+```javascript
+// Run only on the originating client
+Hooks.on("updateActor", (actor, changes, options, userId) => {
+  if (game.userId !== userId) return;
+  refreshMyPanel();
+});
+
+// Or debounce so multiple updates in quick succession collapse
+const debouncedRefresh = foundry.utils.debounce(refreshMyPanel, 100);
+Hooks.on("updateActor", debouncedRefresh);
+```
+
+### `prepareDerivedData` Cost
+
+`prepareDerivedData` runs on **every** call to `actor.prepareData()` — which fires after every update, every login, every scene switch, and many other moments. For a world with 200 actors, an O(n²) algorithm in `prepareDerivedData` becomes a perceptible freeze.
+
+- Keep it linear in the size of the actor's own data.
+- Cache results that depend on world state in `flags`, not in derived properties.
+- Don't call `await` from `prepareDerivedData` — it's synchronous and Foundry won't wait.
+
+### PIXI Texture Cache
+
+Custom canvas layers that load textures should reuse them. The PIXI texture cache is keyed on URL:
+
+```javascript
+// FAST — cached on second use
+const tex = await PIXI.Assets.load("modules/my-module/img/sparkle.png");
+
+// FASTER — preload during init for known assets
+Hooks.once("init", () => {
+  PIXI.Assets.add({ alias: "sparkle", src: "modules/my-module/img/sparkle.png" });
+});
+Hooks.once("ready", () => PIXI.Assets.load("sparkle"));
+```
+
+Destroying a sprite removes its display object but **not** the underlying texture — that stays cached. Don't manually destroy textures unless you're sure no one else uses them.
+
+### Profiling
+
+Foundry exposes debug flags for performance tracing:
+
+```javascript
+CONFIG.debug.time = true;           // log data preparation timing
+CONFIG.debug.hooks = true;          // log every hook fire
+CONFIG.debug.applications = true;   // log ApplicationV2 lifecycle
+CONFIG.debug.dice = true;           // log roll evaluation steps
+```
+
+For deep profiling, use the browser DevTools Performance tab — record a 5-second slice while the slow action runs, then look for hot frames in the flame chart.

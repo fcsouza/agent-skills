@@ -1,0 +1,39 @@
+// Dialogs, configs, and one-off applications. Anything that isn't a
+// document sheet but carries the .my-system marker class.
+
+.my-system.application {
+  background: var(--my-system-bg-card);
+  color: var(--my-system-text-primary);
+  border: 1px solid var(--my-system-border);
+
+  .window-header {
+    background: var(--my-system-bg-statblock);
+    border-bottom: 2px solid var(--my-system-border);
+  }
+}
+
+.my-system.dialog {
+  .dialog-buttons {
+    display: flex;
+    gap: var(--my-system-space-2);
+    padding: var(--my-system-space-3);
+    border-top: 1px solid var(--my-system-divider);
+  }
+
+  // Distinguish primary action button
+  button[data-button="ok"],
+  button[data-button="yes"] {
+    background: var(--my-system-color-gold);
+    color: #fff;
+    border-color: var(--my-system-color-gold);
+  }
+}
+
+// Per-application themed override — useful for popouts that should
+// render in dark theme even when the body is light.
+.themed.theme-dark.my-system,
+.themed.theme-light.my-system {
+  // Variables already injected by variables/light.less and dark.less.
+  // No additional rules needed here unless you want different scoping
+  // for popouts (e.g., disable certain animations).
+}

@@ -1,0 +1,23 @@
+// Dark theme — applies when body has .theme-dark, OR when an individual
+// application has both .themed and .theme-dark.
+
+.mixin-theme-dark() {
+  // Override Foundry core variables for the dark theme
+  --color-text-dark-primary: #e9d8a6;
+  --color-border-light-1: #6b5234;
+
+  // Namespaced system tokens — dark values
+  --my-system-bg-card: #2a2018;
+  --my-system-bg-statblock: #1f1812;
+  --my-system-text-primary: #e9d8a6;
+  --my-system-text-secondary: #b09872;
+  --my-system-border: #6b5234;
+  --my-system-divider: #4a3a24;
+}
+
+@layer variables {
+  body.theme-dark .my-system,
+  .themed.theme-dark.my-system {
+    .mixin-theme-dark();
+  }
+}

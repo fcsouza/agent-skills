@@ -1,0 +1,22 @@
+// Entry stylesheet for my-system. Compiled to styles/my-system.css.
+//
+// IMPORT ORDER MATTERS:
+//   1. variables/* — wrapped in @layer variables, defines :root tokens.
+//   2. v2/* — UNLAYERED component CSS. Wins against Foundry's layered base
+//      without specificity hacks.
+//
+// Add new partials below in their own @import line. Keep this file
+// declarative — no rules, only imports.
+
+// --- Variable tokens (layered) ---
+@import "variables/base.less";
+@import "variables/light.less";
+@import "variables/dark.less";
+
+// --- Component CSS (unlayered — wins over Foundry's @layer applications) ---
+@import "v2/typography.less";
+@import "v2/sheets.less";
+@import "v2/character.less";
+@import "v2/items.less";
+@import "v2/chat.less";
+@import "v2/apps.less";

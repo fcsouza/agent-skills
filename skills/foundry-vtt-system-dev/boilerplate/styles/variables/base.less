@@ -1,0 +1,39 @@
+// Theme-agnostic tokens. Defined on :root so they cascade everywhere.
+// Themed values (colors that change between light/dark) live in
+// light.less / dark.less and are applied via body.theme-* selectors.
+
+@layer variables {
+  :root {
+    // --- Override Foundry core variables for global skinning ---
+    --font-primary: "Cinzel", serif;
+    --form-field-height: 28px;
+
+    // --- Namespaced system tokens (theme-agnostic) ---
+    // Colors that don't change between themes
+    --my-system-color-gold: #c9a86b;
+    --my-system-color-hp-low: #db5759;
+    --my-system-color-hp-mid: #e0c061;
+    --my-system-color-hp-high: #84c474;
+
+    // Spacing scale (rem-based, adopt this universally for layout)
+    --my-system-space-1: 0.25rem;
+    --my-system-space-2: 0.5rem;
+    --my-system-space-3: 0.75rem;
+    --my-system-space-4: 1rem;
+    --my-system-space-6: 1.5rem;
+    --my-system-space-8: 2rem;
+
+    // Sheet dimensions
+    --my-system-sheet-header-height: 170px;
+    --my-system-sheet-tab-bar-height: 36px;
+    --my-system-statblock-padding: 0.75rem;
+
+    // Borders & shadows
+    --my-system-border-radius: 4px;
+    --my-system-shadow-card: 0 2px 6px rgba(0, 0, 0, 0.2);
+
+    // Typography
+    --my-system-font-display: "Cinzel", serif;
+    --my-system-font-numeric: "Roboto Mono", monospace;
+  }
+}

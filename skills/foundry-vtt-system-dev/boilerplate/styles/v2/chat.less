@@ -1,0 +1,51 @@
+// Chat card styling. Always scope under the chat containers (#chat-log,
+// .chat-popout, .chat-log) AND match the system marker class on the message.
+//
+// Templates that emit chat cards must include `.my-system` on the card root,
+// e.g. <div class="my-system attack-card">.
+
+:is(.chat-popout, #chat-log, .chat-log) .message.my-system {
+  background: var(--my-system-bg-card);
+  border: 1px solid var(--my-system-border);
+  border-radius: var(--my-system-border-radius);
+  color: var(--my-system-text-primary);
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--my-system-space-2);
+    padding: var(--my-system-space-2);
+    background: var(--my-system-bg-statblock);
+    border-bottom: 1px solid var(--my-system-divider);
+
+    img {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--my-system-border);
+      border-radius: var(--my-system-border-radius);
+    }
+
+    h3 {
+      flex: 1;
+      margin: 0;
+      font-family: var(--my-system-font-display);
+      color: var(--my-system-text-primary);
+    }
+  }
+
+  .card-content {
+    padding: var(--my-system-space-3);
+  }
+
+  .roll-result {
+    font-family: var(--my-system-font-numeric);
+    font-size: 1.5rem;
+    text-align: center;
+    padding: var(--my-system-space-2);
+    background: var(--my-system-bg-statblock);
+    border-radius: var(--my-system-border-radius);
+
+    &.success { color: var(--my-system-color-hp-high); }
+    &.failure { color: var(--my-system-color-hp-low); }
+  }
+}
