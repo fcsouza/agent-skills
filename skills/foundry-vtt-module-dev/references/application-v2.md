@@ -654,3 +654,287 @@ class MySvelteApp extends foundry.applications.api.ApplicationV2 {
 ```
 
 The same pattern works with Lit, React, or any framework that mounts to a DOM element. Requires a bundler (Vite) to compile the framework — not suitable for simple, template-only modules where Handlebars is more appropriate.
+
+---
+
+## 10. Drag & Drop Deep Dive
+
+The basic `_onDropItem` override in section 9 covers the common "Item → Actor" case. Real systems and modules need more: cross-document drops (Folder → Sheet, JournalEntry → Sheet), canvas drops (sidebar Actor → Scene), drag previews, and custom drag sources inside a sheet.
+
+### `dataTransfer` Payload Convention
+
+Foundry sets a single string on `event.dataTransfer` under the `application/json` (or `text/plain` fallback) MIME type. The payload always has at least `{ type, uuid }`:
+
+```javascript
+{ type: "Item", uuid: "Actor.abc.Item.def" }
+{ type: "Actor", uuid: "Actor.abc" }
+{ type: "Folder", uuid: "Folder.xyz", documentName: "Item" }
+{ type: "JournalEntry", uuid: "JournalEntry.qrs" }
+{ type: "ActiveEffect", uuid: "Actor.abc.ActiveEffect.tuv" }
+```
+
+Read it consistently:
+
+```javascript
+const data = TextEditor.getDragEventData(event);
+// => { type: "Item", uuid: "..." }
+const doc = await fromUuid(data.uuid);
+```
+
+`TextEditor.getDragEventData` handles the JSON parse, MIME fallback, and base64 edge cases. Always use it instead of `event.dataTransfer.getData` directly.
+
+### Per-Document-Type Drop Hooks
+
+`DocumentSheetV2` calls type-specific handlers before the generic `_onDrop` — override the one you need:
+
+| Override | Fires when |
+|---|---|
+| `_onDropItem(event, data)` | An Item document is dropped |
+| `_onDropActor(event, data)` | An Actor is dropped |
+| `_onDropFolder(event, data)` | A Folder of documents is dropped |
+| `_onDropActiveEffect(event, data)` | An ActiveEffect is dropped |
+| `_onDrop(event)` | Fallback — fires for everything else |
+
+Returning a falsy value from a type-specific handler skips the rest of the drop pipeline.
+
+### Folder Drops (Multi-Document Import)
+
+```javascript
+async _onDropFolder(event, data) {
+  const folder = await fromUuid(data.uuid);
+  if (folder.type !== "Item") return false; // wrong document kind
+  const items = folder.contents.map(i => i.toObject());
+  await this.document.createEmbeddedDocuments("Item", items);
+  ui.notifications.info(`Imported ${items.length} items from "${folder.name}".`);
+}
+```
+
+Always validate `folder.type` matches the embedded collection — a Scene folder dropped on an Actor sheet should be rejected, not imported.
+
+### Canvas Drops (Sidebar → Scene)
+
+Canvas drops bypass sheets entirely. Hook `dropCanvasData` to react to a sidebar Actor being dragged onto the scene:
+
+```javascript
+Hooks.on("dropCanvasData", (canvas, data) => {
+  if (data.type !== "Item") return true; // let core handle
+  // Custom: drop an Item to spawn a loot pile
+  createLootPile(data.uuid, { x: data.x, y: data.y });
+  return false; // suppress core drop
+});
+```
+
+The hook receives `{ x, y }` in canvas (world) coordinates already. Return `false` to suppress the default behavior.
+
+### Drag Sources Inside a Sheet
+
+Make sheet items draggable so users can drag from one sheet to another, or to the hotbar:
+
+```hbs
+<li class="item" draggable="true" data-item-id="{{item.id}}">
+  {{item.name}}
+</li>
+```
+
+```javascript
+_onRender(context, options) {
+  super._onRender(context, options);
+  const dragDrop = new DragDrop({
+    dragSelector: ".item[draggable='true']",
+    dropSelector: ".inventory",
+    permissions: {
+      dragstart: () => this.isEditable,
+      drop: () => this.isEditable,
+    },
+    callbacks: {
+      dragstart: this.#onDragStart.bind(this),
+      drop: this._onDrop.bind(this),
+    },
+  });
+  dragDrop.bind(this.element);
+}
+
+#onDragStart(event) {
+  const id = event.currentTarget.dataset.itemId;
+  const item = this.document.items.get(id);
+  if (!item) return;
+  event.dataTransfer.setData("application/json", JSON.stringify({
+    type: "Item",
+    uuid: item.uuid,
+  }));
+}
+```
+
+The `DragDrop` helper manages event listeners, permission checks, and target matching — much cleaner than rolling your own.
+
+### Custom Drag Preview
+
+The default drag preview is the dragged element. To customize:
+
+```javascript
+#onDragStart(event) {
+  // ...payload setup...
+  const preview = document.createElement("div");
+  preview.className = "drag-preview";
+  preview.textContent = item.name;
+  document.body.appendChild(preview);
+  event.dataTransfer.setDragImage(preview, 10, 10);
+  // Clean up after the browser captures the image
+  setTimeout(() => preview.remove(), 0);
+}
+```
+
+The setTimeout is required — the browser snapshots the element on the next frame. Removing it synchronously gives an empty preview.
+
+### Cross-Sheet Item Move (Source Cleanup)
+
+The basic example in section 9 transfers an item between actors but leaves a race condition: if `createEmbeddedDocuments` succeeds and `deleteEmbeddedDocuments` fails (network, permissions), the item is duplicated. Sequence them and roll back on failure:
+
+```javascript
+async _onDropItem(event, data) {
+  const item = await fromUuid(data.uuid);
+  if (!item?.parent || item.parent.id === this.document.id) {
+    return super._onDropItem(event, data);
+  }
+  let created;
+  try {
+    [created] = await this.document.createEmbeddedDocuments("Item", [item.toObject()]);
+    await item.parent.deleteEmbeddedDocuments("Item", [item.id]);
+    return created;
+  } catch (err) {
+    if (created) await this.document.deleteEmbeddedDocuments("Item", [created.id]);
+    ui.notifications.error("Item transfer failed; rolled back.");
+    throw err;
+  }
+}
+```
+
+For cross-client transfers (player A → player B), the GM must mediate via socket. Use `socketlib` or the GM-authoritative socket pattern from `references/sockets-rolls-packs.md`.
+
+---
+
+## 11. Async Patterns & Race Conditions
+
+Foundry's CRUD methods are async. Most data corruption bugs come from running them concurrently when they should be sequential, or sequentially when they could be batched.
+
+### Always `await` Document CRUD
+
+```javascript
+// Wrong — concurrent. Final state is undefined.
+actor.update({ "system.health": 10 });
+actor.update({ "system.mana": 5 });
+
+// Right — sequential. Each update sees the previous one.
+await actor.update({ "system.health": 10 });
+await actor.update({ "system.mana": 5 });
+
+// Better — single update merges both fields atomically.
+await actor.update({ "system.health": 10, "system.mana": 5 });
+```
+
+Never fire-and-forget Foundry CRUD. The hook chain assumes each operation completes before the next is scheduled.
+
+### Batch Embedded CRUD
+
+```javascript
+// Wrong — N round trips, N hook chains.
+for (const data of itemsToCreate) {
+  await actor.createEmbeddedDocuments("Item", [data]);
+}
+
+// Right — one round trip, one hook chain.
+await actor.createEmbeddedDocuments("Item", itemsToCreate);
+```
+
+The same applies to `updateEmbeddedDocuments` and `deleteEmbeddedDocuments` — the plural forms always batch.
+
+### Sequencing in `_preCreate`
+
+`_preCreate` is a chain — every override calls `super._preCreate` first, then adds its own changes via `updateSource`. Never fork the chain:
+
+```javascript
+// Wrong — super isn't awaited.
+async _preCreate(data, options, user) {
+  super._preCreate(data, options, user);
+  this.updateSource({ "system.starterItems": [...] });
+}
+
+// Right — await super, then update source synchronously.
+async _preCreate(data, options, user) {
+  await super._preCreate(data, options, user);
+  this.updateSource({ "system.starterItems": [...] });
+}
+```
+
+`updateSource` is **synchronous** — it mutates the in-memory document before creation. Don't `await` it.
+
+### Avoiding Render Loops
+
+Updating the actor inside an `updateActor` hook can re-trigger the same hook:
+
+```javascript
+// DANGER — infinite loop if `myDerived` itself triggers updateActor.
+Hooks.on("updateActor", async (actor, changes) => {
+  if (!("system.power" in changes)) return;
+  await actor.update({ "system.myDerived": actor.system.power * 2 });
+});
+```
+
+Three fixes:
+1. **Compute it in `prepareDerivedData`** — derived values shouldn't be persisted.
+2. **Guard with `options.diff`** — skip if no real change happened.
+3. **Use `_preUpdate` instead** — modify the changes object before the write commits.
+
+```javascript
+// Best: compute in-place during _preUpdate
+async _preUpdate(changes, options, user) {
+  if (foundry.utils.hasProperty(changes, "system.power")) {
+    foundry.utils.setProperty(changes, "system.myDerived", changes.system.power * 2);
+  }
+  return super._preUpdate(changes, options, user);
+}
+```
+
+### Debouncing High-Frequency Hooks
+
+Token movement, ruler updates, and combat hooks fire dozens of times per second. Heavy work in those handlers freezes the UI. Debounce:
+
+```javascript
+const debouncedRefresh = foundry.utils.debounce(() => {
+  myCustomHud.refresh();
+}, 100);
+
+Hooks.on("refreshToken", debouncedRefresh);
+```
+
+`foundry.utils.debounce` is built in. Use 50–200 ms for UI work; up to 1 s for non-time-critical bookkeeping.
+
+### Awaiting Hook Consumers
+
+`Hooks.callAll` is **synchronous** — it ignores async listeners. If you need consumers to finish before continuing, dispatch and `await` manually:
+
+```javascript
+const results = [];
+Hooks.callAll("my-module.preDamage", actor, payload, (promise) => results.push(promise));
+await Promise.all(results);
+```
+
+Or use `Hooks.call` (which does respect a `false` return for cancellation) and document that listeners should be sync. Most modules don't need this — `callAll` is enough for fire-and-forget notifications.
+
+### `requestAnimationFrame` for Visual Updates
+
+Pixi-based effects (token glows, particle bursts) belong inside `canvas.app.ticker` callbacks or `requestAnimationFrame`, not in update hooks. Update hooks fire when data changes; visual frames fire when the next paint is ready. Mixing them causes janky animations and dropped frames.
+
+```javascript
+let pending = false;
+Hooks.on("refreshToken", (token) => {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    drawCustomOverlay(token);
+  });
+});
+```
+
+The flag de-duplicates multiple hook fires per frame.

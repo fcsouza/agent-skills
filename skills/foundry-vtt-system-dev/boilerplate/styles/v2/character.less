@@ -1,0 +1,57 @@
+// Character sheet specific styles. Extends shared sheet chrome from
+// sheets.less by chaining .actor.character.
+
+.my-system.sheet.actor.character {
+  --my-system-sheet-header-height: 170px;
+
+  .ability-block {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--my-system-space-2);
+    padding: var(--my-system-space-3);
+
+    .ability {
+      text-align: center;
+      padding: var(--my-system-space-2);
+      background: var(--my-system-bg-statblock);
+      border: 1px solid var(--my-system-border);
+      border-radius: var(--my-system-border-radius);
+
+      .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--my-system-text-secondary);
+      }
+
+      .score {
+        font-family: var(--my-system-font-numeric);
+        font-size: 1.5rem;
+        color: var(--my-system-text-primary);
+      }
+
+      .modifier {
+        font-family: var(--my-system-font-numeric);
+        color: var(--my-system-color-gold);
+      }
+    }
+  }
+
+  .health-bar {
+    --bar-color: var(--my-system-color-hp-high);
+    height: 1rem;
+    background: var(--my-system-bg-statblock);
+    border: 1px solid var(--my-system-border);
+    border-radius: var(--my-system-border-radius);
+    overflow: hidden;
+
+    .fill {
+      height: 100%;
+      background: var(--bar-color);
+      transition: width 0.3s ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fill { transition: none; }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+// Font loading and typographic scale.
+//
+// Place @font-face declarations here so they're loaded once. Use
+// CSS variables defined in variables/base.less for the type scale.
+
+.my-system {
+  font-family: var(--my-system-font-display);
+
+  h1, h2, h3 { font-family: var(--my-system-font-display); }
+
+  .numeric,
+  .roll-result,
+  .stat-value {
+    font-family: var(--my-system-font-numeric);
+    font-variant-numeric: tabular-nums;
+  }
+}

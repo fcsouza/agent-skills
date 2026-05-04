@@ -1,6 +1,6 @@
 ---
 name: foundry-vtt-module-dev
-version: 3.0.0
+version: 4.0.0
 description: >-
   Covers building, extending, debugging, and maintaining Foundry VTT modules for v13+. This skill
   applies when scaffolding a new module, writing custom Actor/Item types with TypeDataModel, building
@@ -157,6 +157,43 @@ Key variable categories:
 
 ---
 
+## v13 Namespace (`foundry.*`)
+
+The single biggest v13 change: nearly every core API moved into the `foundry.*` namespace. Legacy globals still work as deprecation shims (they emit a console warning) but every new file should use the namespaced paths. Update old files when you touch them.
+
+| Legacy global (v12 and earlier) | v13 namespaced path |
+|---|---|
+| `Application`, `FormApplication` | `foundry.appv1.api.Application` *(use V2 instead)* |
+| `Dialog` | `foundry.appv1.api.Dialog` *(use `DialogV2`)* |
+| `ApplicationV2` | `foundry.applications.api.ApplicationV2` |
+| `HandlebarsApplicationMixin` | `foundry.applications.api.HandlebarsApplicationMixin` |
+| `DialogV2` | `foundry.applications.api.DialogV2` |
+| `DocumentSheetV2` | `foundry.applications.api.DocumentSheetV2` |
+| `ActorSheetV2`, `ItemSheetV2` | `foundry.applications.sheets.ActorSheetV2` / `.ItemSheetV2` |
+| `Hooks` | `foundry.helpers.Hooks` *(global `Hooks` still aliased)* |
+| `Canvas`, `CanvasLayer` | `foundry.canvas.Canvas`, `foundry.canvas.layers.CanvasLayer` |
+| `Token`, `Tile`, `MeasuredTemplate` (objects) | `foundry.canvas.placeables.*` |
+| `Document`, `DataModel`, `TypeDataModel` | `foundry.abstract.Document`, `foundry.abstract.DataModel`, `foundry.abstract.TypeDataModel` |
+| `fields.*` (NumberField, etc.) | `foundry.data.fields.*` |
+| `Roll`, `DiceTerm`, `Die` | `foundry.dice.Roll`, `foundry.dice.terms.Die` |
+| `Actors`, `Items` (collections) | `foundry.documents.collections.Actors` / `.Items` |
+| `loadTemplates`, `renderTemplate` | `foundry.applications.handlebars.loadTemplates` / `.renderTemplate` |
+| `mergeObject`, `duplicate`, `debounce`, `isNewerVersion` | `foundry.utils.*` |
+
+**Why bother updating?** The shims will eventually be removed (likely v15). Code written against the namespaced paths is forward-compatible; code written against legacy globals is on borrowed time.
+
+**Quick destructure pattern:**
+
+```javascript
+const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
+const { ActorSheetV2 } = foundry.applications.sheets;
+const fields = foundry.data.fields;
+```
+
+Use these at the top of each file; the rest of the file then reads naturally.
+
+---
+
 ## Document Model
 
 Foundry's data layer is built on `DataModel` and `Document`. Modules extend it to create custom Actor types, Item types, or store structured data.
@@ -199,6 +236,14 @@ await actor.unsetFlag("my-module", "customData");
 
 For full field type reference, lifecycle hooks (`_preCreate`, `_onCreate`, `_preUpdate`, `_onUpdate`, `_preDelete`, `_onDelete`), embedded document management, and flags vs model fields guidance, read `references/document-model.md`.
 
+### Module Sub-Types
+
+Modules can contribute custom Actor, Item, JournalEntryPage, and other document subtypes to **any** world running on **any** system. The official, supported extension mechanism since v11.
+
+Three required pieces: declare under `documentTypes` in `module.json` (with `htmlFields` and `filePathFields`), register a `TypeDataModel` on `CONFIG.<Doc>.dataModels` with the auto-prefixed key (`my-module.vehicle`), and register a sheet for the prefixed type. Always provide a conversion path so users aren't stranded when they uninstall the module.
+
+For declaration syntax, deactivation behavior, conversion macros, and pitfalls, read `references/module-subtypes.md`.
+
 ---
 
 ## Application Framework (v2)
@@ -237,7 +282,11 @@ class MySheet extends HandlebarsApplicationMixin(ApplicationV2) {
 }
 ```
 
-For `DocumentSheetV2`, `DialogV2`, the parts system, action handlers, form submission, and Handlebars template patterns, read `references/application-v2.md`.
+For `DocumentSheetV2`, `DialogV2`, the parts system, action handlers, and form submission, read `references/application-v2.md`. For drag-drop deep dives, async/race patterns, and debounce strategies, read the same file's "Drag & Drop Deep Dive" and "Async Patterns" sections.
+
+For Foundry's custom Handlebars helpers (`{{localize}}`, `{{selectOptions}}`, `{{formInput}}`, `{{formGroup}}`, `{{enrichHTML}}`, `{{editor}}`, etc.), v13 custom HTML elements (`<prose-mirror>`, `<file-picker>`, `<color-picker>`, `<string-tags>`) and when to prefer them over helpers, custom helper/partial registration, template preloading, and common sheet patterns, read `references/handlebars-and-templates.md`.
+
+Sheets and dialogs are HTML — give them ARIA roles, keyboard support, focus management, and `prefers-reduced-motion` handling. Read `references/accessibility.md`.
 
 ---
 
@@ -413,12 +462,13 @@ v13 types are in beta — expect some gaps. Check the repo for current status.
 
 ### Build Tools (Vite / Rollup)
 
-Foundry modules are standard web apps — use Vite or Rollup for TypeScript compilation, SCSS, and bundling:
+Foundry modules are standard web apps — use Vite (recommended) or Rollup for TypeScript compilation, SCSS, npm dependencies, and bundling. Source lives in `src/`, output ships from `dist/`, and `dist/` is symlinked into Foundry's `Data/modules/<id>/`.
 
-1. Keep source in `src/`, output bundled module to `dist/`
-2. Symlink `dist/` into Foundry's `Data/modules/my-module`
-3. Use `rollup-plugin-copy` or Vite equivalents to move `module.json`, `templates/`, `lang/` to `dist/`
-4. Vite's dev server can proxy to Foundry's port (default 30000) for CSS/JS hot reload
+The single Foundry-specific constraint: **no asset hashing**. Foundry references files by the fixed paths in `module.json`, so `[hash]` in any output filename breaks the manifest. Disable hashing on JS, CSS, and copied assets.
+
+The `boilerplate/` ships ready-to-use [vite.config.mjs](boilerplate/vite.config.mjs), [rollup.config.mjs](boilerplate/rollup.config.mjs), and [package.json](boilerplate/package.json) configured for Foundry — dev proxy to port 30000, fixed-name output, copy plugin for templates/lang/manifest, source maps, watch mode.
+
+For the full guide (project layout, dev loop, `flags.hotReload` integration, production build, pre-build manifest injection, and pitfalls), read `references/build-pipeline.md`.
 
 ### Reactive Frameworks (Svelte / Lit)
 
@@ -519,7 +569,7 @@ Each step highlights a DOM element via `selector`. The `sidebarTab` field (optio
 
 ### Testing (`@ethaks/fvtt-quench`)
 
-In-game testing framework using Mocha/Chai that runs inside the Foundry environment — necessary because Foundry's APIs require an initialized game state.
+In-game testing framework using Mocha/Chai that runs inside the Foundry environment — necessary because Foundry's APIs require an initialized game state. Register batches in the `quenchReady` hook; lazy-import test files only when Quench is active so they don't bloat production bundles. For batch registration patterns, document/sheet/hook/roll test recipes, and a CI strategy that splits Quench (manual) from pure-helper unit tests (Vitest in GitHub Actions), read `references/testing-with-quench.md`.
 
 ### Community Libraries
 
@@ -632,6 +682,50 @@ Key properties: `e.disabled` (inactive), `e.isTemporary` (has duration), `e.over
 
 ---
 
+## Adventure Documents
+
+`Adventure` is Foundry's official document type for shipping pre-made content — campaign modules, one-shots, encounter packs. One Adventure aggregates scenes, actors, items, journals, tables, macros, playlists, cards, and the folder hierarchy that organizes them. Users import everything in one click.
+
+```javascript
+// Programmatic import (selective)
+const pack = game.packs.get("my-module.starter-adventure");
+const adventure = await pack.getDocument("adventureDocId");
+
+// Preview before committing
+const data = await adventure.prepareImport();
+
+// Import — all collections by default, opt out per collection
+await adventure.import({ scenes: false });
+```
+
+Declare the pack in `module.json` with `type: "Adventure"`. Author the content in a world, build with `fvtt package pack`, and ship in `packs/`. For re-imports to update cleanly, use stable IDs everywhere.
+
+For authoring flow, programmatic import, version updates, the `preImportAdventure` hook, and pitfalls (duplicate IDs, scene thumbnails, macro permissions, playlist paths), read `references/adventure-documents.md`.
+
+---
+
+## Permissions & Ownership
+
+Foundry's permission model has two independent dimensions: a user's **role** (game-wide capability — `USER_ROLES.PLAYER` through `GAMEMASTER`) and a document's **ownership** (per-document access — `OWNERSHIP_LEVELS.NONE` through `OWNER`). A modification is allowed only if both check pass.
+
+```javascript
+// UI-level check (gate a button)
+if (actor.canUserModify(game.user, "update")) { /* show edit UI */ }
+if (actor.testUserPermission(game.user, "OBSERVER")) { /* show sheet */ }
+
+// Granular permission (GM-configurable thresholds per role)
+if (game.user.hasPermission("ACTOR_CREATE")) { /* show "New" button */ }
+
+// Set ownership programmatically
+await actor.update({ "ownership.default": 2, [`ownership.${player.id}`]: 3 });
+```
+
+Embedded documents default to `ownership: { default: -1 }` (INHERIT from parent). Players can't modify world documents they don't own — use the GM-authoritative socket pattern for player-initiated changes. Client-side checks are UX; server enforces independently.
+
+For role hierarchy, granular `USER_PERMISSIONS`, ownership inheritance, the GM-authoritative pattern, compendium pack ownership, and silent-failure pitfalls, read `references/permissions-and-ownership.md`.
+
+---
+
 ## Migration & Maintenance
 
 When updating a module across Foundry versions or changing your data schema, run migrations on world load:
@@ -672,6 +766,9 @@ Copy these as starting points for new modules:
 | `boilerplate/actor-sheet.mjs` | ActorSheetV2 + HandlebarsApplicationMixin |
 | `boilerplate/sheet.hbs` | Handlebars template with character info, abilities, and inventory |
 | `boilerplate/socket-handler.mjs` | GM-authoritative socket pattern |
+| `boilerplate/vite.config.mjs` | Vite config — dev proxy, fixed-name output, static copy plugin |
+| `boilerplate/rollup.config.mjs` | Rollup alternative — node-resolve, commonjs, postcss, copy, terser |
+| `boilerplate/package.json` | Scripts (`dev`, `build`, `link`) and devDependencies |
 
 ---
 
@@ -681,7 +778,7 @@ Copy these as starting points for new modules:
 2. **Synchronous roll evaluation** — `roll.roll()` is deprecated in v13. Always `await roll.evaluate()`. `Roll.evaluateSync()` exists only for deterministic rolls (`maximize`/`minimize`).
 3. **Missing socket prefix** — Socket events must use `"module.my-module"` format. Without the `module.` prefix, messages won't route.
 4. **Accessing game.user in init** — `game.user` is not set during `init`. Use `ready` hook for user-dependent logic.
-5. **Non-GM modifying world documents** — Only GM clients can modify world-level documents. Use the GM-authoritative socket pattern for player-initiated changes.
+5. **Non-GM modifying world documents** — Only GM clients can modify world-level documents. The update returns successfully but doesn't persist. Use `document.canUserModify(user, "update")` before attempting, and route player-initiated changes through the GM-authoritative socket pattern. See `references/permissions-and-ownership.md`.
 6. **Using `scripts` instead of `esmodules`** — The `scripts` field loads files as classic scripts (no module scope). Always use `esmodules` for proper ES module support. There is no separate `worldScripts` field — the concept is a community misnomer. All module scripts run client-side via `esmodules`/`scripts` in your manifest. Use hooks (`init`, `setup`, `ready`) with conditional checks to control when and where your code executes.
 7. **Forgetting `config: false` for internal settings** — Settings with `config: true` show in the module settings menu. Use `config: false` for programmatic-only values like schema versions.
 8. **Hardcoded English strings** — Use `game.i18n.localize()` for any user-visible text, even if you only support English. It makes future localization trivial.
@@ -712,4 +809,11 @@ Read these for deep API details — they're loaded on demand:
 | `references/vision-and-lighting.md` | VisionMode, detection modes, lighting system, AmbientLight, fog of war |
 | `references/measured-templates.md` | MeasuredTemplateDocument, area-of-effect shapes, template creation and targeting |
 | `references/audio-and-macros.md` | AudioHelper, playlists, sound effects, Macro creation, hotbar integration |
+| `references/module-subtypes.md` | Module-contributed Actor/Item/JournalEntryPage subtypes, htmlFields/filePathFields, deactivation behavior |
+| `references/accessibility.md` | ARIA roles, keyboard navigation, focus management, color contrast, prefers-reduced-motion |
+| `references/testing-with-quench.md` | Writing in-game tests with Quench (Mocha/Chai), test patterns, CI strategy |
+| `references/build-pipeline.md` | Vite & Rollup setup, dev proxy, hot reload, asset paths, pre-build manifest injection |
+| `references/handlebars-and-templates.md` | Foundry helper inventory, v13 HTML elements, form helpers, custom helpers/partials, template preloading, sheet patterns |
+| `references/adventure-documents.md` | Adventure document, packing scenes/actors/items/journals, programmatic import, version updates |
+| `references/permissions-and-ownership.md` | User roles vs document ownership, testUserPermission, canUserModify, USER_PERMISSIONS, GM-authoritative pattern |
 | `references/migration-guide.md` | Version migration (v11→v12→v13), deprecated API detection, data migration scripts |

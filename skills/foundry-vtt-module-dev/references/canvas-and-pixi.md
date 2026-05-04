@@ -450,3 +450,54 @@ Behaviors are the actions triggered by region events:
 - `toggleBehavior` — enable/disable other behaviors
 
 Regions are managed via the canvas UI (Drawing tools → Regions) or programmatically. They replace the common pattern of invisible drawings + `canvasDrop` hooks for interactive map areas.
+
+---
+
+## v13 Canvas Layer Groups (Restructure)
+
+v13 reorganized the canvas from a flat z-ordered layer list into named **layer groups** under `foundry.canvas.*`. Each group is a `PIXI.Container` with a fixed render priority; layers (TokenLayer, LightingLayer, etc.) live inside one of them. Use this map when registering custom layers via `CONFIG.Canvas.layers.<name> = { layerClass, group }`.
+
+| Group | Contains | Custom layers go here when… |
+|---|---|---|
+| `primary` | Scene background, tiles, tokens, drawings — the "world" content | …you're rendering world-space objects (markers, overlays attached to tokens) |
+| `effects` | Lighting, vision, weather, illumination | …you're adding visual effects that should respect vision/lighting |
+| `environment` | Global environment overlays (illumination color, darkness shader) | …you're modifying ambient look-and-feel scene-wide |
+| `interface` | Rulers, controls, HUD anchors, grid | …your layer is UI-like and should ignore vision/fog |
+| `overlay` | Top-most layer; sits above everything | …debug overlays, GM-only annotations, modal canvas overlays |
+| `visibility` | Fog of war + vision restriction masks | …you're extending vision/fog (rare; usually use VisionMode) |
+| `rendered` | Composited result of all visible content | …you need a post-process target; almost never written to directly |
+
+Access groups directly:
+
+```javascript
+canvas.primary;        // PrimaryCanvasGroup
+canvas.effects;        // EffectsCanvasGroup
+canvas.environment;    // EnvironmentCanvasGroup
+canvas.interface;      // InterfaceCanvasGroup
+canvas.overlay;        // OverlayCanvasGroup
+canvas.visibility;     // CanvasVisibility
+canvas.rendered;       // RenderedCanvasGroup (read-only)
+```
+
+Each group is also reachable through `canvas.stage.children` but the named accessors are the documented v13 API.
+
+### Choosing a Group for a Custom Layer
+
+- **World-space, vision-respecting** → `primary` or `effects` (effects are masked by lighting/vision)
+- **World-space, ignoring vision** → `primary` (pre-vision) or `interface`
+- **Screen-space UI** → `interface` (panned/zoomed with the canvas) or `overlay` (above HUD)
+- **Debug-only / dev tools** → `overlay`
+
+### v13 Namespace Notes
+
+The Canvas class itself moved to `foundry.canvas.Canvas`. Subclasses you'll commonly extend:
+
+| v12 / legacy global | v13 namespaced |
+|---|---|
+| `CanvasLayer` | `foundry.canvas.layers.CanvasLayer` |
+| `InteractionLayer` | `foundry.canvas.layers.InteractionLayer` |
+| `PlaceableObject` | `foundry.canvas.placeables.PlaceableObject` |
+| `Token` (object) | `foundry.canvas.placeables.Token` |
+| `MeasuredTemplate` | `foundry.canvas.placeables.MeasuredTemplate` |
+
+Legacy globals still exist as deprecation shims in v13 — they emit a console warning. Update imports when you touch a file.

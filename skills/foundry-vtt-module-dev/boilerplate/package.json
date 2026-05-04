@@ -1,0 +1,22 @@
+{
+  "name": "my-module",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Foundry VTT module.",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "preview": "vite",
+    "prebuild": "node ./scripts/prebuild.mjs",
+    "link": "node ./scripts/link.mjs",
+    "unlink": "node ./scripts/unlink.mjs",
+    "format": "ultracite fix",
+    "lint": "ultracite check"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "sass": "^1.77.0",
+    "ultracite": "^4.0.0"
+  }
+}

@@ -15,12 +15,29 @@
   ],
   "documentTypes": {
     "Actor": {
-      "character": {},
-      "npc": {}
+      "character": {
+        "htmlFields": ["biography"],
+        "filePathFields": {
+          "portrait": ["IMAGE"]
+        }
+      },
+      "npc": {
+        "htmlFields": ["biography"]
+      }
     },
     "Item": {
-      "weapon": {},
-      "spell": {}
+      "weapon": {
+        "htmlFields": ["description"],
+        "filePathFields": {
+          "img": ["IMAGE"]
+        }
+      },
+      "spell": {
+        "htmlFields": ["description"],
+        "filePathFields": {
+          "img": ["IMAGE"]
+        }
+      }
     }
   },
   "background": "systems/my-system/assets/background.webp",
@@ -41,14 +58,53 @@
     {
       "name": "core-items",
       "label": "Core Items",
-      "path": "packs/core-items.db",
+      "path": "packs/core-items",
       "type": "Item",
       "system": "my-system"
+    },
+    {
+      "name": "core-spells",
+      "label": "Core Spells",
+      "path": "packs/core-spells",
+      "type": "Item",
+      "system": "my-system"
+    },
+    {
+      "name": "core-npcs",
+      "label": "Core NPCs",
+      "path": "packs/core-npcs",
+      "type": "Actor",
+      "system": "my-system"
+    }
+  ],
+  "packFolders": [
+    {
+      "name": "Core Content",
+      "color": "#7a4",
+      "packs": ["core-npcs"],
+      "folders": [
+        {
+          "name": "Equipment",
+          "color": "#a47",
+          "packs": ["core-items", "core-spells"]
+        }
+      ]
     }
   ],
   "relationships": {
     "requires": [],
     "systems": [],
     "modules": []
+  },
+  "socket": true,
+  "flags": {
+    "hotReload": {
+      "extensions": ["css", "hbs", "json"],
+      "paths": ["styles/my-system.css", "templates", "lang"]
+    },
+    "my-system": {
+      "needsMigrationVersion": "1.0.0",
+      "compatibleMigrationVersion": "0.5.0"
+    }
   }
 }
