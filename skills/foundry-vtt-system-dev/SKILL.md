@@ -1,6 +1,6 @@
 ---
 name: foundry-vtt-system-dev
-version: 2.1.0
+version: 2.2.0
 description: >-
   Covers building, extending, and maintaining Foundry VTT game systems for v13+.
   This skill applies when scaffolding a new system, defining Actor/Item types with
@@ -197,7 +197,9 @@ Nearly every core API moved into the `foundry.*` namespace in v13. Legacy global
 | `Canvas`, `CanvasLayer`, `PlaceableObject` | `foundry.canvas.*` |
 | `Actors`, `Items` (sidebar collections) | `foundry.documents.collections.*` |
 | `loadTemplates`, `renderTemplate` | `foundry.applications.handlebars.*` |
-| `mergeObject`, `isNewerVersion`, `debounce` | `foundry.utils.*` |
+| (new in v13) | `foundry.applications.fields.*` — form input creation: `createFormGroup`, `createSelectInput`, `createNumberInput`, etc. |
+| (new in v13) | `foundry.applications.ux.*` — `Tabs`, `ContextMenu`, `DragDrop`, `FormDataExtended`, `SearchFilter`, `TextEditor` |
+| `mergeObject`, `isNewerVersion`, `debounce` | `foundry.utils.*` (38+ helpers) |
 | `Hooks` (still global) | `foundry.helpers.Hooks` (alias) |
 
 For the full table, see the `foundry-vtt-module-dev` skill's "v13 Namespace" section. The same migration applies — write new files against namespaced paths, update old files when you touch them.

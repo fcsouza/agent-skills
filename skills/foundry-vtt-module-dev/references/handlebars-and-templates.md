@@ -28,6 +28,10 @@ Helpers come pre-registered. Use them in any `.hbs` template.
 | `{{formInput}}` | See "Form Helpers" below | High-level form input. |
 | `{{formGroup}}` | See "Form Helpers" below | High-level field+label+hint wrapper. |
 | `{{formField}}` | See "Form Helpers" below | Lower-level wrapper for custom widgets. |
+| `{{numberInput}}` | `{{numberInput value name="qty" min=0 max=99 step=1}}` | Specialized number input with min/max/step. |
+| `{{radioBoxes}}` | `{{radioBoxes "system.size" choices=sizes selected=current}}` | Radio button group from a `{key: label}` object. |
+| `{{timeSince}}` | `{{timeSince timestamp}}` | Relative time string ("2 hours ago"). |
+| `{{object}}` | `{{#with (object foo="bar")}} ... {{/with}}` | Inline object literal — useful inside `{{#with}}` or as a partial argument. |
 
 **Default to triple-stash (`{{{ }}}`) for any helper that returns HTML** — `enrichHTML`, `editor`, anything that emits attributes. Double-stash escapes the output.
 
@@ -35,17 +39,32 @@ Helpers come pre-registered. Use them in any `.hbs` template.
 
 ## Helpers vs v13 Custom HTML Elements
 
-v13 introduced web components that overlap with several legacy helpers. The element approach is preferred for new code — they integrate with the form-data lifecycle automatically and avoid the helper's HTML-string ceremony.
+v13 ships 14 custom HTML elements that often replace the legacy helpers. The element approach is preferred for new code — elements integrate with the form-data lifecycle automatically, support `data-document-uuid` for live collaboration, and avoid the helper's HTML-string ceremony.
 
-| Helper | v13 element | Recommendation |
+| Element | Replaces helper | Purpose |
 |---|---|---|
-| `{{filePicker target=...}}` | `<file-picker name="…" type="image" value="…">` | Use the element. Auto-binds to form data via `name`. |
-| `{{colorPicker name=…}}` | `<color-picker name="…" value="#ff0000">` | Use the element. |
-| `{{editor target=…}}` | `<prose-mirror name="…" value="…" toggled>` | Use the element. The `toggled` attribute provides view/edit toggle. |
-| (none) | `<string-tags name="…" value="…">` | New in v13 — multi-tag input. No helper equivalent. |
-| (none) | `<multi-checkbox name="…" value="…">` | v13 element for arrays-of-strings inputs. |
+| `<color-picker name="…" value="#ff0000">` | `{{colorPicker}}` | Color input (hex/rgb) |
+| `<code-mirror name="…" value="…" language="javascript">` | (none) | Syntax-highlighted code editor — supports JavaScript, JSON, HTML, Markdown |
+| `<document-embed uuid="JournalEntry.abc">` | (none) | Inline preview of a document by UUID |
+| `<document-tags name="…" value="…">` | (none) | Multi-document picker (drag documents in to add) |
+| `<enriched-content>{{description}}</enriched-content>` | partial overlap with `{{enrichHTML}}` | Auto-enriches `@UUID[…]`, `@Check[…]`, inline rolls in its inner HTML |
+| `<file-picker name="…" type="image" value="…">` | `{{filePicker}}` | File selection with type filter (`image`/`audio`/`video`/`text`/`font`) |
+| `<hue-slider name="…" value="0.5">` | (none) | Hue picker (0–1) for color customization |
+| `<multi-checkbox name="…" value="…">` | (none) | Array-of-strings via checkbox grid |
+| `<multi-select name="…" value="…">` | (none) | Multi-value select dropdown |
+| `<prose-mirror name="…" value="…" toggled collaborate>` | `{{editor}}` | Rich text editor with optional view/edit toggle and live collab |
+| `<range-picker name="…" value="50" min="0" max="100" step="1">` | `{{rangePicker}}` | Slider + synced numeric input |
+| `<secret-block>...</secret-block>` | (none) | GM-only content; players see a redacted placeholder |
+| `<string-tags name="…" value="…">` | (none) | Free-form multi-tag input (chips) |
+| (`<form-element>` is the abstract base — never used directly in templates) | | |
 
-When in doubt, check what `<form-input>` produces in DevTools — Foundry's form helpers internally render the same elements.
+When in doubt, check what `{{formInput}}` produces in DevTools — the helpers internally render these same elements.
+
+**Notable attributes:**
+- `data-document-uuid="{{actor.uuid}}"` on `<prose-mirror>` enables collaborative editing across clients
+- `collaborate` (boolean) on `<prose-mirror>` opts the editor into the live-collab pipeline
+- `language="json"` on `<code-mirror>` switches the syntax highlighter
+- `secret` attribute or `<secret-block>` wrapper hides content from non-GM users
 
 ---
 

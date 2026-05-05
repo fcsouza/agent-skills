@@ -73,32 +73,77 @@ The pattern keeps every selector self-scoping. No global rules, no specificity w
 
 ---
 
-## Cascade Layers — The Counter-Intuitive Part
+## Cascade Layers
 
-Foundry v13 declares its own cascade layer order (`reset`, `base`, `applications`, `applications-standard`, `layouts`, `elements`, `blocks`, `components`, `exceptions`). Rules **inside any of these layers** lose to **unlayered rules** in the same specificity tier.
+Foundry v13 declares the following layer order in its core CSS:
 
-The pragmatic consequence: **don't wrap your sheet/component CSS in `@layer`**. dnd5e wraps **only** variable definitions, leaving everything else unlayered:
+```css
+@layer reset, variables, elements, blocks, applications, compatibility, layouts, system, modules, exceptions;
+```
+
+That's left-to-right priority — later layers win against earlier ones. **Two slots exist specifically for downstream consumers: `system` and `modules`.** A system can put its CSS in `@layer system` and it will automatically beat `applications` (Foundry's app styles) without needing higher specificity. Modules go in `@layer modules` to layer above systems by default.
+
+You have **two valid strategies** for system CSS:
+
+### Strategy A — Use the official `@layer system` slot
 
 ```less
 // styles/main.less
-@import "variables/base";    // wraps :root tokens in @layer variables
-@import "variables/themes";  // wraps body.theme-* overrides in @layer variables
+@import "variables/base";       // @layer variables
+@import "variables/themes";     // @layer variables
 
-// Everything below is UNLAYERED — wins against Foundry's layered base
+@layer system {
+  @import (reference) "v2/sheets.less";   // hoists rules into @layer system
+  @import (reference) "v2/character.less";
+  @import (reference) "v2/chat.less";
+}
+```
+
+This is the **most v13-idiomatic** approach: every rule lives in a known layer slot, and modules that want to override your system explicitly use `@layer modules` (or unlayered) to win cleanly.
+
+### Strategy B — Leave component CSS unlayered (the dnd5e pattern)
+
+```less
+// styles/main.less
+@import "variables/base";       // @layer variables
+@import "variables/themes";     // @layer variables
+
+// UNLAYERED — wins against ALL Foundry layers (including @layer modules and @layer system)
 @import "v2/sheets";
 @import "v2/character";
-@import "v2/items";
 @import "v2/chat";
 ```
 
-This is the opposite of typical guidance ("everything in a layer"), and it works because Foundry's defaults are **deliberately** layered to be easy to override.
+Unlayered rules beat layered rules at the same specificity tier — so unlayered system CSS wins against everything Foundry put in `@layer applications`, `@layer system`, even `@layer exceptions`.
 
-If you do want explicit layers for organization, declare them but keep them above Foundry's:
+### Which to Pick
+
+| If… | Use |
+|---|---|
+| You want predictable interop with modules — modules can override you cleanly via unlayered or `@layer modules` | **Strategy A (`@layer system`)** |
+| You want maximum control and want your system's chrome to be hard to override | **Strategy B (unlayered)** — what dnd5e does |
+| You're building a system meant to be highly customizable by modules | **Strategy A** |
+| You want what works without thinking too hard | **Strategy A** is the v13 design intent — Foundry literally added the slot for systems to use |
+
+The boilerplate ships **Strategy B** (unlayered) because it matches the most-studied production system (dnd5e). If you're starting fresh with no migration burden, **Strategy A is the cleaner long-term choice** — just wrap each `@import` in `@layer system { ... }` instead of leaving them bare.
+
+### Internal Layer Organization (Either Strategy)
+
+Within your system's CSS, organize by sub-layers for predictable override priority:
 
 ```less
-// At the top of main.less, before any imports
+// At the top of main.less
 @layer my-system.tokens, my-system.base, my-system.components, my-system.overrides;
+
+@layer my-system.tokens {
+  @import "variables/base";
+}
+@layer my-system.components {
+  @import "v2/sheets";
+}
 ```
+
+This nests cleanly inside `@layer system { ... }` if you're using Strategy A.
 
 ---
 

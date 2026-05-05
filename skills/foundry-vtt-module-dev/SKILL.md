@@ -1,6 +1,6 @@
 ---
 name: foundry-vtt-module-dev
-version: 4.0.0
+version: 4.2.0
 description: >-
   Covers building, extending, debugging, and maintaining Foundry VTT modules for v13+. This skill
   applies when scaffolding a new module, writing custom Actor/Item types with TypeDataModel, building
@@ -178,7 +178,9 @@ The single biggest v13 change: nearly every core API moved into the `foundry.*` 
 | `Roll`, `DiceTerm`, `Die` | `foundry.dice.Roll`, `foundry.dice.terms.Die` |
 | `Actors`, `Items` (collections) | `foundry.documents.collections.Actors` / `.Items` |
 | `loadTemplates`, `renderTemplate` | `foundry.applications.handlebars.loadTemplates` / `.renderTemplate` |
-| `mergeObject`, `duplicate`, `debounce`, `isNewerVersion` | `foundry.utils.*` |
+| (no legacy alias) | `foundry.applications.fields.*` — `createFormGroup`, `createSelectInput`, `createCheckboxInput`, `createNumberInput`, `createTextInput`, `createTextareaInput`, `createMultiSelectInput`, `createEditorInput`, `setInputAttributes` |
+| (no legacy alias) | `foundry.applications.ux.*` — `Tabs`, `ContextMenu`, `DragDrop`, `Draggable`, `FormDataExtended`, `HTMLSecret`, `ProseMirrorEditor`, `SearchFilter`, `TextEditor` |
+| `mergeObject`, `duplicate`, `debounce`, `isNewerVersion` | `foundry.utils.*` (38+ helpers — `mergeObject`, `deepClone`, `expandObject`, `flattenObject`, `getProperty`, `setProperty`, `hasProperty`, `diffObject`, `objectsEqual`, `getType`, `isEmpty`, `isNewerVersion`, `randomID`, `debounce`, `throttle`, `benchmark`, `parseUuid`, `buildUuid`, `escapeHTML`, `formatFileSize`, etc.) |
 
 **Why bother updating?** The shims will eventually be removed (likely v15). Code written against the namespaced paths is forward-compatible; code written against legacy globals is on borrowed time.
 
@@ -419,6 +421,19 @@ Hooks.once("init", () => {
 v13 also introduced **Scene Regions** — interactive areas on the canvas (difficult terrain, teleporters, trigger zones) via the `Region` and `RegionGeometry` APIs, replacing drawing-based workarounds.
 
 Most modules never need canvas extensions. For custom layers, `PlaceableObject` subclasses, Scene Regions, coordinate conversion, `CanvasAnimation.animate()`, and PIXI performance tips, read `references/canvas-and-pixi.md`.
+
+### Bundled JS Libraries
+
+Foundry ships four libraries pre-loaded — no install, no import:
+
+| Library | Global | Purpose | Read |
+|---|---|---|---|
+| **Handlebars** | `Handlebars` | HTML templating for sheets/dialogs/chat | `references/handlebars-and-templates.md` |
+| **jQuery** | `$`, `jQuery` | DOM manipulation. **Deprecated in v13** — use native DOM APIs | `references/migration-guide.md` |
+| **PixiJS** | `PIXI` | WebGL canvas rendering — the engine behind tokens, lighting, scenes | `references/canvas-and-pixi.md` |
+| **GSAP (GreenSock)** | `gsap` | Orchestrated UI/canvas animations beyond CSS or `CanvasAnimation` | `references/canvas-and-pixi.md` "GSAP" section |
+
+Use them when they fit; reach for npm dependencies only when none of the four cover the case.
 
 ---
 

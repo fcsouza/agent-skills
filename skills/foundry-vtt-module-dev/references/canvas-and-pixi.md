@@ -501,3 +501,143 @@ The Canvas class itself moved to `foundry.canvas.Canvas`. Subclasses you'll comm
 | `MeasuredTemplate` | `foundry.canvas.placeables.MeasuredTemplate` |
 
 Legacy globals still exist as deprecation shims in v13 — they emit a console warning. Update imports when you touch a file.
+
+---
+
+## GSAP (GreenSock)
+
+Foundry bundles the **full Club GreenSock bonus pack** (a paid premium license) and exposes it as the global `gsap`. No import, no `<script>` tag — it's already loaded along with every plugin. Reach for it when you need orchestrated UI/canvas animations that go beyond what CSS or `CanvasAnimation.animate` cover.
+
+### What's Available
+
+Beyond the gsap core (tweens, timelines, eases), Foundry ships these plugins pre-registered:
+
+| Plugin | Purpose |
+|---|---|
+| **PixiPlugin** | Canonical PIXI integration — tween PIXI display object properties through GSAP's optimized path |
+| **Draggable** | Touch + mouse drag with momentum, bounds, snap |
+| **Flip** | FLIP-technique animations (animate layout changes) |
+| **MotionPathPlugin** | Animate along an SVG path or arbitrary point sequence |
+| **MorphSVGPlugin** | Morph between SVG path shapes |
+| **DrawSVGPlugin** | Animate SVG path drawing/erasing |
+| **InertiaPlugin** | Velocity-based throw/inertia tweens |
+| **ScrollTrigger**, **ScrollSmoother**, **ScrollToPlugin** | Scroll-driven animation |
+| **SplitText** | Animate per-character / per-word text effects |
+| **TextPlugin**, **ScrambleTextPlugin** | Animate text content changes |
+| **CustomEase**, **CustomBounce**, **CustomWiggle** | Author-defined easing curves |
+| **Physics2DPlugin**, **PhysicsPropsPlugin** | Physics-driven animation |
+| **Observer** | Unified gesture/wheel/touch input observer |
+| **GSDevTools** | Visual debugger for tweens (development only) |
+
+```javascript
+// Core tween — to a target
+gsap.to(element, { x: 100, opacity: 0, duration: 0.4, ease: "power2.out" });
+
+// Tween FROM a starting value to the current state (reveal animations)
+gsap.from(element, { y: -20, opacity: 0, duration: 0.3 });
+
+// Sequence multiple tweens — timeline orchestrates them in order
+const tl = gsap.timeline();
+tl.to(card, { x: 200, duration: 0.4 })
+  .to(card, { rotation: 360, duration: 0.6 })
+  .to(card, { opacity: 0, duration: 0.2 });
+
+// Kill a running tween
+gsap.killTweensOf(element);
+```
+
+For the full API see greensock.com/docs. Module devs benefit most from PixiPlugin (canvas), Flip (sheet layout transitions), MorphSVG (animated tokens/icons), and Draggable (custom UI).
+
+### When to Use GSAP vs Alternatives
+
+| Need | Tool |
+|---|---|
+| Hover state, simple in/out fade | **CSS transition** — no JS, GPU-accelerated, smallest |
+| Canvas-only, single property animation | **`CanvasAnimation.animate`** — Foundry's built-in, integrates with the PIXI ticker |
+| One-frame visual update reacting to data | **`requestAnimationFrame`** — minimal overhead |
+| Orchestrated multi-step sequence | **GSAP timeline** — reads cleanly, supports labels, callbacks, reverse |
+| Animating multiple PIXI properties together | **GSAP** — handles position, alpha, rotation, scale in one tween |
+| Ease-aware easing curves beyond `linear`/`ease-in-out` | **GSAP** — 30+ named eases vs CSS's handful |
+
+If a single CSS line works, use CSS. If it's "animate four properties of three sprites in sequence with a callback at the end," use GSAP.
+
+### PIXI Integration (PixiPlugin — preferred)
+
+`PixiPlugin` is the canonical way to animate PIXI display objects. It maps standard CSS-like properties (`x`, `y`, `scale`, `rotation`, `tint`, `alpha`, `skewX`) onto PIXI's underlying object structure for you, handles units correctly, and is more performant than manual nested tweens.
+
+```javascript
+// Tween via the pixi: prefix — PixiPlugin unpacks to the right nested properties
+const sprite = canvas.tokens.placeables[0].mesh;
+
+gsap.to(sprite, {
+  pixi: {
+    x: 1000,
+    y: 800,
+    scale: 2,
+    rotation: 90,           // degrees
+    alpha: 0.3,
+    tint: 0xff0000,         // hex color, animates through color space
+  },
+  duration: 1.2,
+  ease: "power3.inOut",
+});
+```
+
+Without PixiPlugin you'd have to tween nested objects manually:
+
+```javascript
+// Manual approach — works but verbose, slower
+gsap.to(sprite.position, { x: 1000, y: 800, duration: 1.2 });
+gsap.to(sprite.scale, { x: 2, y: 2, duration: 1.2 });
+gsap.to(sprite, { alpha: 0.3, rotation: Math.PI / 2, duration: 1.2 });
+```
+
+PixiPlugin handles all of these in one tween, applies eases consistently, and uses radians under the hood while accepting degrees in the API.
+
+### Respect `prefers-reduced-motion`
+
+Vestibular issues, motion sickness, attention disorders — animation can be hostile if forced. Always honor the OS-level preference:
+
+```javascript
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+gsap.to(element, {
+  x: 100,
+  duration: reduced ? 0 : 0.4,    // instant when user prefers reduced motion
+});
+
+// Or globally cap GSAP duration once at init
+if (reduced) gsap.globalTimeline.timeScale(0);   // pauses all timelines
+```
+
+For sheets specifically, listen for changes too — users can toggle the setting mid-session:
+
+```javascript
+matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (e) => {
+  gsap.globalTimeline.timeScale(e.matches ? 0 : 1);
+});
+```
+
+### Cleanup on Application Close
+
+A tween running when the target element is destroyed is a frame-rate leak. Kill tweens explicitly in `_onClose`:
+
+```javascript
+class MyAnimatedSheet extends HandlebarsApplicationMixin(ApplicationV2) {
+  _onClose(options) {
+    gsap.killTweensOf(this.element);
+    gsap.killTweensOf(this.element.querySelectorAll("*"));
+    return super._onClose(options);
+  }
+}
+```
+
+Same applies to PIXI sprite tweens when a custom layer is torn down — kill them in `_tearDown` before destroying the display objects.
+
+### Pitfalls
+
+1. **Tweening Foundry-managed properties directly** — `gsap.to(token, { x: 1000 })` bypasses the Token document update. Other clients won't see the move; collision/vision logic doesn't fire. For Foundry-controlled state, use `Token.update(...)` and let Foundry animate via its own pipeline. Reserve GSAP for properties Foundry doesn't manage (custom overlays, sprite alpha tweens that don't need to sync).
+2. **Re-render fighting the tween** — if a sheet re-renders mid-animation, the new HTML replaces the animating element and GSAP keeps tweening a detached DOM node. Either guard the render (`if (this._isAnimating) return;`) or use GSAP's `onComplete` to trigger the render.
+3. **Forgetting cleanup** — leaked tweens accumulate over a session. Performance degrades subtly until the user reloads. Always `killTweensOf` on close/tear-down.
+4. **`gsap.set` confusion** — `gsap.set(el, { x: 100 })` is the **non-animated** equivalent; useful for initial state but not what you want for transitions.
+5. **Default ease is `power1.out`** — not `linear`. If your tween feels slightly squishy, you didn't pass an ease. Set explicitly when timing matters.
