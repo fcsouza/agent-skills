@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nuvemshop SDK"
+  short_description: "Build and publish Nuvemshop apps"
+  default_prompt: "Use $nuvemshop-sdk to prepare a Nuvemshop app for homologation and App Store publication."

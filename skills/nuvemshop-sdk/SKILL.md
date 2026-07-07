@@ -1,9 +1,9 @@
 ---
-name: publish-nuvemshop-app
+name: nuvemshop-sdk
 description: Prepare, audit, implement, homologate, and publish Nuvemshop/Tiendanube apps. Use when the user needs help with Nuvemshop Partner Portal app creation, public App Store publication, private client distribution, OAuth, scopes, webhooks, API usage, NubeSDK migration or development, Nexo embedded admin apps, Nimbus/design requirements, homologation artifacts, demo videos, FAQ/support docs, billing/publication data, app descriptions, or approval checklists.
 ---
 
-# Publish Nuvemshop App
+# Nuvemshop SDK
 
 ## Core Rule
 

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Publish Nuvemshop App"
-  short_description: "Publish and homologate Nuvemshop apps"
-  default_prompt: "Use $publish-nuvemshop-app to prepare a Nuvemshop app for homologation and App Store publication."
