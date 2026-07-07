@@ -17,5 +17,8 @@ Thumbs.db
 # Node (if ever needed)
 node_modules/
 
+# Firecrawl research cache
+.firecrawl/
+
 # Skill eval workspaces (scratch data from skill-creator runs)
 *-workspace/
