@@ -1,5 +1,20 @@
 # Nuvemshop App Development
 
+## Official References
+
+- App overview: https://dev.nuvemshop.com.br/docs/applications/overview
+- Authentication: https://dev.nuvemshop.com.br/docs/applications/authentication
+- Embedded apps: https://dev.nuvemshop.com.br/docs/applications/native
+- External apps: https://dev.nuvemshop.com.br/docs/applications/standalone
+- Publication guidelines: https://dev.nuvemshop.com.br/docs/applications/guidelines
+- HTTP status standards: https://dev.nuvemshop.com.br/docs/applications/http-status
+- Landing page: https://dev.nuvemshop.com.br/docs/applications/landing-page
+- Nexo: https://dev.nuvemshop.com.br/docs/developer-tools/nexo
+- Nimbus: https://dev.nuvemshop.com.br/docs/developer-tools/nimbus
+- API Nuvemshop: https://dev.nuvemshop.com.br/docs/developer-tools/nuvemshop-api
+- API usage/rate limits: https://dev.nuvemshop.com.br/docs/developer-tools/erp-guide/api-usage
+- Webhooks example: https://dev.nuvemshop.com.br/docs/developer-tools/erp-guide/orders/webhooks
+
 ## App Types
 
 - Embedded/admin apps run inside the merchant admin through an iframe and use Nexo for communication with the admin. Nimbus and design requirements are expected.

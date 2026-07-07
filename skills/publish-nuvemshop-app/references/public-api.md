@@ -1,6 +1,25 @@
 # Public API
 
-Source extraction: Firecrawl scrape of Tiendanube/Nuvemshop public API docs on 2026-07-07. Version observed: `2025-03`.
+Version observed in the public API docs: `2025-03`.
+
+## Official References
+
+- API intro: https://tiendanube.github.io/api-documentation/intro
+- Versioning: https://tiendanube.github.io/api-documentation/versioning
+- Authentication: https://tiendanube.github.io/api-documentation/authentication
+- Resources index: https://tiendanube.github.io/api-documentation/resources
+- Webhook: https://tiendanube.github.io/api-documentation/resources/webhook
+- Product: https://tiendanube.github.io/api-documentation/resources/product
+- Product variant: https://tiendanube.github.io/api-documentation/resources/product-variant
+- Product image: https://tiendanube.github.io/api-documentation/resources/product-image
+- Category: https://tiendanube.github.io/api-documentation/resources/category
+- Customer: https://tiendanube.github.io/api-documentation/resources/customer
+- Order: https://tiendanube.github.io/api-documentation/resources/order
+- Location: https://tiendanube.github.io/api-documentation/resources/location
+- Shipping carrier: https://tiendanube.github.io/api-documentation/resources/shipping-carrier
+- Payment provider: https://tiendanube.github.io/api-documentation/resources/payment-provider
+- Store: https://tiendanube.github.io/api-documentation/resources/store
+- Transaction: https://tiendanube.github.io/api-documentation/resources/transaction
 
 ## Base URLs and Versioning
 

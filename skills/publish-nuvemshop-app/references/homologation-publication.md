@@ -1,5 +1,16 @@
 # Homologation and Publication
 
+## Official References
+
+- Homologation overview: https://dev.nuvemshop.com.br/docs/homologation/overview
+- Homologation process: https://dev.nuvemshop.com.br/docs/homologation/assync
+- Homologation requirements: https://dev.nuvemshop.com.br/docs/homologation/requirements
+- Homologation best practices: https://dev.nuvemshop.com.br/docs/homologation/guidelines
+- Design checklist: https://dev.nuvemshop.com.br/docs/homologation/checklist
+- Publication overview: https://dev.nuvemshop.com.br/docs/publication/overview
+- Publication requirements: https://dev.nuvemshop.com.br/docs/publication/requirements
+- Publication app: https://dev.nuvemshop.com.br/docs/publication/publications
+
 ## Homologation Flow
 
 1. In the Partner Portal app page, click `Solicitar homologação`.

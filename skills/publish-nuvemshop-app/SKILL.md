@@ -9,8 +9,6 @@ description: Prepare, audit, implement, homologate, and publish Nuvemshop/Tienda
 
 Verify the current official DevHub docs before final homologation or publication advice. Nuvemshop requirements changed in 2026 around NubeSDK, and publication approval depends on current Partner Portal rules.
 
-This skill was expanded from a Firecrawl crawl of 115 DevHub pages on 2026-07-07. Use the references below instead of relying on memory.
-
 ## Reference Routing
 
 Read only the relevant reference files:

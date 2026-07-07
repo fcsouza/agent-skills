@@ -1,6 +1,18 @@
 # Nimbus Design System
 
-Source extraction: Firecrawl map of 391 Nimbus URLs plus key pt-BR pages on 2026-07-07.
+## Official References
+
+- Nimbus docs overview: https://nimbus.nuvemshop.com.br/pt-BR/documentation/overview
+- Atomic components: https://nimbus.nuvemshop.com.br/pt-BR/documentation/atomic-components
+- Composite components: https://nimbus.nuvemshop.com.br/pt-BR/documentation/composite-components
+- Patterns: https://nimbus.nuvemshop.com.br/pt-BR/documentation/patterns
+- Templates: https://nimbus.nuvemshop.com.br/pt-BR/documentation/templates
+- Tokens: https://nimbus.nuvemshop.com.br/pt-BR/documentation/tokens
+- Figma libraries: https://nimbus.nuvemshop.com.br/pt-BR/documentation/resources/figma-libraries
+- Fonts: https://nimbus.nuvemshop.com.br/pt-BR/documentation/resources/fonts
+- Themes: https://nimbus.nuvemshop.com.br/pt-BR/documentation/resources/themes
+- Nimbus icons: https://nimbus.nuvemshop.com.br/pt-BR/documentation/resources/nimbus-icons
+- App templates: https://nimbus.nuvemshop.com.br/pt-BR/templates/app-templates
 
 ## Use Cases
 

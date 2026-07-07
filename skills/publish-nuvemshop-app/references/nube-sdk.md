@@ -1,5 +1,21 @@
 # NubeSDK
 
+## Official References
+
+- Overview: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/overview
+- Getting started: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/getting-started
+- Migration guide: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/migration-guide
+- Script structure: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/script-structure
+- Browser APIs: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/browser-apis
+- Components: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/components/overview
+- Slots overview: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/slots/overview
+- Checkout slots: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/slots/checkout-slots
+- Storefront slots: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/slots/storefront-slots
+- Events: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/events/overview
+- State: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/state/overview
+- Styling: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/styling/overview
+- Examples: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/examples/overview
+
 ## 2026 Requirements
 
 - 2026-06-05: NubeSDK is mandatory for approval of new apps in homologation.

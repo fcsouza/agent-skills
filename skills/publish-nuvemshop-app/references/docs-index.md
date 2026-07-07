@@ -1,17 +1,10 @@
 # DevHub Docs Index
 
-Firecrawl crawl date: 2026-07-07.
+Use `https://dev.nuvemshop.com.br/docs` as the canonical Portuguese DevHub documentation entry point.
 
-Canonical domain for the Portuguese docs is `https://dev.nuvemshop.com.br/docs`. The `https://dev.tiendanube.com/pt/docs` path returned a thin/incorrect crawl and should not be treated as the canonical crawl target.
+## Documentation Coverage
 
-Additional Firecrawl extraction on 2026-07-07:
-
-- Nimbus Design System map: 391 URLs from `https://nimbus.nuvemshop.com.br`, including pt-BR atomic components, composite components, patterns, templates, tokens, tools, resources, and API pages.
-- Public API docs: intro plus core pages from `https://tiendanube.github.io/api-documentation`, version `2025-03`, including authentication, versioning, resources, webhook, product, variant, order, customer, category, location, shipping carrier, payment provider, store, and transaction.
-
-## Crawled Coverage
-
-The Firecrawl crawl captured 115 pages, including:
+The skill covers these official documentation areas:
 
 - Applications: overview, authentication, guidelines, HTTP status, landing page, embedded apps, external apps.
 - NubeSDK: overview, getting started, manual setup, migration, after migration, script structure, helper, DevTools, browser APIs, events, state, slots, components, styling, examples.
@@ -68,7 +61,7 @@ The Firecrawl crawl captured 115 pages, including:
 
 ## Search Terms
 
-Use these terms when re-crawling or checking updates:
+Use these terms when checking for current official documentation:
 
 - `NubeSDK obrigatório homologação novas instalações`
 - `Solicitar homologação artefatos diagrama sequência vídeo demo`
