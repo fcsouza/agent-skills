@@ -139,6 +139,10 @@ Products:
 - Product docs include product properties and CRUD/list operations.
 - Variant and product-image docs cover variant/image lifecycle.
 - Use pagination for large catalogs.
+- **Localizable text fields (e.g. product `name`, `description`) are objects keyed
+  by language, `{ "pt": "...", "es": "..." }`, not plain strings.** Resolve them by
+  language before using or rendering. Rendering one directly in a React/JSX app
+  throws React error #31; see the embedded pitfalls in `app-development.md`.
 
 Orders:
 
