@@ -80,4 +80,5 @@ Ready / Blocked / Needs fixes
 - Do not recommend polling when webhooks cover the event.
 - Do not ignore rate limits: default bucket is 40 requests with 2 requests/second leak rate per store/app.
 - Do not use `document`, `window`, jQuery, `innerHTML`, or DOM injection in NubeSDK-required apps.
+- Do not assume a storefront NubeSDK app renders on every theme. It only runs on **compatible themes** (Patagonia + Nuvemshop-manually-enabled stores) during the current rollout; on legacy themes the script is associated and served but never executes (even a fixed-slot control is invisible, DevTools says "SDK not available"). You cannot auto-detect this (no API field; legacy themes carry the same slot markup). Fix: Patagonia theme (draft preview already runs it) or ask Nuvemshop to enable SDK on the theme. Do NOT block install over it (admin/Surface A works on any theme); warn instead. See references/nube-sdk.md + issue #296.
 - Do not bypass homologation for public App Store apps. Private distribution is a different path.

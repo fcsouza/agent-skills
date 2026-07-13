@@ -24,6 +24,49 @@
 
 Re-check official docs before final advice because rollout language can change.
 
+## Theme Compatibility (hard pitfall, learned live 2026)
+
+Storefront NubeSDK apps only render on **compatible themes**. The docs claim
+"storefront apps work on all themes", but in practice it is a **progressive
+rollout**: as of mid-2026 only **Patagonia** (plus stores Nuvemshop manually
+enables) actually execute NubeSDK scripts. Legacy themes (Morelia, Amazonas,
+Bahia, Atlantico, Simple, Trend, ...) do NOT run the script.
+
+Symptom (all true at once, yet the button never appears):
+
+- The script is registered in the Portal and associated to the store
+  (`GET /{storeId}/scripts` returns it with `status: active`), and the correct
+  bundle is served from `apps-scripts.tiendanube.com`.
+- The theme HTML even contains the runtime containers (`<div id="nubesdk-root">`,
+  `nubesdk-runtime`) and slot anchors
+  (`<div class="js-nubesdk-slot" data-nubesdk-slot="...">`).
+- Nothing renders, not even a minimal control into a theme-independent fixed
+  slot (`corner_bottom_right`). The NubeSDK DevTools panel says "SDK not
+  available" and emits no runtime logs.
+
+Why you cannot auto-detect it: the docs say all themes should support it, there
+is **no API field** for "theme supports NubeSDK", and legacy themes carry the
+**same slot-anchor HTML markup**, so the storefront HTML cannot distinguish
+supported from unsupported. The supported set is a moving, Nuvemshop-controlled
+rollout, so a hardcoded theme list rots.
+
+Fixes:
+
+- Switch the store to the **Patagonia** theme (renders NubeSDK natively).
+  Confirmed live: a **draft/preview** of Patagonia already runs the script, so no
+  publish/plan upgrade is needed just to TEST (`?preview_theme_installation_id=...`).
+- OR ask Nuvemshop to **manually enable SDK support** on the current theme
+  (issue #296 resolution: they enable it per-store, even non-Patagonia).
+- Publishing a newly-installed theme on a Free/trial plan requires a **plan
+  upgrade**; the draft preview still runs NubeSDK for validation.
+
+This only gates the **storefront widget (Surface B)**. Embedded admin apps
+(Surface A, Nexo/Nimbus) work on any theme, so do NOT block install: warn the
+merchant instead (e.g. a dismissible notice that the storefront widget needs a
+compatible theme).
+
+Reference: https://github.com/TiendaNube/nube-sdk/issues/296
+
 ## Model
 
 NubeSDK apps run inside browser Web Workers. They cannot directly access `document`, `window`, DOM APIs, jQuery, React DOM, Vue DOM, Angular DOM, or synchronous browser storage.
