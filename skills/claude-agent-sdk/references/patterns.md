@@ -49,11 +49,11 @@ options = ClaudeAgentOptions(
 )
 ```
 
-### Single Container
+### Multi-agent Container
 
 Multiple SDK processes in one container. Agents collaborate or compete.
 
-**Best for:** Simulations, multi-agent systems. Least common — requires preventing file conflicts.
+**Best for:** Simulations, multi-agent systems. Least common — requires preventing file conflicts and settings leakage. See [Multi-tenant Isolation](#multi-tenant-isolation) for setup.
 
 ## Container Requirements
 
@@ -95,11 +95,38 @@ options = ClaudeAgentOptions(resume=session_id)
 
 Sessions stored at `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`. The `cwd` must match when resuming.
 
-### Cross-Host Resumption
+### Cross-Host Resumption with `sessionStore`
 
-Option 1: Mirror `.jsonl` session files to shared storage (S3, NFS). Restore to same path on new host.
+Pass a `SessionStore` adapter so session transcripts are mirrored to external storage. Any host can then resume the session by ID:
 
-Option 2: Don't rely on session resume. Capture results as app state and pass into a fresh session prompt. Often more robust.
+```typescript
+import { query, type SessionStore } from "@anthropic-ai/claude-agent-sdk";
+
+// sessionStore: your S3, Redis, or Postgres adapter
+for await (const msg of query({
+  prompt: userInput,
+  options: { resume: sessionId, sessionStore },
+})) { /* ... */ }
+```
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async for msg in query(
+    prompt=user_input,
+    options=ClaudeAgentOptions(resume=session_id, session_store=session_store),
+):
+    ...
+```
+
+Three behaviors to know:
+- **Transcripts only:** `SessionStore` mirrors session `.jsonl` files. It does NOT mirror `CLAUDE.md` memory files or working-directory artifacts — sync those separately (mounted volume or object-store).
+- **Mirror, not replacement:** the subprocess writes to local disk first; the store receives a copy of each batch. Local disk remains authoritative.
+- **`mirror_error`:** a failed batch is retried up to 3× total with backoff; a timed-out call is not retried. If the batch still fails, the SDK drops it, emits `{ type: "system", subtype: "mirror_error" }`, and continues. Alert on these if store durability matters.
+
+Reference adapters for S3, Redis, and Postgres: see [session-storage docs](https://code.claude.com/docs/en/agent-sdk/session-storage#reference-implementations).
+
+**Fallback option:** capture results as app state and pass into a fresh session prompt. Often more robust for simple workloads.
 
 ### Forking Sessions
 
@@ -141,7 +168,7 @@ Only final message returns to parent — keeps parent context lean.
 | Code modification | `Read`, `Edit`, `Write`, `Grep`, `Glob` |
 | Full access | Omit `tools` field (inherits all) |
 
-Subagents cannot nest — don't include `Agent` in a subagent's tools.
+As of Claude Code v2.1.172, subagents can spawn their own subagents up to 5 levels deep. The 5th-level subagent cannot spawn further. Include `Agent` in a subagent's tools only when nesting is intentional; omit it or add it to `disallowedTools` to prevent a subagent from spawning.
 
 ### Resuming Subagents
 
@@ -261,3 +288,50 @@ Use `dontAsk` with explicit `allowedTools` for predictable CI behavior. Use `byp
 - **Use hooks** to enforce security policies (block paths, sanitize inputs)
 - **Scope subagent tools** — a read-only subagent can't accidentally delete files
 - **Set `max_budget_usd`** as a safety net against runaway costs
+
+---
+
+## Multi-tenant Isolation
+
+When a single container serves multiple tenants, the SDK's default behavior reads shared `CLAUDE.md` files and settings from the filesystem, which can leak one tenant's context into another's session. Isolate tenants with four SDK-level options:
+
+```typescript
+// TypeScript
+for await (const msg of query({
+  prompt,
+  options: {
+    cwd: tenantDir,                    // per-tenant working directory
+    settingSources: [],                 // no filesystem settings loaded
+    env: {
+      ...process.env,                   // keep PATH, ANTHROPIC_API_KEY, etc.
+      CLAUDE_CONFIG_DIR: configDir,     // per-tenant config directory
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",  // disable auto memory
+    },
+  },
+})) { /* ... */ }
+```
+
+```python
+# Python — env is merged on top of inherited environment
+async for msg in query(
+    prompt=prompt,
+    options=ClaudeAgentOptions(
+        cwd=tenant_dir,
+        setting_sources=[],
+        env={
+            "CLAUDE_CONFIG_DIR": config_dir,
+            "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+        },
+    ),
+):
+    ...
+```
+
+| Mechanism | What it prevents |
+|---|---|
+| `settingSources: []` | Stops loading user/project/local `settings.json` and `CLAUDE.md` |
+| `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` | Stops auto-loading `~/.claude/projects/<project>/memory/` into the system prompt (not controlled by `settingSources`) |
+| `CLAUDE_CONFIG_DIR` per tenant | Isolates `~/.claude.json` global config so tenants don't share API key cache or login state |
+| `cwd` per tenant | Keeps each tenant's working directory separate |
+
+Apply per-tenant egress rules at your proxy (distinct outbound IPs or domain allowlists) so a compromised tenant can't exfiltrate data via another tenant's outbound policy.

@@ -120,8 +120,8 @@ Key options for `ClaudeAgentOptions` (Python) / `Options` (TypeScript):
 | Max turns | `max_turns` | `maxTurns` | Cap agentic round-trips |
 | Max budget | `max_budget_usd` | `maxBudgetUsd` | Cost ceiling in USD |
 | Permission mode | `permission_mode` | `permissionMode` | See Permission Modes below |
-| Allowed tools | `allowed_tools` | `allowedTools` | Auto-approved tools list |
-| Disallowed tools | `disallowed_tools` | `disallowedTools` | Always-denied tools |
+| Allowed tools | `allowed_tools` | `allowedTools` | Auto-approve listed tools without prompting. Unlisted tools still run — they fall through to `permissionMode`/`canUseTool`. Use `disallowedTools` to block, not this. |
+| Disallowed tools | `disallowed_tools` | `disallowedTools` | Always-denied tools (even in `bypassPermissions`). Removes tool from Claude's context when bare name used. |
 | System prompt | `system_prompt` | `systemPrompt` | Custom or preset (`"claude_code"`) |
 | Working dir | `cwd` | `cwd` | Agent's working directory |
 | MCP servers | `mcp_servers` | `mcpServers` | External tool servers |
@@ -131,7 +131,10 @@ Key options for `ClaudeAgentOptions` (Python) / `Options` (TypeScript):
 | Thinking | `thinking` | `thinking` | `{"type": "adaptive"}` or `{"type": "enabled", "budget_tokens": N}` |
 | File checkpointing | `enable_file_checkpointing` | `enableFileCheckpointing` | Track file changes for `rewindFiles()` undo |
 | Plugins | `plugins` | — | Extend with bundled commands, agents, MCP servers |
-| Setting sources | `setting_sources` | `settingSources` | Load CLAUDE.md, skills, hooks from project |
+| Setting sources | `setting_sources` | `settingSources` | Load CLAUDE.md, skills, hooks from project. Pass `[]` for fully isolated behavior (CI/CD, multi-tenant) |
+| Executable | `executable` | `executable` | JS runtime for the CLI subprocess: `'bun'` / `'node'` / `'deno'`. Auto-detected. Set `'bun'` for fast mode or Bun host apps. See `references/bun-runtime.md` |
+| Skills | `skills` | `skills` | Skills to preload: `'all'` or a list of skill names. Automatically adds `Skill` tool to `allowedTools` |
+| Session store | `session_store` | `sessionStore` | Mirror session transcripts to external storage (S3/Redis/Postgres) for cross-host resume. See `references/patterns.md` |
 
 For full type definitions, read `references/typescript-api.md` or `references/python-api.md`.
 
@@ -182,14 +185,14 @@ Result subtypes: `success`, `error_max_turns`, `error_max_budget_usd`, `error_du
 |---|---|---|
 | `default` | Unmatched tools trigger `canUseTool` callback | Custom approval flows |
 | `acceptEdits` | Auto-approve Edit/Write + filesystem cmds (mkdir, rm, mv, cp, sed) within cwd | Trusted dev workflows |
-| `dontAsk` | Deny anything not in `allowedTools` | Locked-down headless agents |
+| `dontAsk` | Converts any permission prompt to a denial. Pre-approved tools (via `allowedTools` or allow rules) still run | Locked-down headless agents |
 | `plan` | No tool execution, planning only | Pre-implementation review |
 | `bypassPermissions` | All tools run without prompts | Sandboxed CI, containers |
 | `auto` (TS only) | Model classifier approves/denies each tool call autonomously | Autonomous with guardrails |
 
 **Evaluation order:** Hooks → Deny rules → Permission mode → Allow rules → `canUseTool` callback.
 
-`disallowedTools` blocks tools even in `bypassPermissions` mode. `allowedTools` does NOT constrain `bypassPermissions` — use `disallowedTools` to block specific tools in that mode.
+`allowedTools` auto-approves listed tools — it does NOT prevent Claude from calling other tools. Tools not listed fall through to `permissionMode` and `canUseTool`. To prevent a tool from running at all (including in `bypassPermissions`), use `disallowedTools`.
 
 ## Built-in Tools
 
@@ -310,9 +313,9 @@ const options = {
 };
 ```
 
-Key `AgentDefinition` fields: `description` (when to use), `prompt` (system prompt), `tools` (restrict tools), `model` (`"sonnet"` / `"opus"` / `"haiku"` / full ID), `maxTurns`, `background`, `effort`, `permissionMode`.
+Key `AgentDefinition` fields: `description` (when to use), `prompt` (system prompt), `tools` (restrict tools), `model` (`"sonnet"` / `"opus"` / `"haiku"` / `"fable"` / `"inherit"` / full model ID), `skills` (preload named skills), `maxTurns`, `background`, `effort`, `permissionMode`.
 
-Subagents cannot spawn their own subagents — don't include `Agent` in a subagent's tools.
+As of Claude Code v2.1.172, subagents can spawn their own subagents up to 5 levels deep. The 5th-level subagent cannot spawn further. Include `Agent` in a subagent's tools only when nesting is intentional.
 
 Include `Agent` in the parent's `allowedTools`. Claude auto-delegates based on descriptions, or use explicit prompting: "Use the code-reviewer agent to..."
 
@@ -449,13 +452,14 @@ Streaming input enables: image attachments, queued messages, mid-task interrupti
 
 ## Hosting & Deployment
 
-### Container Patterns
+### Session Patterns
 
 | Pattern | Description | Example |
 |---|---|---|
 | Ephemeral | New container per task, destroy on completion | Bug fix, invoice processing |
 | Long-running | Persistent container, multiple SDK processes | Email agent, site builder |
-| Hybrid | Ephemeral + hydrated with session history | Deep research, project manager |
+| Hybrid | Ephemeral + `sessionStore` adapter for cross-host resume | Deep research, project manager |
+| Multi-agent container | Multiple SDK processes in one container, isolated per agent | Simulations, multi-agent systems |
 
 ### Requirements
 
@@ -463,11 +467,53 @@ Streaming input enables: image attachments, queued messages, mid-task interrupti
 - 1 GiB RAM, 5 GiB disk, 1 CPU (minimum)
 - Outbound HTTPS to `api.anthropic.com`
 
+### Cross-Host Session Persistence
+
+Use the `sessionStore` option to mirror transcripts to S3, Redis, or Postgres, so sessions survive container restarts. Required for the Hybrid pattern. `SessionStore` mirrors transcripts only — not `CLAUDE.md` or working-directory artifacts.
+
+### Multi-tenant Isolation
+
+In shared containers, pass `settingSources: []`, set `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, use a per-tenant `CLAUDE_CONFIG_DIR`, and pass an explicit `cwd` per tenant. See `references/patterns.md` for the full code pattern.
+
 ### Sandbox Providers
 
 Modal, Cloudflare Sandboxes, Daytona, E2B, Fly Machines, Vercel Sandbox.
 
+**TypeScript serverless note:** The SDK bundles a ~230 MB native binary. It is generally not viable for AWS Lambda / Vercel Functions (250 MB limit). Use a long-running container. See `references/bun-runtime.md`.
+
 For production patterns, cost tracking, and security hardening, read `references/patterns.md`.
+
+## Advisor Tool (Beta — Messages API)
+
+Pair a fast executor model with a higher-intelligence advisor that consults mid-generation. The executor decides when to call the advisor; Anthropic runs the sub-inference server-side at no extra round-trip cost.
+
+**Best for:** long-horizon agentic workloads (coding, computer use, multi-step research) where most turns are mechanical but a good plan is crucial.
+
+**Platform:** Claude API and Claude Platform on AWS only. Not available on Bedrock, Google Cloud, or Foundry.
+
+```python
+response = client.beta.messages.create(
+    model="claude-sonnet-5",         # executor
+    betas=["advisor-tool-2026-03-01"],
+    tools=[{
+        "type": "advisor_20260301",
+        "name": "advisor",
+        "model": "claude-opus-4-8",  # or "claude-fable-5" for encrypted advice
+    }],
+    messages=[...],
+    max_tokens=4096,
+)
+```
+
+Key facts:
+- Tool type `advisor_20260301`, name must be `"advisor"`
+- `claude-fable-5` / `claude-mythos-5` advisors return encrypted `advisor_redacted_result` (not ZDR eligible, 30-day retention). Use `claude-opus-4-8` for plaintext.
+- Advisor must be at least as capable as the executor
+- Multi-turn: always include `advisor_tool_result` blocks in subsequent requests
+
+**Agent SDK `query()` compatibility:** not confirmed as of July 2026 — spike before assuming it works via the SDK.
+
+For parameters, result variants, model compatibility table, billing, and system prompt recipes, read `references/advisor-tool.md`.
 
 ## Structured Output
 
@@ -519,6 +565,9 @@ Pass `[]` or omit entirely for fully isolated behavior — ideal for CI/CD and m
 | Session resume returns fresh session | Ensure `cwd` matches original session |
 | `canUseTool` not firing (Python) | Use streaming input mode + dummy `PreToolUse` hook |
 | Subagent permissions multiplying | Use `PreToolUse` hooks to auto-approve, or set `permissionMode` on agent |
+| `ReferenceError: Bun is not defined` | Set `executable: 'bun'` (fixed in v0.2.113 but workaround still needed in some setups) |
+| Fast mode not available | Requires Bun binary; set `executable: 'bun'` (issue #216) |
+| `bun build --compile` crashes on startup | Call `extractFromBunfs()` at startup; requires SDK ≥ v0.3.144. See `references/bun-runtime.md` |
 
 ## Reference Files
 
@@ -529,5 +578,7 @@ Read these for deeper API details — they're loaded on-demand:
 | `references/typescript-api.md` | Full TS types: Options, Query, messages, hooks, tools |
 | `references/python-api.md` | Full Python types: ClaudeAgentOptions, ClaudeSDKClient, messages |
 | `references/hooks-guide.md` | All hook events, callback signatures, recipes |
-| `references/patterns.md` | Production hosting, session strategies, cost tracking |
+| `references/patterns.md` | Production hosting, session strategies, SessionStore, multi-tenant isolation, cost tracking |
 | `references/custom-tools.md` | tool() decorator, schemas, error handling, annotations |
+| `references/advisor-tool.md` | Advisor tool beta: parameters, result variants, model compatibility, billing, system prompt recipes |
+| `references/bun-runtime.md` | Bun runtime: `executable` option, fast mode, `bun build --compile` workaround, serverless constraints |
