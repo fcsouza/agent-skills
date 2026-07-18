@@ -86,7 +86,20 @@ Typical advisor output: 400–700 text tokens, or 1,400–1,800 tokens including
 
 ## Agent SDK Compatibility
 
-The advisor tool is a Messages API feature. As of July 2026, **it is not confirmed whether the Agent SDK's `query()` wires it when included in `betas`**. If you need the advisor in an SDK-based agent loop, verify via a spike, or call the Messages API directly for turns where advisor guidance is needed.
+The advisor tool is **natively supported by the Agent SDK** (confirmed at runtime, July 2026, SDK v0.3.214). Pass it via the `settings` option, not the top-level `Options`:
+
+```typescript
+query({
+  prompt,
+  options: {
+    model: 'claude-sonnet-5',
+    executable: 'bun',
+    settings: { advisorModel: 'claude-opus-4-8' },
+  },
+});
+```
+
+`advisorModel` lives on the `Settings` type (`query()` accepts `settings?: string | Settings`); it is **not** a top-level `Options` field (TS rejects it there). The executor invokes the advisor when it judges the turn needs strategic planning; the stream then carries `server_tool_use` → `advisor_tool_result` blocks. `fastMode?: boolean` is also a `Settings` field (Bun runtime only). No Messages-API fallback needed.
 
 ## Cost Control
 
