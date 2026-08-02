@@ -21,6 +21,7 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | Skill | Description | Platform |
 |-------|-------------|----------|
 | [claude-agent-sdk](skills/claude-agent-sdk/) | Build production AI agents with the Claude Agent SDK — query(), hooks, subagents, custom tools, MCP servers, sessions, permissions, hosting | Claude Code / API |
+| [database-performance-tuning](skills/database-performance-tuning/) | Diagnose and fix slow databases like a DBA — pg_stat_statements, EXPLAIN plans, index design, query rewrites, vacuum and bloat, safe online rollout. Ships a read-only diagnostic script | PostgreSQL / MySQL |
 | [foundry-vtt-module-dev](skills/foundry-vtt-module-dev/) | Build, extend, and maintain Foundry VTT v13 modules — TypeDataModel, ApplicationV2, ActorSheetV2, hooks, sockets, dice, canvas/PIXI, ActiveEffects, migrations, boilerplate files | [Foundry VTT](https://foundryvtt.com) |
 | [foundry-vtt-system-dev](skills/foundry-vtt-system-dev/) | Build Foundry VTT v13 game systems — system.json, template.json, Actor/Item TypeDataModel, dice mechanics, combat/initiative, data migration, character sheets, status effects, macros, enrichers | [Foundry VTT](https://foundryvtt.com) |
 | [openclaw-genie](skills/openclaw-genie/) | Comprehensive OpenClaw gateway skill — installation, configuration, 38+ channels, memory, tools, hooks, deployment, multi-agent | [OpenClaw](https://openclaw.ai) |
