@@ -209,11 +209,18 @@ prefix of its key columns. The reverse is not true.
 SELECT
   indrelid::regclass AS table_name,
   array_agg(indexrelid::regclass) AS indexes,
-  indkey
+  pg_size_pretty(sum(pg_relation_size(indexrelid))) AS combined_size
 FROM pg_index
-GROUP BY indrelid, indkey
+GROUP BY indrelid, indkey, indclass,
+         coalesce(pg_get_expr(indexprs, indrelid), ''),
+         coalesce(pg_get_expr(indpred,  indrelid), '')
 HAVING count(*) > 1;
 ```
+
+Group on the *rendered* expression and predicate, not on the raw `indexprs`/`indpred`
+columns. Those are `pg_node_tree`, which has no equality operator and whose text form
+embeds the parse position — two identical `lower(email)` indexes serialize differently and
+would not group.
 
 That finds exact duplicates. For prefix redundancy, compare the leading columns of every
 index on a table by hand — it is a small list per table and worth doing carefully.

@@ -8,7 +8,8 @@
 # timeout, so it cannot write and cannot hang a busy server. It adapts its SQL to
 # the server version: pg_stat_statements renamed its io-timing columns in PG 17.
 #
-# Options:
+# Options (must come BEFORE the connection string — getopts stops at the first
+# non-option argument, so trailing flags are silently ignored):
 #   -n N   rows per ranking section (default 15)
 #   -q     skip the sections that need pg_stat_statements
 set -euo pipefail
@@ -20,7 +21,7 @@ while getopts "n:qh" opt; do
   case "$opt" in
     n) LIMIT="$OPTARG" ;;
     q) SKIP_PGSS=1 ;;
-    h) sed -n '2,16p' "$0"; exit 0 ;;
+    h) sed -n '2,14p' "$0"; exit 0 ;;
     *) exit 2 ;;
   esac
 done
@@ -225,7 +226,9 @@ run "SELECT
        array_agg(indexrelid::regclass) AS indexes,
        pg_size_pretty(sum(pg_relation_size(indexrelid))) AS combined_size
      FROM pg_index
-     GROUP BY indrelid, indkey, indclass, indexprs, indpred
+     GROUP BY indrelid, indkey, indclass,
+              coalesce(pg_get_expr(indexprs, indrelid), ''),
+              coalesce(pg_get_expr(indpred,  indrelid), '')
      HAVING count(*) > 1;"
 
 section "Invalid indexes (failed CREATE INDEX CONCURRENTLY — pure cost, no benefit)"

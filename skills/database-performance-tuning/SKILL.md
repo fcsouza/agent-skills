@@ -66,8 +66,12 @@ Run the bundled read-only diagnostic instead of hand-rolling the queries — it 
 SQL to the server version and covers the whole picture in one pass:
 
 ```bash
-scripts/pg-diagnose.sh "$DATABASE_URL"
+<skill-dir>/scripts/pg-diagnose.sh "$DATABASE_URL"
 ```
+
+`<skill-dir>` is the base directory printed when this skill loads — the script lives
+next to this file, not in the user's project. Options go before the connection string
+(`-n 30` for more rows per section, `-q` to skip the pg_stat_statements sections).
 
 It reports: top statements by total and by mean time, cache hit ratios, tables taking
 sequential scans, unused and duplicate and invalid indexes, dead-tuple and autovacuum lag,
