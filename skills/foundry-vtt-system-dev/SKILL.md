@@ -66,11 +66,10 @@ Every system needs a valid `system.json`. System-specific fields beyond what mod
   },
   "authors": [{ "name": "Your Name" }],
   "esmodules": ["scripts/main.mjs"],
-  "styles": ["styles/my-system.css"],
+  "styles": [{ "src": "styles/my-system.css" }],
   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }],
   "background": "systems/my-system/assets/setup-bg.png",
-  "gridDistance": 5,
-  "gridUnits": "ft",
+  "grid": { "type": 1, "distance": 5, "units": "ft", "diagonals": 0 },
   "primaryTokenAttribute": "health",
   "secondaryTokenAttribute": "power"
 }
@@ -82,10 +81,11 @@ Every system needs a valid `system.json`. System-specific fields beyond what mod
 | `compatibility` | `minimum` (won't load below), `verified` (tested on) |
 | `documentTypes` | Declares Actor/Item subtypes — keys must match `CONFIG.*.dataModels` |
 | `background` | Background image for the system selection screen |
-| `gridDistance` / `gridUnits` | Default grid configuration (e.g., 5 ft) |
+| `grid` | Default grid: `{ type, distance, units, diagonals }`. `type` takes a `CONST.GRID_TYPES` value (1 = square), `diagonals` a `CONST.GRID_DIAGONALS` value (0 = equidistant). The flat `gridDistance` / `gridUnits` pair is the v12 shape — v13 auto-migrates it with a deprecation warning and v14 drops it |
 | `primaryTokenAttribute` | Resource displayed in bar1 on tokens (maps to `system.health`) |
 | `secondaryTokenAttribute` | Resource displayed in bar2 on tokens (maps to `system.power`) |
 | `esmodules` | ES module entry points — always prefer over legacy `scripts` |
+| `styles` | Array of `{ src, layer? }`. A bare array of strings is the v12 shape; it auto-migrates with a warning and gives up control of the cascade layer |
 
 ### Template Types (template.json)
 
@@ -233,8 +233,7 @@ System-specific fields that don't exist on `module.json`:
 | Field | Type | Purpose |
 |---|---|---|
 | `background` | string | Background image for the system setup screen |
-| `gridDistance` | number | Default grid distance (e.g., `5`) |
-| `gridUnits` | string | Default grid units (e.g., `"ft"`, `"m"`, `"sq"`) |
+| `grid` | object | Default grid — `{ type, distance, units, diagonals }`. Replaces the flat v12 `gridDistance` / `gridUnits`, which auto-migrate with a warning and go away in v14 |
 | `primaryTokenAttribute` | string | Token bar1 attribute path (e.g., `"health"`) |
 | `secondaryTokenAttribute` | string | Token bar2 attribute path (e.g., `"power"`) |
 | `documentTypes` | object | Declares custom Actor/Item subtypes (v13+) |
