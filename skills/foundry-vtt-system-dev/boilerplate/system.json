@@ -41,12 +41,16 @@
     }
   },
   "background": "systems/my-system/assets/background.webp",
-  "gridDistance": 5,
-  "gridUnits": "ft",
+  "grid": {
+    "type": 1,
+    "distance": 5,
+    "units": "ft",
+    "diagonals": 0
+  },
   "primaryTokenAttribute": "health",
   "secondaryTokenAttribute": "power",
   "esmodules": ["main.mjs"],
-  "styles": ["styles/my-system.css"],
+  "styles": [{ "src": "styles/my-system.css" }],
   "languages": [
     {
       "lang": "en",
