@@ -81,18 +81,7 @@ Every system needs a valid `system.json`. System-specific fields beyond what mod
 }
 ```
 
-| Field | Purpose |
-|---|---|
-| `id` | Unique lowercase identifier — must match folder name. Pack `name` values follow the same rule: `[A-Za-z0-9_-]` only, duplicates throw |
-| `type` | `"system"`. Optional (it is the schema initial) but explicit in v14 manifests |
-| `compatibility` | `minimum` (won't load below), `verified` (tested on). Use `"14"` |
-| `documentTypes` | Declares subtypes for every typed document (Actor, Item, JournalEntryPage, ActiveEffect, ...) — keys must match `CONFIG.*.dataModels`. This is the primary type declaration in v14 |
-| `background` | Background image for the system selection screen |
-| `grid` | Default grid: `{ type, distance, units, diagonals }`. `type` takes a `CONST.GRID_TYPES` value (1 = square), `diagonals` a `CONST.GRID_DIAGONALS` value (0 = equidistant). **Changed in v14:** the flat `gridDistance` / `gridUnits` pair is removed — no shim, no migration; the manifest must use the `grid` object |
-| `primaryTokenAttribute` | Resource displayed in bar1 on tokens (maps to `system.health`) |
-| `secondaryTokenAttribute` | Resource displayed in bar2 on tokens (maps to `system.power`) |
-| `esmodules` | ES module entry points — always prefer over legacy `scripts` |
-| `styles` | Array of `{ src, layer? }`. A bare array of strings is the v12 shape; it auto-migrates with a warning and gives up control of the cascade layer |
+Field-by-field notes are in the **System Manifest** section below; `references/system-manifest.md` has the full schema.
 
 ### Declaring Types
 
@@ -130,7 +119,7 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
 
 Shared fields go in a base class (`class BaseItemData extends TypeDataModel`) that subtypes extend — that replaces template.json's `templates` inheritance.
 
-**Changed in v14:** `template.json` is deprecated. The server still reads it and logs a package warning. Every type listed in `template.json` gets its `documentTypes` entry reset to `{}` and then only `htmlFields`, `filePathFields` and `gmOnlyFields` from the template's document-level block are copied back, so per-subtype declarations in `system.json` are lost for those types. Defaults go into `game.model`. The warning reads: "System template.json is deprecated ... Support for template.json will be removed in V16." `strictDataCleaning` still works while the file exists. Keep the file only for a system that has not yet moved to data models; new systems ship without it. `Game#template` and `System#template` are gone — read `game.system.documentTypes` and `game.model`.
+**Changed in v14:** `template.json` is deprecated (removed in v16). See **Declaring Types → Legacy: template.json** below before keeping one.
 
 ### Initialization Lifecycle
 
@@ -230,17 +219,21 @@ For the full rationale, dnd5e references, and concrete templates, read `referenc
 
 ## System Manifest (system.json)
 
-System-specific fields that don't exist on `module.json`:
+Manifest fields a system needs (system-only fields plus the shared ones that matter here):
 
 | Field | Type | Purpose |
 |---|---|---|
+| `id` | string | Unique lowercase identifier — must match the folder name. Pack `name` values follow the same rule: `[A-Za-z0-9_-]` only, duplicates throw |
 | `type` | string | `"system"` — the only allowed value; explicit in v14 manifests |
+| `compatibility` | object | `minimum` (won't load below), `verified` (tested on). Use `"14"` |
+| `esmodules` | array | ES module entry points — always prefer over legacy `scripts` |
+| `styles` | array | `{ src, layer? }` objects. A bare array of strings is the v12 shape; it auto-migrates with a warning and gives up control of the cascade layer |
 | `background` | string | Background image for the system setup screen |
 | `grid` | object | Default grid — `{ type, distance, units, diagonals }`. The flat v12 `gridDistance` / `gridUnits` pair is removed in v14 (no shim) |
 | `initiative` | string | Default initiative formula (overridden by `CONFIG.Combat.initiative.formula` at runtime) |
 | `primaryTokenAttribute` | string | Token bar1 attribute path (e.g., `"health"`) |
 | `secondaryTokenAttribute` | string | Token bar2 attribute path (e.g., `"power"`) |
-| `documentTypes` | object | Declares subtypes per document (`Actor`, `Item`, `JournalEntryPage`, `ActiveEffect`, ...). Each subtype value is an object; `htmlFields`, `filePathFields`, `gmOnlyFields` are the known keys. Primary declaration in v14 |
+| `documentTypes` | object | Declares subtypes per document (`Actor`, `Item`, `JournalEntryPage`, `ActiveEffect`, ...). Each subtype value is an object; `htmlFields`, `filePathFields`, `gmOnlyFields` are the known keys. Primary declaration in v14. Keys must match `CONFIG.*.dataModels` |
 
 The `primaryTokenAttribute` and `secondaryTokenAttribute` reference keys in `actor.system`. The attribute must lead to an object with `value` and `max` keys (e.g., `system.health.value` / `system.health.max`).
 
