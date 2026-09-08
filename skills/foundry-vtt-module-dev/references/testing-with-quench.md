@@ -4,6 +4,8 @@ Foundry's runtime depends on a fully initialized `game` object — actor collect
 
 Quench gives you `describe` / `it` / `expect` working against the real `game`, real `Hooks`, real documents — at the cost of needing a browser to run them.
 
+Quench ships outside Foundry, so check its README for the v14-compatible release before relying on the hook and method names below.
+
 ---
 
 ## Setup
@@ -13,7 +15,8 @@ Quench gives you `describe` / `it` / `expect` working against the real `game`, r
    ```json
    "relationships": {
      "recommends": [{ "id": "_quench", "type": "module" }]
-   }
+   },
+   "compatibility": { "minimum": "14", "verified": "14" }
    ```
 3. Enable Quench in your test world. The "Quench" button appears at the bottom of the sidebar.
 
@@ -49,6 +52,19 @@ Hooks.on("quenchReady", (quench) => {
         it("computes maxHealth in prepareDerivedData", () => {
           expect(actor.system.maxHealth).to.be.a("number");
           expect(actor.system.maxHealth).to.be.at.least(actor.system.health);
+        });
+
+        it("applies an ActiveEffect through system.changes", async () => {
+          const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
+            name: "Blessed",
+            system: {
+              changes: [
+                { key: "system.health", type: "add", value: "5", phase: "final", priority: 20 },
+              ],
+            },
+          }]);
+          expect(actor.effects.get(effect.id)).to.exist;
+          expect(effect.system.changes[0].type).to.equal("add");
         });
 
         it("rejects negative health on update", async () => {
@@ -126,7 +142,17 @@ it("damage roll uses actor str modifier", async () => {
 });
 ```
 
-For deterministic rolls, use `Roll.evaluateSync({ maximize: true })` or stub `CONFIG.Dice.randomUniform`:
+Assert on the message mode when a test posts to chat — v14 replaced `rollMode` with `messageMode`:
+
+```javascript
+it("posts a blind roll", async () => {
+  const roll = await new Roll("1d20").evaluate();
+  const message = await roll.toMessage({}, { messageMode: "blind" });
+  expect(message.blind).to.equal(true);
+});
+```
+
+For deterministic rolls, use `Roll#evaluateSync({ maximize: true })` or stub `CONFIG.Dice.randomUniform` (it defaults to `foundry.dice.MersenneTwister.random`):
 
 ```javascript
 const original = CONFIG.Dice.randomUniform;
@@ -195,6 +221,7 @@ What you **can** automate in CI:
 - Type-check (`tsc --noEmit` if using fvtt-types)
 - Manifest validation (`jsonschema` against the official `module.json` schema)
 - Unit-test pure helpers that don't touch `game` (use Vitest + a thin Foundry stub)
+- Pin CI to the Node major Foundry ships (Node 24 for v14) so bundler and script behaviour matches
 - Build the module zip and validate the output
 
 Run Quench manually before each release. A short checklist in your repo (`docs/release-checklist.md`):
@@ -205,6 +232,7 @@ Run Quench manually before each release. A short checklist in your repo (`docs/r
 - [ ] Run all batches → 0 failures
 - [ ] Smoke-test sheet rendering for each subtype
 - [ ] Verify migration on a copy of a v1.0 world
+- [ ] Check the console for deprecation warnings (v14 removes v12 shims and warns on v13 APIs)
 ```
 
 ---
@@ -244,3 +272,4 @@ Run with `bunx vitest run` (or `npx vitest run`) in GitHub Actions. Anything tha
 4. **Real packs in tests** — Tests that load a 200-document compendium will be slow. Use `pack.getIndex()` (cheap) or a fixture pack with 5 entries.
 5. **Cross-test state** — `game.settings` and `CONFIG` mutations persist. Save and restore them in `beforeEach`/`afterEach`.
 6. **Trying to run Quench from the Foundry config screen** — Quench needs an active world. Tests run after `ready`, not `setup`.
+7. **Asserting on v13 shapes** — `ActiveEffect#changes` moved to `system.changes` with string `type` values, and `rollMode` became `messageMode`. Tests written against v13 pass silently against deprecation shims until the shims are removed.

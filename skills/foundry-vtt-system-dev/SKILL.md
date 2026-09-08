@@ -1,21 +1,26 @@
 ---
 name: foundry-vtt-system-dev
-version: 2.2.0
+version: 3.0.0
 description: >-
-  Covers building, extending, and maintaining Foundry VTT game systems for v13+.
-  This skill applies when scaffolding a new system, defining Actor/Item types with
-  TypeDataModel, customizing dice mechanics, implementing combat & initiative,
-  building character sheets, handling system data migration, or configuring
-  template.json. Triggers on: "Foundry system", "FVTT system", "system.json",
-  "template.json", "foundryvtt system", "Actor subclass", "Item subclass",
-  "custom dice", "DiceTerm", "system development", "game system", "RPG system",
-  "statusEffects", "hotbarDrop", "custom enricher", "JournalEntryPage",
-  "TokenDocument", or any task involving Foundry VTT system development.
+  Covers building, extending, and maintaining Foundry VTT game systems for v14+.
+  This skill applies when scaffolding a new system, declaring Actor/Item types
+  with documentTypes + TypeDataModel, customizing dice mechanics, implementing
+  combat & initiative, building character sheets, handling system data migration,
+  registering Active Effect V2 change types or subtypes, or migrating a v13
+  system (template.json, rollMode, MeasuredTemplate) to v14. Triggers on:
+  "Foundry system", "FVTT system", "system.json", "template.json", "foundryvtt
+  system", "Actor subclass", "Item subclass", "custom dice", "DiceTerm", "system
+  development", "game system", "RPG system", "statusEffects", "hotbarDrop",
+  "custom enricher", "JournalEntryPage", "TokenDocument", "ActiveEffect V2",
+  "changeTypes", "messageMode", "Scene Levels", "Regions templates", or any task
+  involving Foundry VTT system development.
 ---
 
 # Foundry VTT System Development
 
-Build game systems for Foundry Virtual Tabletop (v13+). Systems define the core rules — Actor/Item types, dice mechanics, combat, character sheets — while modules extend them. This skill covers the full system lifecycle from manifest to publication.
+Build game systems for Foundry Virtual Tabletop (v14+). Systems define the core rules — Actor/Item types, dice mechanics, combat, character sheets — while modules extend them. This skill covers the full system lifecycle from manifest to publication. v13→v14 differences appear as "Changed in v14" notes; for the full list read `foundry-vtt-module-dev/references/v14-migration.md`.
+
+This skill depends on `foundry-vtt-module-dev` for the shared references it points at (`v14-migration.md`, `active-effects-v2.md`, `scene-levels.md`, `measured-templates.md`) — install both.
 
 ## Quick Start
 
@@ -23,8 +28,8 @@ Build game systems for Foundry Virtual Tabletop (v13+). Systems define the core 
 
 ```
 my-system/
-├── system.json           ← manifest (required)
-├── template.json         ← type definitions (required)
+├── system.json           ← manifest (required) — declares types via documentTypes
+├── template.json         ← legacy type defaults (optional, deprecated since v14, removed in v16)
 ├── scripts/
 │   ├── main.mjs          ← ES module entry point
 │   ├── actor.mjs         ← custom Actor class
@@ -46,19 +51,20 @@ my-system/
 
 Use `boilerplate/system.json` and `boilerplate/main.mjs` as starting points.
 
-### System Manifest (system.json)
+### Manifest Example (system.json)
 
 Every system needs a valid `system.json`. System-specific fields beyond what modules use:
 
 ```json
 {
   "id": "my-system",
+  "type": "system",
   "title": "My System",
   "description": "A custom game system for Foundry VTT.",
   "version": "1.0.0",
   "compatibility": {
-    "minimum": "13",
-    "verified": "13"
+    "minimum": "14",
+    "verified": "14"
   },
   "documentTypes": {
     "Actor": { "character": {}, "npc": {} },
@@ -75,61 +81,45 @@ Every system needs a valid `system.json`. System-specific fields beyond what mod
 }
 ```
 
-| Field | Purpose |
-|---|---|
-| `id` | Unique lowercase identifier — must match folder name |
-| `compatibility` | `minimum` (won't load below), `verified` (tested on) |
-| `documentTypes` | Declares Actor/Item subtypes — keys must match `CONFIG.*.dataModels` |
-| `background` | Background image for the system selection screen |
-| `grid` | Default grid: `{ type, distance, units, diagonals }`. `type` takes a `CONST.GRID_TYPES` value (1 = square), `diagonals` a `CONST.GRID_DIAGONALS` value (0 = equidistant). The flat `gridDistance` / `gridUnits` pair is the v12 shape — v13 auto-migrates it with a deprecation warning and v14 drops it |
-| `primaryTokenAttribute` | Resource displayed in bar1 on tokens (maps to `system.health`) |
-| `secondaryTokenAttribute` | Resource displayed in bar2 on tokens (maps to `system.power`) |
-| `esmodules` | ES module entry points — always prefer over legacy `scripts` |
-| `styles` | Array of `{ src, layer? }`. A bare array of strings is the v12 shape; it auto-migrates with a warning and gives up control of the cascade layer |
+Field-by-field notes are in **System Manifest (system.json)** below; `references/system-manifest.md` has the full schema.
 
-### Template Types (template.json)
+### Type Declaration Example
 
-Define Actor and Item types with shared template inheritance:
+Declare every subtype in `system.json` under `documentTypes`, then give each one a `TypeDataModel`. The manifest declares the type; `defineSchema()` supplies the fields, defaults, validation, and derived data:
 
 ```json
 {
-  "Actor": {
-    "types": ["character", "npc"],
-    "templates": {
-      "base": {
-        "health": { "value": 10, "max": 10 },
-        "biography": ""
-      }
+  "documentTypes": {
+    "Actor": {
+      "character": { "htmlFields": ["biography"] },
+      "npc": {}
     },
-    "character": {
-      "templates": ["base"],
-      "abilities": { "str": { "value": 10 }, "dex": { "value": 10 } }
-    },
-    "npc": {
-      "templates": ["base"],
-      "cr": 0
-    }
-  },
-  "Item": {
-    "types": ["weapon", "spell"],
-    "templates": {
-      "base": { "description": "" }
-    },
-    "weapon": {
-      "templates": ["base"],
-      "damage": "1d6",
-      "quantity": 1
-    },
-    "spell": {
-      "templates": ["base"],
-      "level": 0,
-      "school": "evocation"
+    "Item": {
+      "weapon": { "htmlFields": ["description"] },
+      "spell": { "htmlFields": ["description"] }
     }
   }
 }
 ```
 
-Types reference templates via the `templates` array. Data from referenced templates is merged into the type. In v13, `template.json` remains the primary way systems define types and default data. Use `TypeDataModel` alongside it for schema validation, derived data, and lifecycle hooks — the data schema comes from `defineSchema()` while `template.json` declares the types.
+```javascript
+// scripts/data/weapon-data.mjs
+export class WeaponData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      description: new fields.HTMLField({ initial: "" }),
+      damage: new fields.StringField({ initial: "1d6" }),
+      quantity: new fields.NumberField({ required: true, integer: true, min: 0, initial: 1 })
+    };
+  }
+}
+// init: Object.assign(CONFIG.Item.dataModels, { weapon: WeaponData });
+```
+
+Shared fields go in a base class (`class BaseItemData extends TypeDataModel`) that subtypes extend — that replaces template.json's `templates` inheritance.
+
+**Changed in v14:** `template.json` is deprecated (removed in v16). See **Declaring Types → Legacy: template.json** below before keeping one.
 
 ### Initialization Lifecycle
 
@@ -159,12 +149,9 @@ Hooks.once("init", () => {
     decimals: 2
   };
 
-  // Disable legacy Active Effect transfer
-  CONFIG.ActiveEffect.legacyTransferral = false;
-
-  // Unregister core sheets and register system sheets
-  Actors.unregisterSheet("core", ActorSheet);
-  Actors.registerSheet(SYSTEM_ID, CharacterSheet, {
+  // Register system sheets. Core registers no default Actor/Item sheet,
+  // so there is nothing to unregister first.
+  foundry.documents.collections.Actors.registerSheet(SYSTEM_ID, CharacterSheet, {
     makeDefault: true,
     types: ["character"]
   });
@@ -179,15 +166,17 @@ Hooks.once("init", () => {
 });
 ```
 
+**Changed in v14:** `CONFIG.ActiveEffect.legacyTransferral` no longer exists — delete the line. Effects on owned Items with `transfer: true` apply to the Actor in place through `Actor#allApplicableEffects()`; nothing is copied onto the Actor. If you still need the AppV1 sheet class for a fallback, it lives at `foundry.appv1.sheets.ActorSheet` (deprecated since v13, removed in v16).
+
 > **Shared API** — see the foundry-vtt-module-dev skill for Hooks lifecycle (init/setup/ready), Settings API, and Localization.
 
 ---
 
-## v13 Namespace (`foundry.*`)
+## Namespaces (`foundry.*`)
 
-Nearly every core API moved into the `foundry.*` namespace in v13. Legacy globals work as deprecation shims (with console warnings) but new code should use the namespaced paths. Critical for system development:
+Nearly every core API moved into the `foundry.*` namespace in v13. In v14 the legacy globals are deprecation shims scheduled for removal in v15 (most) or v16 (the AppV1 framework); the bare `foundry.utils` globals (`mergeObject`, `getProperty`, ...) and the dice-term globals (`Die`, `DiceTerm`, ...) are already gone. Write against the namespaced paths:
 
-| Legacy / global | v13 namespaced path |
+| Legacy / global | Namespaced path |
 |---|---|
 | `TypeDataModel`, `DataModel`, `Document` | `foundry.abstract.*` |
 | `fields.NumberField`, `fields.SchemaField`, etc. | `foundry.data.fields.*` |
@@ -199,10 +188,12 @@ Nearly every core API moved into the `foundry.*` namespace in v13. Legacy global
 | `loadTemplates`, `renderTemplate` | `foundry.applications.handlebars.*` |
 | (new in v13) | `foundry.applications.fields.*` — form input creation: `createFormGroup`, `createSelectInput`, `createNumberInput`, etc. |
 | (new in v13) | `foundry.applications.ux.*` — `Tabs`, `ContextMenu`, `DragDrop`, `FormDataExtended`, `SearchFilter`, `TextEditor` |
-| `mergeObject`, `isNewerVersion`, `debounce` | `foundry.utils.*` (38+ helpers) |
+| `mergeObject`, `isNewerVersion`, `debounce` | `foundry.utils.*` (bare globals removed in v14) |
 | `Hooks` (still global) | `foundry.helpers.Hooks` (alias) |
+| (new in v14) | `foundry.data.operators.*` — `ForcedDeletion`, `ForcedReplacement` (globals `_del`, `_replace`) |
+| (new in v14) | `foundry.data.ActiveEffectTypeDataModel` — base type data for Active Effects |
 
-For the full table, see the `foundry-vtt-module-dev` skill's "v13 Namespace" section. The same migration applies — write new files against namespaced paths, update old files when you touch them.
+For the full table, see the `foundry-vtt-module-dev` skill's "Namespaces" section. The same migration applies — write new files against namespaced paths, update old files when you touch them.
 
 ---
 
@@ -228,15 +219,21 @@ For the full rationale, dnd5e references, and concrete templates, read `referenc
 
 ## System Manifest (system.json)
 
-System-specific fields that don't exist on `module.json`:
+Manifest fields a system needs (system-only fields plus the shared ones that matter here):
 
 | Field | Type | Purpose |
 |---|---|---|
+| `id` | string | Unique lowercase identifier — must match the folder name. Pack `name` values follow the same rule: `[A-Za-z0-9_-]` only, duplicates throw |
+| `type` | string | `"system"` — the only allowed value; explicit in v14 manifests |
+| `compatibility` | object | `minimum` (won't load below), `verified` (tested on). Use `"14"` |
+| `esmodules` | array | ES module entry points — always prefer over legacy `scripts` |
+| `styles` | array | `{ src, layer? }` objects. A bare array of strings is the v12 shape; it auto-migrates with a warning and gives up control of the cascade layer |
 | `background` | string | Background image for the system setup screen |
-| `grid` | object | Default grid — `{ type, distance, units, diagonals }`. Replaces the flat v12 `gridDistance` / `gridUnits`, which auto-migrate with a warning and go away in v14 |
+| `grid` | object | Default grid — `{ type, distance, units, diagonals }`. The flat v12 `gridDistance` / `gridUnits` pair is removed in v14 (no shim) |
+| `initiative` | string | Default initiative formula (overridden by `CONFIG.Combat.initiative.formula` at runtime) |
 | `primaryTokenAttribute` | string | Token bar1 attribute path (e.g., `"health"`) |
 | `secondaryTokenAttribute` | string | Token bar2 attribute path (e.g., `"power"`) |
-| `documentTypes` | object | Declares custom Actor/Item subtypes (v13+) |
+| `documentTypes` | object | Declares subtypes per document (`Actor`, `Item`, `JournalEntryPage`, `ActiveEffect`, ...). Each subtype value is an object; `htmlFields`, `filePathFields`, `gmOnlyFields` are the known keys. Primary declaration in v14. Keys must match `CONFIG.*.dataModels` |
 
 The `primaryTokenAttribute` and `secondaryTokenAttribute` reference keys in `actor.system`. The attribute must lead to an object with `value` and `max` keys (e.g., `system.health.value` / `system.health.max`).
 
@@ -244,18 +241,29 @@ For full details, read `references/system-manifest.md`.
 
 ---
 
-## Template Types (template.json)
+## Declaring Types
 
-`template.json` defines the types your system supports. Each type can reference shared templates:
+The v14 way has two parts, and both are required for every subtype:
 
-- **`Actor.types`** — array of Actor type strings (e.g., `["character", "npc"]`)
-- **`Actor.templates`** — object of shared data templates referenced by types
-- **`Item.types`** — array of Item type strings
-- **`Item.templates`** — object of shared data templates for items
+1. **`documentTypes` in `system.json`** — the declaration. Any document with `hasTypeData` (Actor, Item, JournalEntryPage, Cards, Card, ChatMessage, Combat, Combatant, RegionBehavior, ActiveEffect, ...) accepts subtypes. Core type names (`base`, `text`, `image`, ...) are reserved and throw.
+2. **`TypeDataModel` in `CONFIG.<Document>.dataModels`** — the schema. Field defaults come from `initial`, shared fields from class inheritance, validation from field options, derived values from `prepareDerivedData()`.
 
-Types inherit template data by listing template names in their `templates` array. The data is merged — type-specific fields override template fields.
+```javascript
+Hooks.once("init", () => {
+  Object.assign(CONFIG.Actor.dataModels, { character: CharacterData, npc: NpcData });
+  Object.assign(CONFIG.Item.dataModels, { weapon: WeaponData, spell: SpellData });
+});
+```
 
-In v13, use `TypeDataModel` + `documentTypes` in `system.json` alongside `template.json`. The `template.json` declares the types; `TypeDataModel` defines the schema with validation and derived data.
+### Legacy: template.json (deprecated since v14, removed in v16)
+
+`template.json` still loads. For every type it lists, the server resets that type's `documentTypes` entry to `{}` and copies back only the document-level `htmlFields`, `filePathFields` and `gmOnlyFields` — so the type name survives but its per-subtype declarations in `system.json` are dropped while the file exists. Its default data lands in `game.model` and is used only for types that have no registered `TypeDataModel` (a data model wins outright). `strictDataCleaning` still applies to that fallback path. The server logs a warning on every start while the file exists.
+
+Migration path for an existing system:
+
+- Move each template's default values into `initial` options on the matching `TypeDataModel` fields; shared `templates` become a base class.
+- Move each type name into `documentTypes` in `system.json`. Leave `htmlFields` / `filePathFields` / `gmOnlyFields` in `template.json`'s document-level block for now — while the file exists the server resets each listed type's entry and copies only that block back, so subtype declarations would be wiped on every start.
+- Delete `template.json`, then put `htmlFields` / `filePathFields` / `gmOnlyFields` on the subtype objects. Stored documents keep their data; run `migrateData()` only where field paths changed.
 
 For full details, read `references/system-manifest.md`.
 
@@ -306,17 +314,19 @@ Implement system-specific roll logic:
 
 ```javascript
 class MySystemItem extends Item {
-  async roll() {
+  async roll({ messageMode } = {}) {
     const rollData = this.getRollData();
-    const roll = new Roll(this.system.formula, rollData);
+    const roll = new foundry.dice.Roll(this.system.formula, rollData);
     await roll.evaluate();
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor: this.actor }),
       flavor: `${this.name} — ${this.type}`
-    });
+    }, { messageMode }); // undefined → the user's core.messageMode setting
   }
 }
 ```
+
+**Changed in v14:** the `rollMode` option of `Roll#toMessage` / `ChatMessage.create` is deprecated (until v16) in favour of `messageMode`, a key of `CONFIG.ChatMessage.modes` (`public`, `gm`, `blind`, `self`, `ic`). Map an old value with `foundry.dice.Roll._mapLegacyRollMode(rollMode)`; read the user default from `game.settings.get("core", "messageMode")`.
 
 ### TypeDataModel & defineSchema
 
@@ -440,6 +450,12 @@ class MySystemRoll extends foundry.dice.Roll {
 CONFIG.Dice.rolls = [MySystemRoll];
 ```
 
+### Sending Rolls to Chat
+
+`Roll#toMessage(messageData, { messageMode, create })` posts the roll. `messageMode` is a key of `CONFIG.ChatMessage.modes`; leave it undefined to honour the user's `core.messageMode` setting. Blind rolls (`"blind"`) skip interactive dice fulfillment. Chat commands (`/gmroll`, `/blindroll`, ...) are defined in `foundry.applications.sidebar.tabs.ChatLog.CHAT_COMMANDS`; add a system command there, not in the deprecated `MESSAGE_PATTERNS`.
+
+**Changed in v14:** `CONFIG.Dice.rollModes` and `CONST.DICE_ROLL_MODES` are deprecation proxies over `CONFIG.ChatMessage.modes`. A system that offered its own roll-mode selector should iterate `CONFIG.ChatMessage.modes` and pass the chosen key as `messageMode`.
+
 For full details, read `references/dice-system.md`.
 
 ---
@@ -456,7 +472,15 @@ CONFIG.Combat.initiative = {
 };
 ```
 
-The formula uses roll data from the combatant's actor. `@abilities.dex.mod` resolves via `getRollData()`.
+The formula uses roll data from the combatant's actor. `@abilities.dex.mod` resolves via `getRollData()`. When the CONFIG formula is empty, `Combatant#_getInitiativeFormula()` falls back to the manifest's `initiative` field.
+
+`Combat#rollInitiative(ids, { formula, updateTurn, messageMode, messageOptions })` posts one chat message per combatant. Hidden combatants roll with `messageMode: "gm"` unless you pass a mode.
+
+**Changed in v14:**
+- `messageOptions.rollMode` → top-level `messageMode` (deprecated until v16).
+- `Combat#getCombatantByActor` / `getCombatantByToken` → `getCombatantsByActor(actor)` / `getCombatantsByToken(token)`, which return arrays (deprecated until v15).
+- `Combat` has a `name` field (editable from the tracker header); `Combatant` has `roundJoined` (the round it entered, initial 1).
+- Active Effect expiry is driven by the combat lifecycle: `Combat` calls `ActiveEffect.registry.refresh(event, { combat })` for `combatStart`, `roundStart`, `turnStart`, `turnEnd`, `roundEnd`, `combatEnd` (the values of `CONST.ACTIVE_EFFECT_EXPIRY_EVENTS`), plus `combatRewind` and `updateWorldTime`. An effect's `duration.expiry` names the event that ends it (default `"turnStart"` for numeric durations); `CONFIG.ActiveEffect.expiryAction` (`"update"` sets `duration.expired`, `"delete"` removes the effect, `null` does nothing) decides what happens. A system with its own timing (e.g. "end of the scene") registers a label in `CONFIG.ActiveEffect.expiryEvents` and calls `ActiveEffect.registry.refresh("myEvent", context)` itself.
 
 ### Per-Actor Initiative
 
@@ -517,22 +541,43 @@ Hooks.once("ready", async () => {
 
 ### migrateData() on TypeDataModel
 
-Static method for transforming data between schema versions. Override `_addDataFieldMigrations()` for field renames, and `migrateData()` for value transformations:
+`static migrateData(source, options)` runs on the raw `system` object every time a document is constructed, before validation. Rename fields and transform values here. **It must return the data** — v14 warns (until v16) on implementations that return nothing:
 
 ```javascript
 class CharacterData extends foundry.abstract.TypeDataModel {
-  // Field renames — called automatically before migrateData
-  static _addDataFieldMigrations() {
-    this._addDataFieldMigration("system.oldField", "system.newField");
-  }
-
-  // Value transformations — conclude with return super.migrateData(data)
-  static migrateData(data) {
-    // Transform values if needed
-    return super.migrateData(data);
+  static migrateData(source, options) {
+    // Field rename: hp → health
+    if ( "hp" in source && !("health" in source) ) {
+      source.health = source.hp;
+      delete source.hp;
+    }
+    // Value transform: string level → number
+    if ( typeof source.level === "string" ) source.level = Number(source.level) || 1;
+    return super.migrateData(source, options);
   }
 }
 ```
+
+**Field-level migration:** `DataField#_migrate(value, options, _state)` replaces `migrateSource` (deprecated until v16). Override it on a custom field to migrate that field's value wherever the field is used.
+
+### Update Operators
+
+Deleting or replacing keys in an `update()` uses data operators. The `-=key` / `==key` special keys still work but warn (deprecated until v16):
+
+```javascript
+// Delete a key
+await actor.update({ "system.legacy": _del });                    // global alias
+await actor.update({ "system.legacy": new foundry.data.operators.ForcedDeletion() });
+
+// Replace an object wholesale instead of merging into it
+await actor.update({ "system.abilities": _replace({ str: 10 }) }); // global alias of ForcedReplacement.create
+```
+
+`foundry.utils.mergeObject(..., { applyOperators })` replaces `{ performDeletions }`; `foundry.utils.objectsEqual` → `foundry.utils.equals`.
+
+### template.json → TypeDataModel
+
+Moving a type off `template.json` changes no stored data — the `system` object keeps its keys. Give the `TypeDataModel` the same field paths and the documents load unchanged. Only a path rename needs `migrateData()`. Unknown keys are dropped on the next save unless a field declares them, so audit each template key against `defineSchema()` before deleting the file.
 
 For full details, read `references/data-migration.md`.
 
@@ -572,6 +617,10 @@ this.updateSource({
 });
 ```
 
+**Changed in v14:** `PrototypeToken` uses an allow-list of Token fields: `name`, `displayName`, `actorLink`, `width`, `height`, `depth`, `texture`, `lockRotation`, `rotation`, `alpha`, `disposition`, `displayBars`, `bar1`, `bar2`, `light`, `sight`, `detectionModes`, `occludable`, `ring`, `turnMarker`, `movementAction`, `flags`, plus `randomImg`, `appendNumber`, `prependAdjective`. `depth` is new. `level` and `elevation` are *not* prototype fields — a Token gets those when it is placed on a Scene. Writing them in `_preCreate()` does nothing.
+
+A GM can also set per-type prototype defaults in the world (`PrototypeTokenOverrides`, stored in the `core.prototypeTokenOverrides` setting). Those overrides apply on top of your `_preCreate()` values for `sight.enabled`, `ring.enabled`, `turnMarker`, `displayName`, `displayBars`, `disposition`, and `lockRotation`.
+
 > **Shared API** — see the foundry-vtt-module-dev skill for DialogV2, Active Effects, and compendium import.
 
 For full details, read `references/character-creation.md`.
@@ -582,28 +631,70 @@ For full details, read `references/character-creation.md`.
 
 ### Status Effects
 
-Replace the core status effect array with system-specific conditions in `init`:
+Add system-specific conditions in `init`, keyed by id, and delete the core ones the system replaces:
 
 ```javascript
-CONFIG.statusEffects = [
-  {
-    id: "my-system.prone",
-    name: "MY_SYSTEM.Conditions.Prone",
-    icon: "systems/my-system/icons/conditions/prone.svg",
-    changes: [{ key: "system.attributes.ac", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-2" }],
-  },
-  {
-    id: "my-system.dead",
-    name: "MY_SYSTEM.Conditions.Dead",
-    icon: "systems/my-system/icons/conditions/dead.svg",
-    overlay: true,
-    changes: [],
-  },
-];
+CONFIG.statusEffects["my-system.prone"] = {
+  id: "my-system.prone",
+  name: "MY_SYSTEM.Conditions.Prone",
+  img: "systems/my-system/icons/conditions/prone.svg",
+  system: {
+    changes: [{ key: "system.attributes.ac", type: "add", value: -2 }]
+  }
+};
+CONFIG.statusEffects["my-system.dead"] = {
+  id: "my-system.dead",
+  name: "MY_SYSTEM.Conditions.Dead",
+  img: "systems/my-system/icons/conditions/dead.svg",
+  overlay: true
+};
+delete CONFIG.statusEffects.dead;   // drop a core condition the system replaces
 CONFIG.specialStatusEffects.DEFEATED = "my-system.dead";
 ```
 
-Systems replace the entire `CONFIG.statusEffects` array (modules should push). Each entry can include `changes` to auto-apply Active Effect modifications when toggled.
+Assigning a whole array (`CONFIG.statusEffects = [...]`) is deprecated since v14. The setter empties the list first, so it also wipes conditions other packages added earlier in `init`. Add and remove entries by id instead. `ActiveEffect.fromStatusEffect(id)` copies each entry (minus `id` and `hud`) into the effect data, so any `ActiveEffectData` field works here: `changes` under `system`, `duration`, `statuses`, `showIcon`, `_id`.
+
+**Changed in v14:**
+- `CONFIG.statusEffects` is a Proxy over the array and is also indexed by status id. A module adds one condition with `CONFIG.statusEffects["my-module.dazed"] = {...}` instead of pushing; `delete CONFIG.statusEffects["dead"]` removes one. Read with `Object.values(CONFIG.statusEffects)` or `foundry.utils.iterateValues`.
+- `icon` and `label` are deprecated aliases for `img` and `name`.
+- Changes live in `system.changes` with a string `type` (`"add"`, `"multiply"`, `"override"`, `"upgrade"`, `"downgrade"`, `"subtract"`, `"custom"`), not a numeric `mode`. A root-level `changes` array still loads — `migrateData` moves it to `system.changes` and maps the mode — but it warns. An entry with no `type` field gets `"base"`, so `system.changes` uses `ActiveEffectTypeDataModel`.
+- `hud: false` (or `hud: {actorTypes: ["character"]}`) controls whether the condition shows in the Token HUD.
+
+### Active Effect Subtypes
+
+Active Effects are typed documents in v14. Declare subtypes in `system.json` under `documentTypes.ActiveEffect` and register a data model per subtype (a system uses bare names; a module prefixes them with its id). Every model must keep a `changes` ArrayField whose element schema defines `type`, `phase`, and `priority` — Foundry verifies this at startup and throws otherwise:
+
+```javascript
+class SpellEffectData extends foundry.data.ActiveEffectTypeDataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return Object.assign(super.defineSchema(), {
+      spellLevel: new fields.NumberField({ integer: true, min: 0, initial: 1 }),
+      isSuppressed: new fields.BooleanField()
+    });
+  }
+}
+
+Hooks.once("init", () => {
+  Object.assign(CONFIG.ActiveEffect.dataModels, { spell: SpellEffectData });
+
+  // Register a system-specific change type
+  CONFIG.ActiveEffect.changeTypes["mysystem.percent"] = {
+    label: "MY_SYSTEM.Changes.Percent",
+    defaultPriority: 30,
+    handler: (targetDoc, change, { modifyTarget = true } = {}) => {
+      const current = foundry.utils.getProperty(targetDoc, change.key) ?? 0;
+      const update = current * (1 + (Number(change.value) / 100));
+      if ( modifyTarget ) foundry.utils.setProperty(targetDoc, change.key, update);
+      return { [change.key]: update };
+    }
+  };
+});
+```
+
+A change type id must be at least three characters and split on `.` into alphanumeric segments only (or match `custom.{number}`) — `ActiveEffectTypeDataModel` validates it on every change that carries the type. A hyphen is illegal, so a system whose id is `my-system` cannot namespace change types with that id; drop the hyphen (`mysystem.percent`) or use a bare name (`percent`).
+
+`ActiveEffect` is a compendium document type in v14, so a system can ship a pack of conditions. Effects apply in phases: `Actor#applyActiveEffects("initial")` runs in `prepareEmbeddedDocuments()`, `applyActiveEffects("final")` after `prepareDerivedData()`. Register extra phases in `CONFIG.ActiveEffect.phases` and call `applyActiveEffects("myPhase")` yourself. `ActiveEffect.CHANGE_TYPES` is the merged, cached view of `CONST.ACTIVE_EFFECT_CHANGE_TYPES` and your registrations — register in `init`, before it is first read. To change how a core type applies, override the static `_applyChangeAdd` / `_applyChangeSubtract` / `_applyChangeMultiply` / `_applyChangeOverride` / `_applyChangeUpgrade` / `_applyChangeCustom` / `_applyChangeUnguided` methods on your `ActiveEffect` subclass. Read `foundry-vtt-module-dev/references/active-effects-v2.md` for the whole model.
 
 ### Hotbar Macros
 
@@ -641,7 +732,9 @@ CONFIG.TextEditor.enrichers.push({
 });
 ```
 
-Now `@Check[strength]{STR Save}` in any enriched text becomes a clickable link. Handle clicks via `data-action` in your sheet's action handlers.
+Now `@Check[strength]{STR Save}` in any enriched text becomes a clickable link. Handle clicks via `data-action` in your sheet's action handlers. Give the enricher an `id` if you also need an `onRender` callback.
+
+**Changed in v14:** TinyMCE is gone; ProseMirror is the only editor. Register an alternative engine in `CONFIG.TextEditor.engines`. `CONFIG.TextEditor.inserts` lets a system add its own ProseMirror insert menu entries (`{ action, title, html, inline?, children? }`) — a readaloud block, a stat-block wrapper — without writing a ProseMirror plugin.
 
 ### Token Customization
 
@@ -653,27 +746,71 @@ CONFIG.Token.objectClass = MySystemToken;
 
 Override `CONFIG.Token.documentClass` for custom token data handling. Set per-type prototype token defaults in `_preCreate()` — characters get `actorLink: true` and friendly disposition, NPCs get `actorLink: false` and hostile disposition.
 
+Resource bar colors come from `CONFIG.Token.barConfig` (`{ bar1: { colors: { empty, full } }, bar2: {...} }`, `Color` values). Override `Token#_getBarColors(index, data)` on your `CONFIG.Token.objectClass` to color a bar from the actor's state — green while healthy, red when bloodied:
+
+```javascript
+class MySystemToken extends foundry.canvas.placeables.Token {
+  _getBarColors(index, data) {
+    if ( index !== 0 ) return super._getBarColors(index, data);
+    const pct = data.value / data.max;
+    return pct < 0.5
+      ? { empty: foundry.utils.Color.from("#400"), full: foundry.utils.Color.from("#f22") }
+      : super._getBarColors(index, data);
+  }
+}
+```
+
+**Changed in v14:** `CONFIG.<Document>.layerClass` is deprecated. Replace a canvas layer through `CONFIG.Canvas.layers.<name>.layerClass` instead. Tokens carry `level` and `depth` fields — see `foundry-vtt-module-dev/references/scene-levels.md`.
+
 ### Custom Journal Entry Pages
 
 Define system-specific journal page types (class descriptions, bestiary entries) using `TypeDataModel`:
 
 ```javascript
 CONFIG.JournalEntryPage.dataModels["class"] = ClassPageData;
-DocumentSheetConfig.registerSheet(JournalEntryPage, "my-system", ClassPageSheet, {
-  types: ["class"],
-  makeDefault: true,
-});
+foundry.applications.apps.DocumentSheetConfig.registerSheet(
+  foundry.documents.JournalEntryPage, "my-system", ClassPageSheet,
+  { types: ["class"], makeDefault: true }
+);
 ```
 
-Declare custom page types in `system.json` under `documentTypes.JournalEntryPage`.
+Declare custom page types in `system.json` under `documentTypes.JournalEntryPage`. Core reserves the `text`, `image`, `pdf`, and `video` type names.
 
-For full details on all five topics, read `references/advanced-system-features.md`.
+**Changed in v14:** the bare `DocumentSheetConfig` global is a deprecation shim — use `foundry.applications.apps.DocumentSheetConfig`. `JournalEntryCategory` is a new embedded document; pages carry a `category` field for grouping in the journal sidebar.
+
+### Templates with Regions
+
+`MeasuredTemplate` is deprecated since v14 and removed in v16, merged into the Region document. `MeasuredTemplateDocument`, `MeasuredTemplateConfig` and `CONST.MEASURED_TEMPLATE_TYPES` still exist as deprecation shims that log a warning. Area-of-effect shapes are Regions. `RegionDocument` has ten shape types — `circle`, `cone`, `ellipse`, `emanation`, `grid`, `line`, `polygon`, `rectangle`, `ring`, `token` — and `canvas.regions` places them interactively:
+
+```javascript
+// Ask the user to place a 30-unit radius burst, then read who is inside it.
+const region = await canvas.regions.placeRegion({
+  name: "Fireball",
+  shapes: [{ type: "circle", x: 0, y: 0, radius: canvas.dimensions.distancePixels * 30 }],
+  visibility: CONST.REGION_VISIBILITY.ALWAYS,
+  levels: [canvas.level.id]
+}, { create: false });
+if ( region ) {
+  const targets = canvas.tokens.placeables.filter(t =>
+    region.testPoint({ ...t.center, elevation: t.document.elevation }));
+}
+```
+
+`placeRegion(data, options)` returns the placed `RegionDocument`, or `null` if the user cancelled. `create: false` gives an unsaved preview document — the right choice for a throwaway template. `placeRegions(dataArray, options)` places several in one gesture. Both accept `attachToToken`, `allowRotation`, `allowEmpty`, and the `onMove` / `onRotate` / `preConfirm` / `preCommit` callbacks.
+
+For an aura that follows its owner, use `RegionDocument.createTokenEmanation(token, range, regionData, { excludeToken, gridBased })` — it creates the Region, sizes it from the token's own shape, and attaches it.
+
+`canvas.regions.templateMode` is the player-facing toggle: on, the Region tools place one-off templates; off, the GM edits persistent Regions. It defaults to on for non-GM users.
+
+Read `foundry-vtt-module-dev/references/measured-templates.md` for the full replacement guide.
+
+For full details on these topics, read `references/advanced-system-features.md`.
 
 ---
 
 ## Styling & Themes
 
-Systems carry the bulk of CSS in any Foundry world — character sheets, item sheets, chat cards. The patterns below are extracted from the two largest production systems (`foundryvtt/dnd5e` and `foundryvtt/pf2e`) and codify what works at scale on v13.
+Systems carry the bulk of CSS in any Foundry world — character sheets, item sheets, chat cards. The patterns below are extracted from the two largest production systems (`foundryvtt/dnd5e` and `foundryvtt/pf2e`) and codify what works at scale on v14. The mechanism did not change in v14 — the same `body.theme-light` / `body.theme-dark` classes, the same `.themed` marker, the same `@layer` names — v14 only adds custom properties.
 
 **Nine rules every shipping system follows:**
 
@@ -726,7 +863,10 @@ These APIs are covered in the **foundry-vtt-module-dev skill** — read that ski
 |---|---|---|
 | ApplicationV2 / Sheets | `references/application-v2.md` | Use `HandlebarsApplicationMixin(ActorSheetV2)` / `HandlebarsApplicationMixin(ItemSheetV2)` |
 | TypeDataModel / defineSchema | `references/document-model.md` | Register via `CONFIG.*.dataModels` in init |
-| Active Effects | `references/document-model.md` | Set `CONFIG.ActiveEffect.legacyTransferral = false`; use `allApplicableEffects()` |
+| Active Effects (V2) | `references/active-effects-v2.md` | `system.changes[]` with string `type`; register subtypes and change types in `init`; iterate with `allApplicableEffects()` |
+| v13 → v14 migration | `references/v14-migration.md` | Breaking changes, deprecations with removal versions, checklist |
+| Scene Levels | `references/scene-levels.md` | `scene.levels`, `canvas.level`, `levels` on placeables, Token `level` / `depth` |
+| Templates with Regions | `references/measured-templates.md` | `MeasuredTemplate` deprecated since v14, removed in v16 — place area effects with `canvas.regions.placeRegion` |
 | Hooks Lifecycle | `references/hooks-and-settings.md` | init → CONFIG registration, ready → migration |
 | Settings API | `references/hooks-and-settings.md` | Use for schema version and system options |
 | Localization | `references/sockets-rolls-packs.md` | Use `MY_SYSTEM.` prefix, include `TYPES.Actor.*` and `TYPES.Item.*` |
@@ -744,17 +884,21 @@ These APIs are covered in the **foundry-vtt-module-dev skill** — read that ski
 
 1. **Not registering documentClass** — Systems MUST set `CONFIG.Actor.documentClass` and `CONFIG.Item.documentClass` in `init`. Without this, the default Actor/Item class is used and system-specific methods (`getRollData`, `roll`) are lost.
 2. **Forgetting to register dataModels** — `CONFIG.Actor.dataModels` and `CONFIG.Item.dataModels` must be populated for each type declared in `documentTypes`. Mismatched keys cause silent failures.
-3. **template.json and TypeDataModel mismatch** — If using TypeDataModel, `template.json` still needs the type declarations but the data schema comes from `defineSchema()`. The two must agree on field paths.
+3. **Declaring types in template.json only** — `documentTypes` in `system.json` is the declaration in v14. A type that lives only in `template.json` still loads, but the file warns on every start and goes away in v16. Move the type names into `documentTypes`.
 4. **getRollData() not returning system data** — Roll formulas like `@abilities.str.mod` won't resolve if `getRollData()` doesn't return the right structure. The returned object is what `@` references resolve against.
 5. **_preCreate() calling update() instead of updateSource()** — In `_preCreate()`, use `this.updateSource()` to modify creation data. Using `update()` tries to write to the DB before the document exists.
 6. **Custom DiceTerm not registered** — Setting `CONFIG.Dice.terms["x"] = MyTerm` in `init` is required. Without registration, `Roll.parse()` can't recognize the custom operator.
 7. **Initiative formula referencing missing data** — `CONFIG.Combat.initiative.formula` uses actor roll data. If the referenced fields don't exist in `getRollData()`, initiative rolls fail silently or produce NaN.
-8. **migrateData() not calling super** — Always call `return super.migrateData(data)` at the end. Skipping this breaks Foundry's own migration pipeline.
+8. **migrateData() not returning the data** — The signature is `static migrateData(source, options)` and it must return the migrated source. v14 warns (until v16) on an implementation that returns nothing. End with `return super.migrateData(source, options)`.
 9. **System ID mismatch** — `system.json` `id` must match the folder name exactly. Foundry uses the folder name to locate the system.
-10. **Using template.json without TypeDataModel** — template.json alone works for basic data definition, but without TypeDataModel you lose `prepareDerivedData()`, `migrateData()`, and lifecycle hooks. Use both together.
+10. **Leaving template.json in place after moving to data models** — Defaults in `game.model` are only a fallback for types with no registered `TypeDataModel`. Once every type has a model, the file does nothing but log a deprecation warning. Delete it.
 11. **Item.roll() not using getRollData()** — Item rolls should use `this.getRollData()` (which includes parent actor data) not just `this.system`. Otherwise `@abilities.str` won't resolve.
 12. **Confusing module documentTypes with system documentTypes** — Modules can also declare `documentTypes`, but systems own the core types. A system's types are the primary game types; module types are extensions.
-13. **CONFIG values in static initializers** — `static PARTS = { template: CONFIG.mySystem.templates.foo }` fails because CONFIG is undefined during class static initialization. Use string literals for template paths, or resolve CONFIG values in `_prepareContext()` or `static get PARTS()`.
+13. **Numeric Active Effect modes** — `mode: CONST.ACTIVE_EFFECT_MODES.ADD` and a root-level `changes` array still load through a shim, but they warn and go away in v16. Write `system.changes` with a string `type`.
+14. **`rollMode` on chat messages** — Pass `messageMode` (a key of `CONFIG.ChatMessage.modes`) instead. `rollMode` is deprecated until v16 and the user's default now lives in the `core.messageMode` setting.
+15. **`-=` and `==` update keys** — Use `_del` and `_replace` (or `foundry.data.operators.ForcedDeletion` / `ForcedReplacement`). The special key prefixes warn and go away in v16.
+16. **Flat `gridDistance` / `gridUnits` in system.json** — The v13 migration shim is gone in v14. The keys are ignored and the system falls back to the default grid. Use the `grid` object.
+17. **CONFIG values in static initializers** — `static PARTS = { template: CONFIG.mySystem.templates.foo }` fails because CONFIG is undefined during class static initialization. Use string literals for template paths, or resolve CONFIG values in `_prepareContext()` or `static get PARTS()`.
 
 ---
 
@@ -762,8 +906,7 @@ These APIs are covered in the **foundry-vtt-module-dev skill** — read that ski
 
 | File | Purpose |
 |---|---|
-| `boilerplate/system.json` | Valid v13 manifest with hotReload, htmlFields/filePathFields per documentType, packFolders, migration version flags |
-| `boilerplate/template.json` | Actor/Item type definitions with template inheritance |
+| `boilerplate/system.json` | v14 manifest — `type: "system"`, compatibility 14, `documentTypes` with htmlFields/filePathFields, `grid` object, hotReload, packFolders, migration version flags |
 | `boilerplate/main.mjs` | Entry point — barrel imports, globalThis API, staged init/i18nInit/setup/ready hooks |
 | `boilerplate/config.mjs` | Single source of truth for system constants (MY_SYSTEM) |
 | `boilerplate/settings.mjs` | `registerSystemSettings()` — all game.settings.register calls in one place |
@@ -776,9 +919,11 @@ These APIs are covered in the **foundry-vtt-module-dev skill** — read that ski
 | `boilerplate/data/weapon-data.mjs` | TypeDataModel for weapon type with damage, quantity, weight |
 | `boilerplate/data/spell-data.mjs` | TypeDataModel for spell type with level, school, formula |
 | `boilerplate/documents/_module.mjs` | Barrel re-exporting MySystemActor and MySystemItem |
-| `boilerplate/sheets/_module.mjs` | Barrel re-exporting CharacterSheet |
-| `boilerplate/sheets/character-sheet.mjs` | ActorSheetV2 for character type with actions |
+| `boilerplate/sheets/_module.mjs` | Barrel re-exporting the sheet classes |
+| `boilerplate/sheets/character-sheet.mjs` | ActorSheetV2 shared by the character and npc types, with actions |
+| `boilerplate/sheets/item-sheet.mjs` | ItemSheetV2 for the weapon and spell types |
 | `boilerplate/templates/actor/character-sheet.hbs` | Handlebars template with abilities, inventory, and effects |
+| `boilerplate/templates/item/item-sheet.hbs` | Handlebars template for the item sheet |
 | `boilerplate/styles/my-system.less` | LESS entry — imports all partials, no rules |
 | `boilerplate/styles/variables/base.less` | Theme-agnostic `:root` tokens (spacing scale, sheet dims, namespaced colors) |
 | `boilerplate/styles/variables/light.less` | Light theme mixin + `body.theme-light` / `.themed.theme-light` selectors |
@@ -802,7 +947,7 @@ Read these for deep API details — they're loaded on demand:
 | `references/actor-item-classes.md` | Extending Actor/Item, getRollData, _preCreate, Item.roll(), document class registration |
 | `references/dice-system.md` | Custom DiceTerm, custom Roll class, CONFIG.Dice, formula parsing, RollResolver |
 | `references/combat-initiative.md` | Initiative formulas, custom Combatant, combat lifecycle, turn automation |
-| `references/data-migration.md` | migrateData(), schema versioning, migration registry, bulk migration, v12→v13 changes |
+| `references/data-migration.md` | migrateData(), schema versioning, migration registry, bulk migration |
 | `references/character-creation.md` | Default items, prototype tokens, creation dialogs, compendium import |
 | `references/advanced-system-features.md` | Status effects, hotbar macros, custom enrichers, token customization, journal pages |
 | `references/production-patterns.md` | Production architecture: barrel files, globalThis API, hotReload, htmlFields/filePathFields, build pipeline, migration version flags, pack folders, staged init hooks |
@@ -821,3 +966,7 @@ These live in the `foundry-vtt-module-dev` skill but apply to systems too:
 | `foundry-vtt-module-dev/references/handlebars-and-templates.md` | Foundry helper inventory, v13 HTML elements, form helpers, template preloading |
 | `foundry-vtt-module-dev/references/adventure-documents.md` | Shipping pre-made content (campaigns, one-shots) via the Adventure document type |
 | `foundry-vtt-module-dev/references/permissions-and-ownership.md` | Roles, ownership levels, testUserPermission, GM-authoritative pattern, USER_PERMISSIONS |
+| `foundry-vtt-module-dev/references/v14-migration.md` | Every v13 → v14 breaking change, each deprecation with its replacement and removal version |
+| `foundry-vtt-module-dev/references/active-effects-v2.md` | The Active Effect V2 model — `system.changes`, change types, phases, duration and expiry |
+| `foundry-vtt-module-dev/references/scene-levels.md` | The `Level` document, `canvas.level`, level-aware placeables, fog modes |
+| `foundry-vtt-module-dev/references/measured-templates.md` | Replacing MeasuredTemplate with Regions — shapes, `placeRegion`, emanations |

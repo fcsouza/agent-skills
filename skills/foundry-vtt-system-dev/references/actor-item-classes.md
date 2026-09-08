@@ -1,6 +1,6 @@
 # Actor & Item Classes
 
-Deep reference for Foundry VTT v13's Actor and Item document subclasses in a system.
+Deep reference for Foundry VTT v14+ Actor and Item document subclasses in a system.
 
 ---
 
@@ -58,7 +58,8 @@ class MySystemActor extends Actor {
 
   /**
    * Augment the basic actor data with additional dynamic data.
-   * Called whenever actor data is prepared.
+   * Called whenever actor data is prepared. See "Data Preparation Order" below
+   * before overriding this — Actor#prepareData applies the "final" Active Effect phase.
    */
   prepareData() {
     super.prepareData(); // Always call super first
@@ -126,6 +127,38 @@ class MySystemActor extends Actor {
   }
 }
 ```
+
+### Data Preparation Order
+
+`ClientDocument#prepareData` runs these steps in order:
+
+1. `system.prepareBaseData()` (TypeDataModel)
+2. `prepareBaseData()` — `Actor` resets `overrides`, `statuses`, `tokenActiveEffectChanges` and the completed-phase set here
+3. `prepareEmbeddedDocuments()` — `Actor` then calls `this.applyActiveEffects("initial")`
+4. `system.prepareDerivedData()` (TypeDataModel)
+5. `prepareDerivedData()`
+
+`Actor#prepareData` calls `super.prepareData()` and then `this.applyActiveEffects("final")`. So `"initial"` changes see base data only; `"final"` changes see derived data. Each change carries its own `phase` (`effect.system.changes[].phase`, default `"initial"`).
+
+**Changed in v14:** `applyActiveEffects()` without a phase string is deprecated (until v16). A phase can run once per preparation cycle; a second call logs an error. To add a phase, register it and call it yourself:
+
+```js
+Hooks.once("init", () => {
+  CONFIG.ActiveEffect.phases.postItems = {
+    label: "MY_SYSTEM.EffectPhase.postItems.label",
+    hint: "MY_SYSTEM.EffectPhase.postItems.hint"
+  };
+});
+
+class MySystemActor extends Actor {
+  prepareDerivedData() {
+    super.prepareDerivedData();
+    this.applyActiveEffects("postItems"); // runs between "initial" and "final"
+  }
+}
+```
+
+Changes whose key starts with `token.` are not applied to the actor. They are stored in `actor.tokenActiveEffectChanges[phase]` and applied by `TokenDocument#applyActiveEffects(phase)`.
 
 ---
 
@@ -252,6 +285,20 @@ async _preCreate(data, options, user) {
 }
 ```
 
+### Deleting or Replacing Keys with Operators
+
+`updateSource()` and `update()` accept the data operators from `foundry.data.operators`. The globals `_del` (a shared `ForcedDeletion` instance) and `_replace(value)` (`ForcedReplacement.create`) are shortcuts.
+
+```js
+this.updateSource({
+  "system.legacyField": _del,                       // delete the key
+  "system.tags": _replace(["starter"]),             // replace the array instead of merging
+  "flags.my-system.notes": new foundry.data.operators.ForcedDeletion()
+});
+```
+
+**Changed in v14:** the `{"-=key": null}` and `{"==key": value}` syntaxes are deprecated (until v16). `mergeObject({performDeletions})` became `mergeObject({applyOperators})`.
+
 ### Key Rules
 
 - Always call `await super._preCreate(data, options, user)` first.
@@ -259,6 +306,7 @@ async _preCreate(data, options, user) {
 - Never call `this.update()` in `_preCreate` — the document doesn't exist yet.
 - `data` contains the raw creation data passed to `Actor.create()`.
 - Return from the hook to allow creation, or throw to cancel.
+- Batch hooks are static: `_onCreateOperation(documents, operation, user)`, `_onUpdateOperation`, `_onDeleteOperation`. **Changed in v14:** the `_onCreateDocuments` / `_onUpdateDocuments` / `_onDeleteDocuments` shims are gone.
 
 ---
 
@@ -319,19 +367,18 @@ class MySystemItem extends Item {
    * @returns {Promise<Roll|ChatMessage|void>}
    */
   async roll() {
-    // Get speaker and roll mode
+    // Get speaker and the user's current message visibility mode
     const speaker = ChatMessage.getSpeaker({ actor: this.actor });
-    const rollMode = game.settings.get("core", "rollMode");
+    const messageMode = game.settings.get("core", "messageMode");
     const label = `[${this.type}] ${this.name}`;
 
     // If the item has no roll formula, post its description to chat
     if (!this.system.formula) {
       ChatMessage.create({
         speaker,
-        rollMode,
         flavor: label,
         content: this.system.description ?? ""
-      });
+      }, { messageMode });
       return;
     }
 
@@ -340,12 +387,8 @@ class MySystemItem extends Item {
     const roll = new Roll(this.system.formula, rollData);
     await roll.evaluate();
 
-    // Send to chat
-    await roll.toMessage({
-      speaker,
-      rollMode,
-      flavor: label,
-    });
+    // Send to chat — messageMode is an option, not message data
+    await roll.toMessage({ speaker, flavor: label }, { messageMode });
 
     return roll;
   }
@@ -363,17 +406,16 @@ The `roll()` method builds a `Roll` from item data and posts it to chat.
 ```js
 async roll() {
   const speaker = ChatMessage.getSpeaker({ actor: this.actor });
-  const rollMode = game.settings.get("core", "rollMode");
+  const messageMode = game.settings.get("core", "messageMode");
   const label = `[${this.type}] ${this.name}`;
 
   // No formula — post description only
   if (!this.system.formula) {
     ChatMessage.create({
       speaker,
-      rollMode,
       flavor: label,
       content: this.system.description ?? ""
-    });
+    }, { messageMode });
     return;
   }
 
@@ -383,28 +425,27 @@ async roll() {
 
   // Evaluate and send to chat
   await roll.evaluate();
-  await roll.toMessage({
-    speaker,
-    rollMode,
-    flavor: label,
-  });
+  await roll.toMessage({ speaker, flavor: label }, { messageMode });
 
   return roll;
 }
 ```
 
-### ChatMessage.create Options
+### Message Data vs. Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `speaker` | `object` | `ChatMessage.getSpeaker({ actor })` — identifies who spoke |
-| `rollMode` | `string` | `"roll"`, `"gmroll"`, `"blindroll"`, `"selfroll"` |
-| `flavor` | `string` | Descriptive text shown above the roll result |
-| `content` | `string` | HTML content of the message (for non-roll messages) |
+`ChatMessage.create(data, options)` and `Roll#toMessage(messageData, options)` split the payload:
 
-### Roll.toMessage Options
+| Where | Key | Description |
+|-------|-----|-------------|
+| data | `speaker` | `ChatMessage.getSpeaker({ actor })` — identifies who spoke |
+| data | `flavor` | Descriptive text shown above the roll result |
+| data | `content` | HTML content of the message (for non-roll messages) |
+| options | `messageMode` | A key of `CONFIG.ChatMessage.modes`: `"public"`, `"gm"`, `"blind"`, `"self"`, `"ic"` |
+| options | `create` | `toMessage` only — `false` returns the prepared data instead of creating |
 
-Same as `ChatMessage.create` — `toMessage` is a convenience that creates the message and embeds the evaluated roll.
+`toMessage` embeds the evaluated roll, then calls `ChatMessage#applyMode(messageMode)` to set whisper targets and blind state. Omit `messageMode` to use the user's `core.messageMode` setting.
+
+**Changed in v14:** `rollMode` (`"roll"`, `"gmroll"`, `"blindroll"`, `"selfroll"`) and the `core.rollMode` setting are deprecated (until v16). `Roll._mapLegacyRollMode(rollMode)` converts old values; `CONFIG.Dice.rollModes` is a deprecation proxy over `CONFIG.ChatMessage.modes`.
 
 ---
 
@@ -462,30 +503,99 @@ await actor.update({
 
 ### Active Effects Transfer
 
-Items can carry Active Effects that modify the parent actor's data. When an item is added to an actor, its effects automatically apply. When removed, they stop.
+Items can carry Active Effects that modify the parent actor's data. An item effect with `transfer: true` (the default) applies to the owning actor while the item is owned.
 
 ```js
-// An effect on an item modifies the actor when the item is equipped
+// An effect on an item modifies the actor while the item is owned
 const effect = {
   name: "Strength Bonus",
-  changes: [
-    { key: "system.abilities.str.value", mode: 2, value: "2" }
-    // mode 2 = ADD
-  ]
+  system: {
+    changes: [
+      { key: "system.abilities.str.value", type: "add", value: 2 }
+    ]
+  }
 };
 ```
 
-### Retrieving All Effects (v13 critical)
+Changes live at `effect.system.changes` (`ActiveEffectTypeDataModel`). Each change is `{ key, type, value, phase, priority }`; `type` is a string from `CONST.ACTIVE_EFFECT_CHANGE_TYPES` (`custom`, `multiply`, `add`, `subtract`, `downgrade`, `upgrade`, `override`) or a custom type you register in `CONFIG.ActiveEffect.changeTypes`. `value` is an `AnyField`, so numbers stay numbers. String values may contain `@` references resolved against `actor.getRollData()`.
 
-In v13 with `CONFIG.ActiveEffect.legacyTransferral = false`, `actor.effects` only contains effects directly on the actor. Effects transferred from items require `allApplicableEffects()`:
+**Changed in v14:** root-level `changes` with numeric `mode` is migrated on load but deprecated. `CONFIG.ActiveEffect.legacyTransferral` is gone. See `foundry-vtt-module-dev/references/active-effects-v2.md` for the full model.
+
+### Retrieving All Effects
+
+`actor.effects` only contains effects embedded on the actor. `allApplicableEffects()` yields those plus every item effect with `transfer: true`:
 
 ```js
-// v13 — gets ALL effects including item-transferred
 for (const effect of actor.allApplicableEffects()) {
-  console.log(effect.name, effect.disabled, effect.isTemporary);
+  console.log(effect.name, effect.active, effect.isTemporary);
 }
 ```
 
 Always use `allApplicableEffects()` when building effect lists for sheets or checking active conditions.
 
-Active Effects use `change.key` to target actor data paths. The `mode` determines how the value is applied (ADD, MULTIPLY, OVERRIDE, etc.).
+---
+
+## 9. Sheet Registration & Drag-Drop
+
+Register sheets in `init`. Both entry points are namespaced; the bare `Actors`, `Items` and `DocumentSheetConfig` globals are deprecation shims (since v13, until v15).
+
+```js
+const { Actors, Items } = foundry.documents.collections;
+const { DocumentSheetConfig } = foundry.applications.apps;
+
+Hooks.once("init", () => {
+  Actors.registerSheet("my-system", CharacterSheet, { types: ["character"], makeDefault: true });
+  Items.registerSheet("my-system", WeaponSheet, { types: ["weapon"], makeDefault: true });
+  // Equivalent generic form
+  DocumentSheetConfig.registerSheet(Actor, "my-system", NpcSheet, { types: ["npc"], makeDefault: true });
+});
+```
+
+`ActorSheetV2` and `ItemSheetV2` ship with a bound `DragDrop` handler. Override the protected hooks instead of wiring your own:
+
+| Method | Default behavior |
+|--------|------------------|
+| `_canDragStart(selector)` / `_canDragDrop(selector)` | permission checks |
+| `_onDragStart(event)` / `_onDragOver(event)` | build drag data |
+| `_onDrop(event)` | calls the `dropActorSheetData(actor, sheet, data)` (or `dropItemSheetData(item, sheet, data)`) hook, then `_onDropDocument` |
+| `_onDropDocument(event, document)` | routes by `documentName` |
+| `_onDropActiveEffect(event, effect)` | creates the effect on the actor or item |
+| `_onDropItem(event, item)` | actor sheets only: sorts an owned item, or creates a copy (compendium items go through `game.items.fromCompendium`) |
+| `_onDropActor(event, actor)` / `_onDropFolder(event, folder)` | actor sheets only: no-op, return `null` |
+
+```js
+class CharacterSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
+  async _onDropItem(event, item) {
+    if (item.type === "class" && this.actor.items.some(i => i.type === "class")) {
+      ui.notifications.warn("MY_SYSTEM.OneClassOnly", { localize: true });
+      return null;
+    }
+    return super._onDropItem(event, item);
+  }
+}
+```
+
+---
+
+## 10. Tokens and Document CONFIG Extras
+
+```js
+// Tokens that represent this actor. concreteOnly skips unpersisted/preview tokens
+// (it becomes the default in v15).
+const tokens = actor.getDependentTokens({ scenes: canvas.scene, linked: true, concreteOnly: true });
+
+Hooks.once("init", () => {
+  // Hint text shown under each type in the create-document dialog
+  CONFIG.Actor.typeHints.character = "MY_SYSTEM.TypeHints.character";
+  CONFIG.Item.typeHints.weapon = "MY_SYSTEM.TypeHints.weapon";
+
+  // Post-process @Embed[...] output for Items: (doc, content, config, options) => element|null
+  CONFIG.Item.embedHandlers.push(async (item, content, config, options) => {
+    if (!content || item.type !== "spell") return content;
+    content.classList.add("spell-embed");
+    return content;
+  });
+});
+```
+
+`typeHints` and `embedHandlers` exist on every typed document CONFIG (`Actor`, `Item`, `ActiveEffect`, `JournalEntryPage`, ...). Returning `null` from an embed handler cancels the embed.

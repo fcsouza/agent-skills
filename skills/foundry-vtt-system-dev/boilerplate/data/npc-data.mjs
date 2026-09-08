@@ -1,5 +1,10 @@
 const { fields } = foundry.data;
 
+const abilityField = () =>
+  new fields.SchemaField({
+    value: new fields.NumberField({ required: true, integer: true, min: 1, max: 30, initial: 10 }),
+  });
+
 // --- NPC Data Model ---
 export class NpcData extends foundry.abstract.TypeDataModel {
   // --- Schema Definition ---
@@ -18,9 +23,14 @@ export class NpcData extends foundry.abstract.TypeDataModel {
         max: new fields.NumberField({ required: true, integer: true, min: 0, initial: 10 }),
       }),
 
+      power: new fields.SchemaField({
+        value: new fields.NumberField({ required: true, integer: true, min: 0, initial: 0 }),
+        max: new fields.NumberField({ required: true, integer: true, min: 0, initial: 0 }),
+      }),
+
       abilities: new fields.SchemaField({
-        str: new fields.NumberField({ required: true, integer: true, min: 1, max: 30, initial: 10 }),
-        dex: new fields.NumberField({ required: true, integer: true, min: 1, max: 30, initial: 10 }),
+        str: abilityField(),
+        dex: abilityField(),
       }),
 
       biography: new fields.HTMLField({ required: false, blank: true, initial: "" }),
@@ -30,14 +40,13 @@ export class NpcData extends foundry.abstract.TypeDataModel {
   // --- Derived Data ---
   prepareDerivedData() {
     // --- Ability Modifiers ---
-    for (const [key, value] of Object.entries(this.abilities)) {
-      const mod = Math.floor((value - 10) / 2);
-      this.abilities[key] = { value, mod };
+    for (const ability of Object.values(this.abilities)) {
+      ability.mod = Math.floor((ability.value - 10) / 2);
     }
   }
 
-  // --- Migration ---
-  static migrateData(data) {
-    return super.migrateData(data);
+  // --- Migration (must return the data in v14) ---
+  static migrateData(data, options) {
+    return super.migrateData(data, options);
   }
 }

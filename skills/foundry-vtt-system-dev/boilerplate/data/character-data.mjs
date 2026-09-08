@@ -1,6 +1,13 @@
 const { fields } = foundry.data;
 
+const abilityField = () =>
+  new fields.SchemaField({
+    value: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
+  });
+
 // --- Character Data Model ---
+// Declared in system.json `documentTypes.Actor.character` and registered in
+// CONFIG.Actor.dataModels. This class, not template.json, defines the data.
 export class CharacterData extends foundry.abstract.TypeDataModel {
   // --- Schema Definition ---
   static defineSchema() {
@@ -14,12 +21,12 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
       }),
 
       abilities: new fields.SchemaField({
-        str: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
-        dex: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
-        con: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
-        int: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
-        wis: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
-        cha: new fields.NumberField({ required: true, integer: true, min: 1, max: 20, initial: 10 }),
+        str: abilityField(),
+        dex: abilityField(),
+        con: abilityField(),
+        int: abilityField(),
+        wis: abilityField(),
+        cha: abilityField(),
       }),
 
       health: new fields.SchemaField({
@@ -32,6 +39,10 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
         max: new fields.NumberField({ required: true, integer: true, min: 0, initial: 5 }),
       }),
 
+      // Declared in system.json documentTypes.Actor.character.filePathFields so
+      // the server cleans the path on save.
+      portrait: new fields.FilePathField({ categories: ["IMAGE"] }),
+
       biography: new fields.HTMLField({ required: false, blank: true, initial: "" }),
     };
   }
@@ -39,22 +50,26 @@ export class CharacterData extends foundry.abstract.TypeDataModel {
   // --- Derived Data ---
   prepareDerivedData() {
     // --- Ability Modifiers ---
-    for (const [key, value] of Object.entries(this.abilities)) {
-      const mod = Math.floor((value - 10) / 2);
-      this.abilities[key] = { value, mod };
+    for (const ability of Object.values(this.abilities)) {
+      ability.mod = Math.floor((ability.value - 10) / 2);
     }
 
     // --- Health Max: base + level + conMod ---
-    const conMod = this.abilities.con.mod;
-    this.health.max = 10 + this.level + conMod;
+    this.health.max = 10 + this.level + this.abilities.con.mod;
 
     // --- Armor Class: dexMod + 10 ---
-    const dexMod = this.abilities.dex.mod;
-    this.armorClass = dexMod + 10;
+    this.armorClass = this.abilities.dex.mod + 10;
   }
 
   // --- Migration ---
-  static migrateData(data) {
-    return super.migrateData(data);
+  // v14 requires migrateData to return the data. Mutate `data` in place for
+  // legacy shapes, then return super.migrateData(data, options).
+  static migrateData(data, options) {
+    if (typeof data.abilities?.str === "number") {
+      for (const [key, value] of Object.entries(data.abilities)) {
+        if (typeof value === "number") data.abilities[key] = { value };
+      }
+    }
+    return super.migrateData(data, options);
   }
 }

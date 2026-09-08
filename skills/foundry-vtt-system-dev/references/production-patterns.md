@@ -1,8 +1,8 @@
 # Production System Patterns
 
-Patterns extracted from the official **D&D 5e** system source (`foundryvtt/dnd5e`) — the largest, most-maintained, most-played Foundry system. These are the architectural and tooling decisions every shipping system makes that beginner tutorials skip.
+Patterns shared by the large, long-lived Foundry systems (the D&D 5e system's public layout is the best-known example). They are the architectural and tooling decisions every shipping system makes that beginner tutorials skip. Nothing here depends on a specific dnd5e release; treat each item as "the pattern", not as a description of one codebase.
 
-Use this as a checklist when scaffolding a new system or refactoring one for long-term maintenance.
+Targets Foundry v14+. Use this as a checklist when scaffolding a new system or refactoring one for long-term maintenance.
 
 ---
 
@@ -13,7 +13,7 @@ A production system has **one** entry file declared in `system.json` (e.g. `my-s
 ```
 my-system/
 ├── my-system.mjs            ← single entry
-├── system.json
+├── system.json              ← documentTypes live here; no template.json
 ├── module/
 │   ├── applications/
 │   │   ├── _module.mjs      ← re-exports every Application class
@@ -26,7 +26,8 @@ my-system/
 │   │   ├── _module.mjs
 │   │   ├── character-data.mjs
 │   │   ├── npc-data.mjs
-│   │   └── weapon-data.mjs
+│   │   ├── weapon-data.mjs
+│   │   └── condition-effect-data.mjs   ← ActiveEffect subtype model (v14)
 │   ├── dice/
 │   │   ├── _module.mjs
 │   │   ├── d20-roll.mjs
@@ -46,6 +47,8 @@ my-system/
 └── styles/
 ```
 
+Changed in v14: `template.json` is deprecated (until v16). Declare types in `system.json` `documentTypes` and give each one a `TypeDataModel` (see `system-manifest.md` §5). New systems ship without a `template.json`.
+
 A barrel file is just a re-export:
 
 ```javascript
@@ -54,6 +57,7 @@ export { CharacterData } from "./character-data.mjs";
 export { NpcData } from "./npc-data.mjs";
 export { WeaponData } from "./weapon-data.mjs";
 export { SpellData } from "./spell-data.mjs";
+export { ConditionEffectData } from "./condition-effect-data.mjs";
 ```
 
 The entry imports namespaces, not individual classes:
@@ -106,7 +110,7 @@ Modules now write `game.mySystem.dice.D20Roll` instead of monkey-patching intern
 
 ## 3. `flags.hotReload` for Dev Iteration
 
-Tell Foundry which files to live-reload during development:
+Tell Foundry which files to live-reload during development. The shape is `{extensions: string[], paths: string[]}` (`PackageFlagsData.hotReload`):
 
 ```json
 {
@@ -119,15 +123,15 @@ Tell Foundry which files to live-reload during development:
 }
 ```
 
-When you edit any matching file, Foundry pushes the change to the running world without a refresh — Handlebars templates re-render, CSS hot-swaps, language files update on the next localize call. JS still requires F5; that's a Foundry limitation.
+When you edit a matching file, the server emits a `hotReload` socket event. The client calls `Hooks.call("hotReload", data)` (return `false` to veto), then, by extension: `css` swaps the stylesheet, `hbs` recompiles the template and re-renders open apps with `renderContext: "hotReload"`, `json` reloads the language file and re-renders. JS still requires F5; that's a Foundry limitation.
 
-This single line cuts iteration time on UI work by 5–10x.
+This single block cuts iteration time on UI work by 5–10x.
 
 ---
 
-## 4. `htmlFields` and `filePathFields` per Document Type
+## 4. `htmlFields`, `filePathFields`, `gmOnlyFields` per Document Type
 
-Declare them in `system.json` `documentTypes`:
+Declare them in `system.json` `documentTypes` (`ServerSanitizationFields`; paths are relative to `system`):
 
 ```json
 {
@@ -138,7 +142,8 @@ Declare them in `system.json` `documentTypes`:
         "filePathFields": {
           "details.portrait": ["IMAGE"],
           "details.token.src": ["IMAGE", "VIDEO"]
-        }
+        },
+        "gmOnlyFields": ["details.secretNotes"]
       },
       "npc": {
         "htmlFields": ["details.biography"]
@@ -148,7 +153,6 @@ Declare them in `system.json` `documentTypes`:
       "weapon": {
         "htmlFields": ["description"],
         "filePathFields": {
-          "img": ["IMAGE"],
           "activities.*.img": ["IMAGE"]
         }
       }
@@ -158,17 +162,61 @@ Declare them in `system.json` `documentTypes`:
 ```
 
 What this enables:
-- **Sanitization** of HTML fields against XSS
-- **ProseMirror** enrichment auto-applied
-- **Asset migration** — Foundry's pack-extract / pack-pack tooling rewrites file paths inside these fields when relocating assets
-- **Search indexing** picks up HTML field text
+- **Sanitization** of HTML fields against XSS on the server
+- **File path validation** against `CONST.FILE_CATEGORIES`
+- **GM-only fields** rejected when a non-GM user tries to update them
+- **Asset migration** — pack tooling can rewrite file paths inside declared fields when relocating assets
 - **Wildcard support** — `activities.*.img` matches any sub-key
 
-Without these declarations, the data still saves and loads, but tooling can't reason about it. Every shipping system declares them.
+The server prefixes every declared path with `system.`, so only fields your `TypeDataModel` defines can be declared here; a document-level field like `img` cannot.
+
+Without these declarations, the data still saves and loads, but the server cannot reason about it. Every shipping system declares them.
 
 ---
 
-## 5. `flags.compendiumArtMappings` (System-Wide Asset Overrides)
+## 5. ActiveEffect Subtypes
+
+Changed in v14: `ActiveEffect` has `type` and `system`, and `changes` lives at `effect.system.changes`. `CONFIG.ActiveEffect.dataModels.base` is `foundry.data.ActiveEffectTypeDataModel`. A production system uses subtypes to attach rules data (severity, source, stacking) to effects instead of stuffing it into flags.
+
+```json
+{
+  "documentTypes": {
+    "ActiveEffect": {
+      "condition": {},
+      "buff": {}
+    }
+  },
+  "packs": [
+    { "name": "conditions", "label": "Conditions", "type": "ActiveEffect", "system": "my-system" }
+  ]
+}
+```
+
+```javascript
+// module/data/condition-effect-data.mjs
+export class ConditionEffectData extends foundry.data.ActiveEffectTypeDataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      ...super.defineSchema(),   // keeps `changes`; setup throws without it
+      severity: new fields.NumberField({ integer: true, min: 1, initial: 1 })
+    };
+  }
+}
+
+Hooks.once("init", () => {
+  Object.assign(CONFIG.ActiveEffect.dataModels, { condition: ConditionEffectData });
+});
+```
+
+Rules:
+- Keep a `changes` `ArrayField` whose element schema has string `type`, string `phase`, numeric `priority`. Setup throws otherwise.
+- `ActiveEffect` packs must declare `system` (it is in `CONST.SYSTEM_SPECIFIC_COMPENDIUM_TYPES`), and ActiveEffects can sit in folders.
+- Change objects are `{key, type: "add"|"multiply"|"override"|"upgrade"|"downgrade"|"subtract"|"custom", value, phase, priority}`. Register custom types in `CONFIG.ActiveEffect.changeTypes`. The full model is in `foundry-vtt-module-dev/references/active-effects-v2.md`.
+
+---
+
+## 6. `flags.compendiumArtMappings` (System-Wide Asset Overrides)
 
 Lets a module ship "icon packs" or "token art" that automatically replace the default art for compendium documents:
 
@@ -189,7 +237,7 @@ Lets a module ship "icon packs" or "token art" that automatically replace the de
 
 ---
 
-## 6. `CONFIG.compatibility.excludePatterns` (Suppress Known Deprecation Spam)
+## 7. `CONFIG.compatibility.excludePatterns` (Suppress Known Deprecation Spam)
 
 Foundry logs deprecation warnings for any legacy API still in use. While you migrate, suppress known-noisy patterns so console errors stay actionable:
 
@@ -202,11 +250,11 @@ Hooks.once("init", () => {
 });
 ```
 
-Use this **only** to silence patterns you've already triaged. Don't blanket-suppress.
+Use this **only** to silence patterns you've already triaged. Don't blanket-suppress. v14 added many `since: 14, until: 16` warnings (roll modes, AE modes, `-=` keys, MeasuredTemplate); fix them rather than hiding them.
 
 ---
 
-## 7. Single Frozen `config.mjs` for System Constants
+## 8. Single Frozen `config.mjs` for System Constants
 
 All static system data — ability list, skill list, damage types, spell schools, weapon properties — lives in one file:
 
@@ -243,7 +291,7 @@ Now `CONFIG.MY_SYSTEM.abilities` is the **one** source of truth, accessible from
 
 ---
 
-## 8. Migration Versioning via System Flags
+## 9. Migration Versioning via System Flags
 
 Two flags, both in `system.json`:
 
@@ -284,11 +332,38 @@ Hooks.once("ready", async () => {
 });
 ```
 
-This is the dnd5e pattern verbatim — battle-tested across hundreds of releases.
+This is the pattern the big systems use — battle-tested across hundreds of releases. Migration mechanics are in `data-migration.md`.
 
 ---
 
-## 9. Build Pipeline (Rollup + LESS/Sass + foundryvtt-cli)
+## 10. Bulk Writes with `foundry.documents.modifyBatch`
+
+Changed in v14: `foundry.documents.modifyBatch(operations)` sends several document operations in one request. They run in sequence with no network gap, and a cancellation (a `_preUpdate` returning `false`) or a thrown error cancels the whole batch. One operation cannot read the result of an earlier one in the same batch.
+
+Use it for migrations and for rules that touch an Actor and its tokens together:
+
+```javascript
+await foundry.documents.modifyBatch([
+  {
+    action: "update",
+    documentName: "Actor",
+    updates: [{ _id: actor.id, "system.size": "large" }]
+  },
+  {
+    action: "update",
+    documentName: "Token",
+    parent: canvas.scene,
+    updates: actor.getDependentTokens({ scenes: [canvas.scene], concreteOnly: true })
+      .map(t => ({ _id: t.id, width: 2, height: 2 }))
+  }
+]);
+```
+
+Each entry is a `DatabaseWriteOperation`: `action` (`"create"|"update"|"delete"`), `documentName`, `parent`/`pack` where needed, plus `data`, `updates`, or `ids`. `concreteOnly: true` keeps ephemeral tokens out of the batch; it becomes the `getDependentTokens` default in v15.
+
+---
+
+## 11. Build Pipeline (Rollup + LESS/Sass + foundryvtt-cli)
 
 Production systems compile, even if the source is plain ESM:
 
@@ -304,25 +379,27 @@ Production systems compile, even if the source is plain ESM:
 }
 ```
 
-- **Rollup** bundles the entry into a single `my-system-compiled.mjs`. Cuts initial-load network requests; supports `import.meta.glob`-style patterns; gives you a tree-shaken output.
+- **Rollup** bundles the entry into a single `my-system-compiled.mjs`. Cuts initial-load network requests; gives you a tree-shaken output.
 - **LESS** (or Sass) compiles `styles/main.less` into the file referenced from `system.json`. Gives you variables, nesting, mixins.
 - **foundryvtt-cli** packs source JSON in `json/` into the LevelDB format Foundry expects in `packs/`. Lets you keep compendium content in version-controllable text files.
+
+Changed in v14: the server requires Node `>=24.13.1 <25` (`package.json` `engines`). Run your build tooling and the CLI on the same Node 24 so the LevelDB bindings match the server's. Per the 14.361 release notes, static `.html` files are served as `text/plain`; keep templates as `.hbs` rendered through Foundry, never link an `.html` file directly.
 
 Symlink the `dist/` directory into `Data/systems/my-system` for local development; `bun run watch` keeps it fresh.
 
 ---
 
-## 10. Pack Folders for Sidebar Organization
+## 12. Pack Folders for Sidebar Organization
 
 Group your compendiums hierarchically in the user's sidebar:
 
 ```json
 {
   "packs": [
-    { "name": "fighters", "path": "packs/fighters", "type": "Actor" },
-    { "name": "monsters", "path": "packs/monsters", "type": "Actor" },
-    { "name": "weapons", "path": "packs/weapons", "type": "Item" },
-    { "name": "spells", "path": "packs/spells", "type": "Item" }
+    { "name": "fighters", "label": "Fighters", "path": "packs/fighters", "type": "Actor", "system": "my-system" },
+    { "name": "monsters", "label": "Monsters", "path": "packs/monsters", "type": "Actor", "system": "my-system" },
+    { "name": "weapons", "label": "Weapons", "path": "packs/weapons", "type": "Item", "system": "my-system" },
+    { "name": "spells", "label": "Spells", "path": "packs/spells", "type": "Item", "system": "my-system" }
   ],
   "packFolders": [
     {
@@ -345,13 +422,13 @@ Group your compendiums hierarchically in the user's sidebar:
 }
 ```
 
-Without `packFolders`, all packs land flat in the sidebar — fine for 5 packs, painful for 50.
+Without `packFolders`, all packs land flat in the sidebar — fine for 5 packs, painful for 50. Changed in v14: pack names must match `[A-Za-z0-9_-]` and duplicate names or paths throw at load.
 
 ---
 
-## 11. Staged Initialization Hooks
+## 13. Staged Initialization Hooks
 
-dnd5e splits work across four hooks, each with a single responsibility:
+Split work across four hooks, each with a single responsibility:
 
 ```javascript
 Hooks.once("init", () => {
@@ -363,7 +440,6 @@ Hooks.once("init", () => {
 
 Hooks.once("i18nInit", () => {
   // Translate config strings (CONFIG.MY_SYSTEM.abilities labels)
-  // Localize sheet types
   // Sort dropdown lists by translated label
 });
 
@@ -380,11 +456,21 @@ Hooks.once("ready", () => {
 });
 ```
 
-The **`i18nInit`** hook is critical: between `init` (translations not loaded) and `setup` (translations available). Use it to translate any static strings on `CONFIG` so sheets see localized labels from first render.
+The **`i18nInit`** hook is critical: between `init` (translations not loaded) and `setup` (translations available). Use it to translate any static strings on `CONFIG` so sheets see localized labels from first render. `Localization` fills `CONFIG.<Doc>.typeLabels` and `typeHints` just before it fires.
+
+Changed in v14: `_loc` is a global alias of `game.i18n.localize`, and `localize(stringId, data)` formats when `data` is passed. Use it inside `i18nInit` and later:
+
+```javascript
+Hooks.once("i18nInit", () => {
+  for (const ability of Object.values(CONFIG.MY_SYSTEM.abilities)) {
+    ability.label = _loc(ability.label);
+  }
+});
+```
 
 ---
 
-## 12. Hot-Loadable Lang Files
+## 14. Hot-Loadable Lang Files
 
 Pair `flags.hotReload.extensions: ["json"]` with structured language keys:
 
@@ -406,12 +492,20 @@ Pair `flags.hotReload.extensions: ["json"]` with structured language keys:
     "Item": {
       "weapon": "Weapon",
       "spell": "Spell"
+    },
+    "ActiveEffect": {
+      "condition": "Condition"
+    },
+    "HINTS": {
+      "Actor": {
+        "character": "A player-controlled hero."
+      }
     }
   }
 }
 ```
 
-Foundry's `TYPES.<DocClass>.<typeKey>` keys auto-populate the "Create Actor/Item" dropdown. Hot reload picks up edits without a refresh.
+`TYPES.<DocClass>.<typeKey>` keys populate the "Create Actor/Item" dropdown. `TYPES.HINTS.<DocClass>.<typeKey>` adds a hint line under the type select. Hot reload picks up edits without a refresh.
 
 ---
 
@@ -419,13 +513,16 @@ Foundry's `TYPES.<DocClass>.<typeKey>` keys auto-populate the "Create Actor/Item
 
 For an existing system, adopt these in order of impact:
 
-1. ✅ `flags.hotReload` — 10x dev speed, one-line change
-2. ✅ `htmlFields` / `filePathFields` per documentType — required for proper migration tooling
-3. ✅ Single `config.mjs` exporting `MY_SYSTEM` — refactor scattered constants
-4. ✅ Barrel-file imports (`_module.mjs` per directory) — gradual refactor
-5. ✅ `globalThis.<systemId>` API surface — version it
-6. ✅ Migration version flags + ready-hook gate — required before v2.0
-7. ✅ Pack folders if you have >5 packs
-8. ✅ Build pipeline (Rollup + LESS) once size > 10 source files
-9. ✅ `i18nInit` hook for translated CONFIG labels
-10. ✅ `compendiumArtMappings` if you ship token art
+1. `flags.hotReload` — 10x dev speed, one block in the manifest
+2. `htmlFields` / `filePathFields` / `gmOnlyFields` per documentType — required for server sanitization
+3. Drop `template.json`; every type gets a `TypeDataModel` — required before v16
+4. Single `config.mjs` exporting `MY_SYSTEM` — refactor scattered constants
+5. Barrel-file imports (`_module.mjs` per directory) — gradual refactor
+6. `globalThis.<systemId>` API surface — version it
+7. Migration version flags + ready-hook gate — required before v2.0
+8. ActiveEffect subtypes for rules data on effects
+9. `modifyBatch` for multi-document writes
+10. Pack folders if you have >5 packs
+11. Build pipeline (Rollup + LESS) on Node 24 once size > 10 source files
+12. `i18nInit` hook for translated CONFIG labels
+13. `compendiumArtMappings` if you ship token art

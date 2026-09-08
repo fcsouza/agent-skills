@@ -1,6 +1,6 @@
 # Sockets, Rolls & Compendium Packs
 
-Deep reference for Foundry VTT v13's socket communication, dice system, compendium packs, and localization.
+Deep reference for Foundry VTT v14's socket communication, dice system, compendium packs, and localization. v13 to v14 differences appear as "Changed in v14" callouts; see `foundry-vtt-module-dev/references/v14-migration.md` for the full list.
 
 ---
 
@@ -115,9 +115,46 @@ function requireGM() {
 }
 ```
 
-### SocketInterface (v13)
+### User Queries (request/response)
 
-v13 expands socket utilities. The core pattern for module sockets remains `game.socket.emit/on` with the `"module.my-module"` namespace (shown above). For most module use cases, the GM-authoritative emit/on pattern is sufficient and preferred.
+`game.socket.emit` is fire-and-forget. When you need an answer from a specific client, use the queries API. Register a handler in `CONFIG.queries` (the name must carry your module prefix), then call `User#query`:
+
+```javascript
+// Handler runs on the queried client as (queryData, { timeout, user }) where user is the asker.
+// Its return value is sent back (must be JSON-serializable).
+Hooks.once("init", () => {
+  CONFIG.queries["my-module.confirmTrade"] = async ({ itemName }, { user }) => {
+    return foundry.applications.api.DialogV2.confirm({
+      content: `<p>Accept ${itemName} from ${user.name}?</p>`,
+    });
+  };
+});
+
+// Ask one user (requires the QUERY_USER permission; throws if the user is not active)
+const accepted = await targetUser.query("my-module.confirmTrade", { itemName: "Sword" }, { timeout: 30000 });
+
+// Ask many users at once — returns Map<User, PromiseSettledResult>
+const results = await User.queryMany(game.users.filter(u => u.active), "my-module.confirmTrade", { itemName: "Sword" });
+for (const [user, result] of results) {
+  if (result.status === "fulfilled") console.log(user.name, result.value);
+}
+```
+
+**Changed in v14:** `User.queryMany(users, name, data, options)` is new. `User#query` and `CONFIG.queries` arrived in v13. Set `CONFIG.debug.queries = true` to log query traffic.
+
+### Batched Writes Instead of Socket Round Trips
+
+Many "ask the GM to do N things" sockets exist only to avoid N sequential writes. v14 adds `foundry.documents.modifyBatch(operations)`, which sends several document operations in one request. Either all succeed or none apply, and no operation can read the result of an earlier one in the same batch.
+
+```javascript
+await foundry.documents.modifyBatch([
+  { action: "update", documentName: "Actor", updates: [{ _id: actor.id, "system.size": "big" }] },
+  { action: "update", documentName: "Token", updates: [{ _id: tokenId, width: 2, height: 2 }], parent: scene },
+  { action: "create", documentName: "Item", data: [{ name: "Loot", type: "loot" }], parent: actor },
+]);
+```
+
+Each entry is a `DatabaseWriteOperation`: `action` (`create`/`update`/`delete`), `documentName`, the payload key for that action (`data`, `updates`, `ids`), and `parent`/`pack` where needed. The caller still needs permission for every operation, so the GM-authoritative pattern above still applies for player-initiated writes.
 
 ---
 
@@ -144,8 +181,38 @@ console.log(roll.terms);   // array of all RollTerm instances (dice, operators, 
 await roll.toMessage({
   flavor: "Attack Roll",
   speaker: ChatMessage.getSpeaker({ actor: actor }),
-});
+}, { messageMode: "gm" });   // omit to use the user's core.messageMode setting
 ```
+
+**Changed in v14:** roll modes became *message modes*. `Roll#toMessage`, `ChatMessage.create`, `RollTable#draw/drawMany` and `Combat#rollInitiative` take `{ messageMode }` instead of `{ rollMode }` (the old option still works but warns, until v16). The modes live in `CONFIG.ChatMessage.modes` (`public`, `gm`, `blind`, `self`, `ic`), not `CONFIG.Dice.rollModes`; the user setting is `core.messageMode`, not `core.rollMode`. `ChatMessage#applyRollMode` became `ChatMessage#applyMode`.
+
+```javascript
+// Migrate stored v13 values ("roll", "publicroll", "gmroll", "blindroll", "selfroll")
+const mode = foundry.dice.Roll._mapLegacyRollMode(oldValue);   // "roll" → current core.messageMode
+
+// Build a mode picker
+const choices = Object.entries(CONFIG.ChatMessage.modes).map(([id, m]) => ({ id, label: _loc(m.label) }));
+
+// Add or inspect chat slash-commands (was ChatLog.MESSAGE_PATTERNS)
+const { ChatLog } = foundry.applications.sidebar.tabs;
+console.log(Object.keys(ChatLog.CHAT_COMMANDS));   // roll, gmroll, blindroll, selfroll, publicroll, ooc, ic, emote, gm, whisper, reply, players, macro
+```
+
+### Formula Data Replacement
+
+`Roll.replaceFormulaData(formula, data, options)` resolves `@attr` references. Options are an object: `missing` (value to substitute for unresolved keys), `warn` (console warning per unresolved key), and `recursive` (resolve `@` references found inside replaced strings, up to three levels deep).
+
+```javascript
+const data = { str: { mod: 3 }, weapon: "@str.mod + 1", proficient: true };
+Roll.replaceFormulaData("1d20 + @weapon + @proficient", data, { recursive: true, missing: 0 });
+// → "1d20 + 3 + 1 + 1"
+```
+
+**Changed in v14:** `recursive` is new (v13 only had `missing` and `warn`, and never followed nested `@` references). Booleans in formula data now evaluate to `1`/`0`, so `@proficient` works without a ternary.
+
+### Which Roll Class Runs
+
+`Roll.create(formula, data, options)` builds a `Roll.defaultImplementation`, which is `CONFIG.Dice.rolls[0]`. Replace that entry to make every core-created roll (inline rolls, chat commands, tables) use your subclass. The user's dice-fulfillment configuration lives under the `Roll.DICE_CONFIGURATION_SETTING` core setting key (`"diceConfiguration"`); `DiceConfig.SETTING` still resolves to it but logs a deprecation warning.
 
 ### Reroll
 
@@ -167,15 +234,15 @@ class ExplodingDie extends foundry.dice.terms.Die {
   }
 
   /** @override */
-  async _evaluate(options = {}) {
-    await super._evaluate(options);
+  async _evaluateAsync(options = {}) {
+    await super._evaluateAsync(options);
 
     // Re-roll any result that meets the explosion threshold
-    let extras = [];
+    const extras = [];
     for (const result of this.results) {
       if (result.result >= this.explosionThreshold) {
         const bonus = new foundry.dice.terms.Die({ number: 1, faces: this.faces });
-        await bonus._evaluate();
+        await bonus.evaluate();
         extras.push(...bonus.results);
       }
     }
@@ -192,9 +259,13 @@ const roll = new Roll("2x6");
 await roll.evaluate();
 ```
 
+`DiceTerm#_evaluate` dispatches to `_evaluateSync` for deterministic evaluation (`minimize`/`maximize`) and to `_evaluateAsync` otherwise, so override the async branch rather than `_evaluate` itself.
+
+**Changed in v14:** `RollParser` callbacks (`_onDiceTerm`, `_onNumericTerm`, `_onFunctionTerm`, ...) receive a trailing `offset` argument with the term's position in the formula string; subclasses that override them must accept it. `DiceTerm.MODIFIER_REGEXP` is now built from a shared argument pattern (`[^A-z\s()+\-*/]*`): the argument group always captures a string, empty for argument-less modifiers such as `4d6ex`. Custom modifier methods should treat a missing argument as `""`, not `undefined`.
+
 ### Roll Fulfillment
 
-v13 uses a `RollResolver` application to fulfill dice results. For most modules, the standard `Roll.evaluate()` flow is sufficient. Custom roll resolution (e.g., prompting the player to choose a die face) is an advanced pattern — consult the v13 API docs for `RollResolver` if needed.
+Foundry uses a `RollResolver` application to fulfill dice results. For most modules, the standard `Roll.evaluate()` flow is sufficient. Custom roll resolution (e.g., prompting the player to choose a die face) is an advanced pattern — consult the v14 API docs for `RollResolver` if needed. `RollResolver` and `CONFIG.Dice.fulfillment` did not change in v14.
 
 ### Deferred Inline Rolls
 
@@ -226,11 +297,28 @@ ChatMessage.create({ content, speaker: ChatMessage.getSpeaker() });
       "name": "spells",
       "label": "Spell Compendium",
       "path": "packs/spells",
-      "type": "Item"
+      "type": "Item",
+      "system": "dnd5e"
+    },
+    {
+      "name": "conditions",
+      "label": "Conditions",
+      "path": "packs/conditions",
+      "type": "ActiveEffect",
+      "system": "dnd5e"
     }
+  ],
+  "packFolders": [
+    { "name": "Bestiary", "sorting": "a", "color": "#8a2b2b", "packs": ["monsters"] }
   ]
 }
 ```
+
+`packFolders` (`{name, sorting: "a"|"m", color, packs, folders}`, nested up to four levels) groups packs in the Compendium sidebar.
+
+**Changed in v14:**
+- `name` must match `[A-Za-z0-9_-]+` (`BasePackage.validateId`). The v12 slugify shim is gone, so `"name": "my spells"` now fails validation. Two packs with the same `name` or `path` throw at package load.
+- `"type": "ActiveEffect"` packs are allowed. `CONST.SYSTEM_SPECIFIC_COMPENDIUM_TYPES` is `["ActiveEffect", "Actor", "Item"]`; a pack of one of those types that omits `system` throws at package load.
 
 ### Accessing Packs
 
@@ -269,8 +357,40 @@ const [worldActor] = await game.actors.importFromCompendium(pack, goblin.id);
 
 // Import a world document into a compendium (requires module ownership)
 const actor = game.actors.getName("My Custom Goblin");
-await pack.importDocument(actor);
+await pack.importDocument(actor, { dialog: true });
 ```
+
+**Changed in v14:** `importDocument` keeps the source `_id` by default (`keepId: true`). If a document with that id already exists in the pack and you pass `dialog: true`, the user is asked to replace it, create a copy, or cancel; without `dialog` the existing document is replaced.
+
+### Relative UUIDs and Persistence
+
+```javascript
+// Relative UUID from one document to another (e.g. an ActiveEffect origin on the same actor)
+const rel = foundry.utils.buildRelativeUuid(item, actor);   // ".Item.abc123"
+
+// True once the document has an id, sits in a collection and resolves via fromUuid
+if (actor.persisted) await actor.update({ "flags.my-module.seen": true });
+```
+
+**Changed in v14:** `ClientDocument#getRelativeUUID(relative)` is deprecated (until v16) in favor of `foundry.utils.buildRelativeUuid(target, origin)`. `ClientDocument#persisted` is new; use it to skip writes on ephemeral clones and unsaved documents.
+
+### Compendium Art Mapping
+
+A module can supply portrait and token art for documents in another package's packs. Declare a mapping file in the manifest under `flags.compendiumArtMappings`, keyed by the system id:
+
+```json
+{
+  "flags": {
+    "compendiumArtMappings": {
+      "dnd5e": { "mapping": "art/dnd5e.json", "credit": "Art by Someone" }
+    }
+  }
+}
+```
+
+The mapping file is `{ "<pack collection id, e.g. dnd5e.monsters>": { "<documentId>": { "img": "...", "token": "..." | { prototype token overrides } } } }`. Foundry applies it through `game.compendiumArt` (`CompendiumArt`, a `Map<uuid, CompendiumArtInfo>`) when a compendium Actor or Item is initialized, and fires the `applyCompendiumArt(documentClass, source, pack, art)` hook. Users toggle portraits, tokens and items per package in the Compendium Art settings.
+
+**Changed in v14:** Item packs are supported (`img` only); the per-package settings gain an `items` toggle. The `actor` key of a mapping entry is kept as an alias of `img`.
 
 ### Compendium Index (Performance)
 
@@ -331,21 +451,33 @@ const dragon = await pack.getDocument("someId");
 const label = game.i18n.localize("MY_MODULE.settingName");
 
 // With variable substitution — uses {placeholder} syntax
-const msg = game.i18n.format("MY_MODULE.greeting", { name: "Gandalf" });
+const msg = game.i18n.localize("MY_MODULE.greeting", { name: "Gandalf" });
 // → "Hello, Gandalf!"
+
+// _loc is a global alias of game.i18n.localize (bound to the same instance)
+const short = _loc("MY_MODULE.greeting", { name: "Gandalf" });
 
 // Check if a key exists (useful for optional overrides)
 if (game.i18n.has("MY_MODULE.optional.label")) {
   // use it
 }
+
+// Intl.PluralRules for the active language
+const rule = game.i18n.pluralRules.select(count);   // "one" | "other" | ...
+const text = _loc(`MY_MODULE.items.${rule}`, { count });
 ```
+
+**Changed in v14:** `game.i18n.localize(stringId, data)` formats when `data` is given. `game.i18n.format` is now a plain alias of `localize` (same function, no warning), so existing calls keep working; prefer `localize`/`_loc` in new code. `game.i18n.pluralRules` is new. Full-text search across documents and packs now needs 3 characters (`CONFIG.i18n.searchMinimumCharacterLength`, was 4) and skips `CONFIG.i18n.searchStopWords`.
 
 ### Handlebars Templates
 
 ```handlebars
 <label>{{localize "MY_MODULE.settingName"}}</label>
 <button>{{localize "MY_MODULE.button.confirm"}}</button>
+<p>{{localize "MY_MODULE.greeting" name=user.name}}</p>
 ```
+
+The `{{localize}}` helper passes its hash to `_loc`, so formatting works inline.
 
 ### Settings with i18n
 

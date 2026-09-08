@@ -1,6 +1,8 @@
 # Handlebars & Templates (Foundry-Specific)
 
-Generic Handlebars syntax (`{{#if}}`, `{{#each}}`, partials, blocks) is documented at [handlebarsjs.com](https://handlebarsjs.com/guide/). This reference covers what Foundry adds: ~15 custom helpers, the v13 custom HTML elements that often replace them, the form-helper system, registration patterns, and the integration with ApplicationV2's PARTS.
+Generic Handlebars syntax (`{{#if}}`, `{{#each}}`, partials, blocks) is documented at [handlebarsjs.com](https://handlebarsjs.com/guide/). This reference covers what Foundry adds: ~20 custom helpers, the custom HTML elements that often replace them, the form-helper system, registration patterns, and the integration with ApplicationV2's PARTS.
+
+**Changed in v14:** `{{select}}` and `{{colorPicker}}` are gone; `{{filePicker}}` stays deprecated until v16; `{{localize}}` and `game.i18n.localize` format `{placeholders}` from hash/data arguments and `_loc` is a global alias; new elements `<formula-input>`, `<autocomplete-tags>`, `<grid-offset-2d-tags>`/`<grid-offset-3d-tags>`; static `.html` files under the user data directory are served as `text/plain` (14.361). See `foundry-vtt-module-dev/references/v14-migration.md`.
 
 ---
 
@@ -10,24 +12,23 @@ Helpers come pre-registered. Use them in any `.hbs` template.
 
 | Helper | Example | Notes |
 |---|---|---|
-| `{{localize}}` | `{{localize "MY_MODULE.title"}}` | Looks up the i18n key. Returns the original key if missing. |
+| `{{localize}}` | `{{localize "MY_MODULE.greeting" name=actor.name}}` | Looks up the i18n key. Returns the original key if missing. Hash arguments fill `{name}` placeholders (v14 — same as `_loc(key, data)`). |
 | `{{numberFormat}}` | `{{numberFormat actor.system.gold decimals=0}}` | Locale-aware number formatting. Options: `decimals`, `sign`. |
 | `{{checked}}` | `<input type="checkbox" {{checked enabled}}>` | Emits `checked` attr if value is truthy. |
 | `{{disabled}}` | `<button {{disabled isLocked}}>Save</button>` | Emits `disabled` attr if value is truthy. |
 | `{{selected}}` | `<option {{selected (eq value "fire")}}>Fire</option>` | Emits `selected` attr — pair with `eq` helper. |
-| `{{selectOptions}}` | `<select>{{selectOptions choices selected=current}}</select>` | Generates `<option>` list from a `{key: label}` object. Options: `selected`, `blank`, `localize`, `nameAttr`, `labelAttr`. |
-| `{{filePicker}}` | `{{filePicker target="system.img" type="image"}}` | Renders a file-picker button. Often replaced by `<file-picker>` in v13. |
-| `{{colorPicker}}` | `{{colorPicker name="system.color" value=color}}` | Color input. Replaced by `<color-picker>` in v13. |
+| `{{selectOptions}}` | `<select>{{selectOptions choices selected=current}}</select>` | Generates `<option>` list from a `{key: label}` object. Options: `selected`, `blank`, `localize`, `sort`, `inverted`, `valueAttr`, `labelAttr`. |
+| `{{filePicker}}` | `{{filePicker target="system.img" type="image"}}` | Renders a file-picker button. Deprecated since v12, removal v16 — use `<file-picker>`. |
 | `{{rangePicker}}` | `{{rangePicker name="x" value=10 min=0 max=100}}` | Numeric slider with synced text input. |
-| `{{editor}}` | `{{editor system.biography target="system.biography" editable=editable}}` | Mounts a ProseMirror editor. Replaced by `<prose-mirror>` in v13. |
+| `{{editor}}` | `{{editor system.biography target="system.biography" editable=editable}}` | Mounts a ProseMirror editor (or a `CONFIG.TextEditor.engines` engine). Prefer `<prose-mirror>`. |
 | `{{enrichHTML}}` | `{{{enrichHTML system.description}}}` | Resolves `@UUID[…]`, `@Check[…]`, inline rolls. **Triple-stash required** — output is HTML. |
 | `{{lookup}}` | `{{lookup CONFIG.MY_SYSTEM.abilities key}}` | Standard Handlebars helper, but useful with `CONFIG`. |
-| `{{eq}}`, `{{ne}}`, `{{lt}}`, `{{gt}}`, `{{and}}`, `{{or}}`, `{{not}}` | `{{#if (gt value 10)}}` | Comparison and logic helpers Foundry registers globally. |
+| `{{eq}}`, `{{ne}}`, `{{lt}}`, `{{lte}}`, `{{gt}}`, `{{gte}}`, `{{and}}`, `{{or}}`, `{{not}}` | `{{#if (gt value 10)}}` | Comparison and logic helpers Foundry registers globally. |
 | `{{ifThen}}` | `{{ifThen isReady "Yes" "No"}}` | Inline ternary. |
 | `{{concat}}` | `{{concat "MY_MODULE." key}}` | String concatenation, useful for dynamic i18n keys. |
 | `{{formInput}}` | See "Form Helpers" below | High-level form input. |
 | `{{formGroup}}` | See "Form Helpers" below | High-level field+label+hint wrapper. |
-| `{{formField}}` | See "Form Helpers" below | Lower-level wrapper for custom widgets. |
+| `{{formField}}` | See "Form Helpers" below | Alias of `{{formGroup}}`. |
 | `{{numberInput}}` | `{{numberInput value name="qty" min=0 max=99 step=1}}` | Specialized number input with min/max/step. |
 | `{{radioBoxes}}` | `{{radioBoxes "system.size" choices=sizes selected=current}}` | Radio button group from a `{key: label}` object. |
 | `{{timeSince}}` | `{{timeSince timestamp}}` | Relative time string ("2 hours ago"). |
@@ -35,20 +36,40 @@ Helpers come pre-registered. Use them in any `.hbs` template.
 
 **Default to triple-stash (`{{{ }}}`) for any helper that returns HTML** — `enrichHTML`, `editor`, anything that emits attributes. Double-stash escapes the output.
 
+**Removed in v14:** `{{select}}` (use `<select>` + `{{selectOptions}}`) and `{{colorPicker}}` (use `<color-picker>`). Both warned since v12. A template that still calls them throws "Missing helper" at render time.
+
+### `_loc` and formatted localization
+
+`game.i18n.localize(stringId, data)` substitutes `{placeholder}` keys from `data` (v14). `_loc` is a read-only global alias for it, and the `{{localize}}` helper forwards its hash:
+
+```js
+// lang/en.json: "MY_MODULE.Greeting": "Hello {name}, welcome to {world}!"
+_loc("MY_MODULE.Greeting", { name: actor.name, world: game.world.title });
+```
+
+```hbs
+{{localize "MY_MODULE.Greeting" name=actor.name world=worldTitle}}
+```
+
+`game.i18n.format` still works; `localize` without `data` returns the raw translation.
+
 ---
 
-## Helpers vs v13 Custom HTML Elements
+## Helpers vs Custom HTML Elements
 
-v13 ships 14 custom HTML elements that often replace the legacy helpers. The element approach is preferred for new code — elements integrate with the form-data lifecycle automatically, support `data-document-uuid` for live collaboration, and avoid the helper's HTML-string ceremony.
+Foundry ships 17 custom HTML elements (14 arrived in v13, three more in v14) that often replace the legacy helpers. The element approach is preferred for new code — elements integrate with the form-data lifecycle automatically, support `data-document-uuid` for live collaboration, and avoid the helper's HTML-string ceremony.
 
 | Element | Replaces helper | Purpose |
 |---|---|---|
-| `<color-picker name="…" value="#ff0000">` | `{{colorPicker}}` | Color input (hex/rgb) |
+| `<autocomplete-tags name="…"><option value="a">A</option></autocomplete-tags>` | (none) | **v14.** Multi-select rendered as a search box with an autocomplete dropdown; picks become removable tags |
+| `<color-picker name="…" value="#ff0000">` | `{{colorPicker}}` (removed) | Color input (hex/rgb) |
 | `<code-mirror name="…" value="…" language="javascript">` | (none) | Syntax-highlighted code editor — supports JavaScript, JSON, HTML, Markdown |
 | `<document-embed uuid="JournalEntry.abc">` | (none) | Inline preview of a document by UUID |
 | `<document-tags name="…" value="…">` | (none) | Multi-document picker (drag documents in to add) |
 | `<enriched-content>{{description}}</enriched-content>` | partial overlap with `{{enrichHTML}}` | Auto-enriches `@UUID[…]`, `@Check[…]`, inline rolls in its inner HTML |
-| `<file-picker name="…" type="image" value="…">` | `{{filePicker}}` | File selection with type filter (`image`/`audio`/`video`/`text`/`font`) |
+| `<file-picker name="…" type="image" value="…">` | `{{filePicker}}` | File selection with type filter (`any`/`audio`/`folder`/`font`/`graphics`/`image`/`imagevideo`/`text`/`texture`/`video`) |
+| `<formula-input name="…" context="default">8 + @prof</formula-input>` | (none) | **v14.** Text input for roll formulas with a button that opens `FormulaEditor`; `context` selects a `CONFIG.formulaEditor.contexts` entry whose `labels` map data paths to readable names |
+| `<grid-offset-2d-tags name="…">` / `<grid-offset-3d-tags name="…">` | (none) | **v14.** `<string-tags>` variants that validate `i.j` / `i.j.k` grid offsets |
 | `<hue-slider name="…" value="0.5">` | (none) | Hue picker (0–1) for color customization |
 | `<multi-checkbox name="…" value="…">` | (none) | Array-of-strings via checkbox grid |
 | `<multi-select name="…" value="…">` | (none) | Multi-value select dropdown |
@@ -56,9 +77,11 @@ v13 ships 14 custom HTML elements that often replace the legacy helpers. The ele
 | `<range-picker name="…" value="50" min="0" max="100" step="1">` | `{{rangePicker}}` | Slider + synced numeric input |
 | `<secret-block>...</secret-block>` | (none) | GM-only content; players see a redacted placeholder |
 | `<string-tags name="…" value="…">` | (none) | Free-form multi-tag input (chips) |
-| (`<form-element>` is the abstract base — never used directly in templates) | | |
+| (`AbstractFormInputElement` is the abstract base of form elements; `AdoptableHTMLElement` is the base of every core element — never used directly in templates) | | |
 
 When in doubt, check what `{{formInput}}` produces in DevTools — the helpers internally render these same elements.
+
+**Writing your own element (v14):** extend `foundry.applications.elements.AdoptableHTMLElement` (or `AbstractFormInputElement` for form inputs) instead of raw `HTMLElement`. It re-applies the custom prototype in `adoptedCallback`/`disconnectedCallback`, which Firefox drops when a node moves into a detached window.
 
 **Notable attributes:**
 - `data-document-uuid="{{actor.uuid}}"` on `<prose-mirror>` enables collaborative editing across clients
@@ -182,6 +205,8 @@ const html = await foundry.applications.handlebars.renderTemplate(
 
 ApplicationV2's PARTS system preloads templates declared in `static PARTS` automatically — you don't need to call `loadTemplates` for those.
 
+Core templates use the `.hbs` extension (the remaining `.html` templates are internal). Name yours `.hbs` too: since 14.361 the server sends `.html` files from the data directory as `text/plain`, so a static `.html` page in your module no longer renders when opened in a browser tab. Handlebars rendering through `renderTemplate` is unaffected.
+
 For dev iteration, declare `flags.hotReload` in `module.json` with `"extensions": ["hbs"]` and the `"templates"` path. Foundry watches files, busts the cache, and re-renders open applications when an `.hbs` file changes.
 
 ```json
@@ -297,4 +322,5 @@ Inside the part's template, `{{actor}}` and `{{items}}` are both available — g
 6. **Stale cache on hot reload** — if a template change isn't reflected, check that the path is under `flags.hotReload.paths` and the file is being written to the served directory (e.g., `dist/templates/...` if you have a build step).
 7. **`@root` in deeply nested loops** — Handlebars' `@root` accesses the original context. Useful for ownership flags inside `{{#each items}} {{#each effects}}`. Don't overuse — recompute and inject in `_prepareContext` when possible.
 8. **Mixing `<form-input>` element with `{{formInput}}` helper** — they produce nearly identical output but `{{formInput}}` returns a string while `<form-input>` is parsed at render time. Pick one approach per file for readability.
-9. **Triple-stashing user input** — `{{{user.bio}}}` is an XSS vector if the bio contains script tags. Only triple-stash trusted Foundry-enriched HTML (`enrichHTML` already sanitizes) or output you've explicitly sanitized.
+9. **Static `.html` pages** — anything you link to directly (help pages, changelogs) must not be `.html` under the module folder; it is served as `text/plain` since 14.361. Ship Markdown or render it through a Handlebars template inside an application.
+10. **Triple-stashing user input** — `{{{user.bio}}}` is an XSS vector if the bio contains script tags. Only triple-stash trusted Foundry-enriched HTML (`enrichHTML` already sanitizes) or output you've explicitly sanitized.

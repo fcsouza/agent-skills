@@ -1,0 +1,17 @@
+{{!-- Shared Item sheet (weapon, spell). Only fields present in EVERY registered
+     type may be referenced through `systemFields`: {{formInput}} logs a console
+     error for an undefined field. `description` is the only one both declare. --}}
+
+<section class="identity">
+  <img class="item-img" src="{{item.img}}" data-action="editImage" data-edit="img" alt="{{item.name}}" />
+  <input class="item-name" name="name" type="text" value="{{item.name}}" placeholder="{{localize 'MY_SYSTEM.ItemName'}}" />
+</section>
+
+<section class="description">
+  <h2>{{localize 'MY_SYSTEM.Sections.Description'}}</h2>
+  {{#if editable}}
+    <prose-mirror name="system.description" value="{{system.description}}" toggled>{{{enrichedDescription}}}</prose-mirror>
+  {{else}}
+    {{{enrichedDescription}}}
+  {{/if}}
+</section>

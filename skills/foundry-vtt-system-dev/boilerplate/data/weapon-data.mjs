@@ -11,4 +11,9 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       price: new fields.NumberField({ required: true, integer: true, min: 0, initial: 0 }),
     };
   }
+
+  // --- Migration (must return the data in v14) ---
+  static migrateData(data, options) {
+    return super.migrateData(data, options);
+  }
 }

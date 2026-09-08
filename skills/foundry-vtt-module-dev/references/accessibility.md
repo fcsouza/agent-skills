@@ -4,6 +4,8 @@ Foundry sheets, dialogs, and HUD elements are plain HTML rendered into the page.
 
 This applies to **both** modules and systems — sheet authors are the primary audience.
 
+**Changed in v14:** an application can be detached into its own browser window, so `document` and `document.activeElement` no longer reliably refer to the page your element lives in. Use `this.element.ownerDocument` instead. Custom elements should extend `foundry.applications.elements.AdoptableHTMLElement` so they survive being moved between windows. The chat input is a `<prose-mirror>` contenteditable, not a `<textarea>`.
+
 ---
 
 ## ARIA Roles for Sheet Sections
@@ -102,7 +104,13 @@ async close(options) {
 }
 ```
 
-Save `document.activeElement` before opening so you can restore focus on close.
+Save the active element before opening so you can restore focus on close. Read it from the owning document, not the global one — a detached app lives in a different window:
+
+```javascript
+this.#previousFocus = this.element.ownerDocument.activeElement;
+```
+
+Same rule for `_onDetach(from, to)` and `_onAttach(from, to)`: the app just moved between documents, so re-focus whatever the user was on rather than leaving focus stranded in the window they left.
 
 ---
 
@@ -123,6 +131,8 @@ Dynamic content (chat messages, ui.notifications, dice roll results) should anno
 
 `polite` waits for the user to pause; `assertive` interrupts immediately. Use `assertive` sparingly — it's intrusive.
 
+Two v14 notes. The chat input carries its own `aria-label`; if you inject controls next to it through the `renderChatInput` hook, label them too — that hook hands you the elements by selector (`#chat-message`, `#chat-controls`, `#chat-notifications`, `#message-modes`). And `ui.notifications` takes a `localize` option, so pass the i18n key rather than a pre-localized string: `ui.notifications.warn("MY_MODULE.Warn.key", {localize: true})`.
+
 ---
 
 ## Color Contrast
@@ -133,7 +143,7 @@ Foundry's CSS variables already meet WCAG AA contrast in both Light and Dark the
 @layer my-module {
   .my-panel {
     color: var(--color-text-primary);     /* 4.5:1 against bg */
-    background: var(--color-bg-primary);
+    background: var(--background);
     border: 1px solid var(--color-border);
   }
 }
@@ -222,6 +232,8 @@ Before shipping a sheet or dialog:
 - [ ] Tabs respond to arrow keys and `Home`/`End`
 - [ ] Dialog opens with focus on the first input
 - [ ] Dialog close restores focus to the trigger
+- [ ] Focus and DOM queries use `this.element.ownerDocument`, not the global `document`
+- [ ] Custom elements extend `AdoptableHTMLElement`
 - [ ] All interactive elements are reachable with `Tab`
 - [ ] Status/error messages live in `role="status"` or `role="alert"`
 - [ ] Colors come from CSS variables, not hex codes

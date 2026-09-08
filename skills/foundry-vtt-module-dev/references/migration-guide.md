@@ -56,245 +56,49 @@ Hooks.once("ready", async () => {
 
 ---
 
-## v12 → v13 Breaking Changes
+## v13 → v14 Breaking Changes
 
-### jQuery Deprecation
+`foundry-vtt-module-dev/references/v14-migration.md` is the canonical list. It carries every deprecation with its replacement and removal version, the breaking data changes, the manifest changes, and a before/after checklist. The table below is the headline set — the twelve changes that break the most module code. Unless noted, the old form still works with a deprecation warning until v16.
 
-v13 removes jQuery from the UI framework. Hooks and `_onRender` now pass native `HTMLElement` instead of jQuery objects.
+| Area | v13 | v14 |
+|---|---|---|
+| ActiveEffect changes | `changes` at the document root, numeric `mode` | `system.changes`, string `type`, plus a `phase` |
+| Roll and message modes | `rollMode`, `CONFIG.Dice.rollModes` | `messageMode`, `CONFIG.ChatMessage.modes` |
+| Update keys | `"-=key": null`, `"==key": value` | `key: _del`, `key: _replace(value)` |
+| Templates | `MeasuredTemplateDocument` | `RegionDocument` and `canvas.regions.placeRegion` |
+| Scene textures | `Scene#background`, `#foregroundElevation` | `Level#background`, `Level#elevation.top` |
+| Canvas layer override | `CONFIG.<Doc>.layerClass` | `CONFIG.Canvas.layers.<name>.layerClass` |
+| DataModel migration | `migrateSource`, `migrateData` returning nothing | `_migrate(value, options, _state)`, `migrateData` returns the data |
+| Wall constants | `CONST.WALL_SENSE_TYPES`, `CONST.WALL_DIRECTIONS` | `CONST.EDGE_SENSE_TYPES`, `CONST.EDGE_DIRECTIONS` |
+| Context menu entries | `{name, condition, callback}` | `{label, visible, onClick(event, target)}` |
+| Particles | `ParticleEffect`, `effectClass` | `ParticleGenerator`, `particles` config |
+| v12 shims | bare `mergeObject`, `Die`, `Math.clamped`, `CONST.DOCUMENT_TYPES` | removed outright — no warning, just errors |
+| Manifest and runtime | `template.json`, Node `>=20.18.0 <23`, unvalidated pack names | `documentTypes`, Node `>=24.13.1 <25`, validated pack names |
 
-**Before (v12):**
-```javascript
-activateListeners(html) {
-  html.find(".my-button").click(this._onButtonClick.bind(this));
-  html.find(".my-input").val();
-}
-```
-
-**After (v13):**
-```javascript
-_onRender(context, options) {
-  const html = this.element;
-  html.querySelector(".my-button")?.addEventListener("click", this._onButtonClick.bind(this));
-  html.querySelector(".my-input")?.value;
-}
-```
-
-Replace all jQuery patterns:
-- `html.find(selector)` → `html.querySelector(selector)` / `html.querySelectorAll(selector)`
-- `$(el).click(fn)` → `el.addEventListener("click", fn)`
-- `$(el).val()` → `el.value`
-- `$(el).text()` → `el.textContent`
-- `$(el).addClass/removeClass` → `el.classList.add/remove`
-- `$(el).hide/show` → `el.style.display = "none"` / `el.style.display = ""`
-
-### CSS Cascade Layers (ThemeV2)
-
-v13 uses CSS `@layer` for all UI styling and introduces native Light/Dark theme support via CSS variables. Modules should wrap CSS in a layer:
-
-```css
-@layer my-module {
-  .my-module .window-content { padding: 0.5rem; }
-  .my-module .stat { color: var(--color-warm-2); }
-}
-```
-
-Use Foundry's CSS custom properties (e.g., `--color-warm-1`, `--color-text-primary`, `--color-bg-primary`) to respect theme selection.
-
-### Application Framework Rewrite
-
-**Before (v12):**
-```javascript
-class MyApp extends Application {
-  static get defaultOptions() {
-    return mergeObject(super.defaultOptions, {
-      id: "my-app",
-      template: "modules/my-module/templates/my-app.html",
-      title: "My App",
-      width: 400,
-    });
-  }
-
-  getData() {
-    return { message: "Hello" };
-  }
-
-  activateListeners(html) {
-    super.activateListeners(html);
-    html.find(".btn").click(() => this.doSomething());
-  }
-}
-```
-
-**After (v13):**
-```javascript
-class MyApp extends foundry.applications.api.ApplicationV2 {
-  static DEFAULT_OPTIONS = {
-    id: "my-app",
-    window: { title: "My App" },
-    position: { width: 400 },
-  };
-
-  static PARTS = {
-    main: { template: "modules/my-module/templates/my-app.hbs" },
-  };
-
-  async _prepareContext(options) {
-    return { message: "Hello" };
-  }
-
-  _onRender(context, options) {
-    this.element.querySelector(".btn").addEventListener("click", () => this.doSomething());
-  }
-}
-```
-
-### FormApplication → HandlebarsApplicationMixin
-
-**Before (v12):**
-```javascript
-class MyForm extends FormApplication {
-  static get defaultOptions() { ... }
-  async _updateObject(event, formData) {
-    await game.settings.set("my-module", "key", formData.value);
-  }
-}
-```
-
-**After (v13):**
-```javascript
-const { HandlebarsApplicationMixin, ApplicationV2 } = foundry.applications.api;
-
-class MyForm extends HandlebarsApplicationMixin(ApplicationV2) {
-  static DEFAULT_OPTIONS = {
-    form: { handler: MyForm.#onSubmit, submitOnChange: false },
-  };
-
-  static PARTS = {
-    form: { template: "modules/my-module/templates/my-form.hbs" },
-  };
-
-  static async #onSubmit(event, form, formData) {
-    await game.settings.set("my-module", "key", formData.object.value);
-  }
-}
-```
-
-### ActorSheet and ItemSheet
-
-**Before (v12):**
-```javascript
-class MyActorSheet extends ActorSheet { ... }
-class MyItemSheet extends ItemSheet { ... }
-```
-
-**After (v13):**
-```javascript
-class MyActorSheet extends foundry.applications.sheets.ActorSheetV2 { ... }
-class MyItemSheet extends foundry.applications.sheets.ItemSheetV2 { ... }
-```
-
-Registration is unchanged:
-```javascript
-Actors.registerSheet("my-module", MyActorSheet, { makeDefault: true });
-Items.registerSheet("my-module", MyItemSheet, { makeDefault: true });
-```
-
-### Dialog API
-
-**Before (v12):**
-```javascript
-const confirmed = await new Promise(resolve => {
-  new Dialog({
-    title: "Confirm",
-    content: "<p>Are you sure?</p>",
-    buttons: {
-      yes: { label: "Yes", callback: () => resolve(true) },
-      no:  { label: "No",  callback: () => resolve(false) },
-    },
-    default: "no",
-  }).render(true);
-});
-```
-
-**After (v13):**
-```javascript
-// DialogV2.confirm returns true/false directly
-const confirmed = await foundry.applications.api.DialogV2.confirm({
-  window: { title: "Confirm" },
-  content: "<p>Are you sure?</p>",
-  yes: { default: false },
-  no:  { default: true },
-});
-
-// Prompt for a value
-const value = await foundry.applications.api.DialogV2.prompt({
-  window: { title: "Enter Value" },
-  content: '<input type="text" name="value" autofocus />',
-  ok: { callback: (event, button) => button.form.elements.value.value },
-});
-
-// Full custom dialog
-await foundry.applications.api.DialogV2.wait({
-  window: { title: "Custom" },
-  content: "<p>Content here</p>",
-  buttons: [
-    { action: "option1", label: "Option 1", default: true },
-    { action: "option2", label: "Option 2" },
-  ],
-  submit: (result) => console.log("Chose:", result),
-});
-```
-
-### Roll Evaluation
-
-**Before (v12):**
-```javascript
-const roll = new Roll("2d6").roll(); // synchronous
-console.log(roll.total);
-```
-
-**After (v13):**
-```javascript
-const roll = await new Roll("2d6").evaluate(); // always await — sync .roll() is deprecated
-console.log(roll.total);
-```
-
-### Actor Data Access
-
-The `actor.data.data` double-nesting was removed in v10. If your module still uses it:
-
-**Before (v10-era code):**
-```javascript
-const hp = actor.data.data.attributes.hp.value;
-actor.update({ "data.attributes.hp.value": newHp });
-```
-
-**After (v10+ / v13):**
-```javascript
-const hp = actor.system.attributes.hp.value;
-actor.update({ "system.attributes.hp.value": newHp });
-```
-
-### Actor Lookup by Name
-
-`game.actors.getName()` still exists in v13, but if it is deprecated in your version:
-
-```javascript
-// Safe cross-version approach
-const actor = game.actors.getName("Gandalf")
-  ?? game.actors.find(a => a.name === "Gandalf");
-```
+Two removals land earlier than v16: the `renderChatMessage` hook and `Combat#getCombatantByToken` / `#getCombatantByActor` go in v15.
 
 ---
 
-## v11 → v12 Breaking Changes (Brief)
+## v11 → v12 → v13 (Compact History)
 
-- **Document data preparation**: `prepareData()` / `prepareBaseData()` / `prepareDerivedData()` call order changed. Modules that hook into document preparation may fire at the wrong time.
-- **Canvas layer changes**: Several layers were reorganized into layer groups. Custom layers registered in the old way may not appear.
-- **ActiveEffect application**: The apply/disable lifecycle was reworked. Modules that manually manipulate ActiveEffect application need review.
-- **Token document vs. synthetic actor**: `token.actor` returns the synthetic actor; `game.actors.get(token.actorId)` returns the base actor. This distinction is stricter in v12.
+Still relevant when you maintain code written for older versions. Everything here is already required in v14.
 
-See the [official v12 migration notes](https://foundryvtt.com/releases/) for the full list.
+### v12 → v13
+
+- **jQuery is out of the UI framework.** `_onRender` and V2 hooks pass `HTMLElement`. `html.find(sel)` → `this.element.querySelector(sel)`; `.click(fn)` → `addEventListener("click", fn)`; `.val()` → `.value`; `.addClass` → `classList.add`. jQuery is still bundled and `renderChatMessage` still fires with a jQuery arg (deprecated until v15) — prefer `renderChatMessageHTML`.
+- **ApplicationV2.** `Application`/`FormApplication`/`Dialog` (`foundry.appv1.*`) are deprecated until v16. `static DEFAULT_OPTIONS`, `static PARTS`, `_prepareContext`, `_onRender`, `form.handler`. Sheets: `foundry.applications.sheets.ActorSheetV2` / `ItemSheetV2`; registration through `foundry.documents.collections.Actors.registerSheet(...)`.
+- **DialogV2.** `foundry.applications.api.DialogV2.confirm/prompt/wait` return values directly instead of resolve callbacks. v14 adds `wait({ renderOptions })`.
+- **CSS `@layer` and themes.** Put module CSS in a layer through the manifest (`styles: [{ src, layer: "modules" }]`) and use `--color-*` custom properties; `body.theme-light|dark` unchanged in v14.
+- **Namespaces (`foundry.*`).** v13 moved every class under `foundry.<package>` (`foundry.applications`, `foundry.canvas`, `foundry.documents`, `foundry.dice`, `foundry.utils`, ...). The bare globals (`Actors`, `TextEditor`, `DocumentSheetConfig`, ...) are shims scheduled for removal in v15; v12-era ones were removed in v14.
+- **Rolls.** `await new Roll("2d6").evaluate()`; synchronous `.roll()` is gone.
+- **Data access.** `actor.system.*`, never `actor.data.data`.
+
+### v11 → v12
+
+- `prepareData()` / `prepareBaseData()` / `prepareDerivedData()` call order changed.
+- Canvas layers regrouped into `primary`/`interface` groups; register through `CONFIG.Canvas.layers`.
+- `token.actor` is the synthetic actor; `game.actors.get(token.actorId)` is the base actor.
+- v12-only deprecations (bare `foundry.utils` globals, dice-term globals, `Math.clamped`) expired in v14 — see item 11 above.
 
 ---
 
@@ -305,8 +109,8 @@ In `module.json`:
 ```json
 {
   "compatibility": {
-    "minimum": "13",
-    "verified": "13.315"
+    "minimum": "14",
+    "verified": "14.367"
   }
 }
 ```
@@ -317,7 +121,9 @@ In `module.json`:
 | `verified` | Shown in the module browser; green checkmark on this version | Update on each Foundry release you test |
 | `maximum` | Foundry refuses to load above this version | **Omit unless you've confirmed a real breakage** |
 
-Never set `maximum` preemptively. It blocks users from updating Foundry while waiting for a module update they may not actually need.
+Never set `maximum` preemptively. It blocks users from updating Foundry while waiting for a module update they may not actually need. When `maximum` is a bare integer (`"14"`) the check compares generations only; a full version (`"14.367"`) compares builds.
+
+Supporting both v13 and v14 from one branch is rarely worth it: the ActiveEffect, Level and template changes differ in data shape, not just API names. Branch per generation and set `minimum` accordingly.
 
 ---
 
@@ -344,7 +150,7 @@ Remove from `defineSchema()`. Old data remains in the database but is silently i
 async function migrateRemoveField() {
   for (const actor of game.actors) {
     if ("removedField" in (actor.system ?? {})) {
-      await actor.update({ "system.-=removedField": null });
+      await actor.update({ "system.removedField": _del });   // v13: "system.-=removedField": null
     }
   }
 }
@@ -352,7 +158,19 @@ async function migrateRemoveField() {
 
 ### Renaming a Field
 
-Read the old field, write the new field, delete the old field — in a single `update()` call:
+Prefer `static migrateData` on the TypeDataModel — it runs when documents load, needs no world pass, and covers compendium content. **Changed in v14:** it must return the source.
+
+```javascript
+static migrateData(source, options) {
+  if ("oldName" in source && !("newName" in source)) {
+    source.newName = source.oldName;
+    delete source.oldName;
+  }
+  return super.migrateData(source, options);
+}
+```
+
+`migrateData` only changes the in-memory model. To persist, read the old field, write the new field, delete the old field — in a single `update()` call:
 
 ```javascript
 async function migrateV1() {
@@ -361,8 +179,8 @@ async function migrateV1() {
     if (old === undefined) continue; // Already migrated
 
     await actor.update({
-      "system.newName":   old,
-      "system.-=oldName": null,
+      "system.newName": old,
+      "system.oldName": _del,
     });
   }
 
@@ -372,8 +190,8 @@ async function migrateV1() {
       const old = item.system?.oldName;
       if (old === undefined) continue;
       await item.update({
-        "system.newName":   old,
-        "system.-=oldName": null,
+        "system.newName": old,
+        "system.oldName": _del,
       });
     }
   }
@@ -447,11 +265,42 @@ async function migrateWorld() {
 }
 ```
 
+`buildActorUpdate` returns a plain diff. Deletions use `_del`, whole-object replacements use `_replace(value)`; never emit `-=`/`==` keys (deprecated until v16). Because `migrateData` already runs on load, `actor.system` reflects the new shape — read old keys from `actor._source.system` when you need to know whether the stored record still needs the write.
+
+Batch the writes instead of one `update()` per document:
+
+```javascript
+async function migrateActors() {
+  const updates = [];
+  for (const actor of game.actors) {
+    const src = actor._source.system;
+    if (!("oldName" in src)) continue;
+    updates.push({ _id: actor.id, "system.newName": src.oldName, "system.oldName": _del });
+  }
+  if (updates.length) await Actor.updateDocuments(updates);
+}
+```
+
+Cross-document batches (an Actor plus its Tokens on several Scenes) go through `foundry.documents.modifyBatch([...])` so a failure rolls back the whole set.
+
 ---
 
 ## Deprecation Warnings
 
-When deprecating part of your own module's API surface:
+### Detecting deprecated core API in your module
+
+Core logs every deprecated call through `foundry.utils.logCompatibilityWarning`. v14 deprecations read `Deprecated since Version 14` / `Backwards-compatible support will be removed in Version 16` (a few say 15). Tune what you see through `CONFIG.compatibility`:
+
+```javascript
+// In the console, or a dev-only init hook
+CONFIG.compatibility.mode = CONST.COMPATIBILITY_MODES.ERROR;   // SILENT 0, WARNING 1 (default), ERROR 2, FAILURE 3
+CONFIG.compatibility.includePatterns.push(/modules\/my-module\//); // only warnings whose stack mentions my code
+CONFIG.compatibility.excludePatterns.push(/systems\/dnd5e\//);     // hide someone else's
+```
+
+`ERROR` logs with a stack trace, `FAILURE` throws — useful in a test world to make a v13 call site fail loudly. Patterns test both the message and the stack, so `includePatterns` with your module path is the fastest way to isolate your own leftovers.
+
+### Deprecating your own API
 
 ```javascript
 function oldHelperFunction(actor) {
@@ -475,5 +324,6 @@ function oldHelperFunction(actor) {
 - Use the `--world <worldName>` CLI flag to launch a specific world without the UI launcher.
 - Before running migrations against real data: **make a backup** of the world folder (`Data/worlds/my-world/`).
 - Run migrations on a copy first, then promote to production.
-- After migration, open the browser console and filter for `[Deprecation]` and `[Compatibility]` warnings — these flag the next round of work.
+- After migration, open the browser console and filter for `Deprecated since Version 14` — these flag the next round of work. Set `CONFIG.compatibility.mode = CONST.COMPATIBILITY_MODES.FAILURE` in a scratch world to turn each one into a thrown error.
 - Enable `CONFIG.debug.hooks = true` in the console to trace hook call order during development.
+- v13 and v14 need different Node versions (20–22 vs 24). Keep one Node per install, or run each through its own version manager entry.

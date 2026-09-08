@@ -1,15 +1,18 @@
 // --- Custom Actor ---
+// Active effects: do not override applyActiveEffects unless the system needs a
+// custom phase. v14 applies effects per phase (see Actor#applyActiveEffects)
+// and reads changes from effect.system.changes.
 export class MySystemActor extends Actor {
   // --- Roll Data ---
   getRollData() {
-    const data = super.getRollData();
+    // Actor#getRollData returns the live system model. Copy it before adding
+    // shorthands so roll data never mutates prepared data.
+    const system = super.getRollData();
+    const data = { ...system, abilities: foundry.utils.deepClone(system.abilities ?? {}) };
 
-    // --- Abilities Shorthand ---
-    if (data.abilities) {
-      for (const [key, ability] of Object.entries(data.abilities)) {
-        ability.mod = Math.floor((ability.value - 10) / 2);
-        data[key] = ability.mod;
-      }
+    // --- Abilities Shorthand: @str, @dex, ... resolve to the modifier ---
+    for (const [key, ability] of Object.entries(data.abilities)) {
+      data[key] = ability.mod ?? 0;
     }
 
     // --- Level Shorthand ---
@@ -20,25 +23,25 @@ export class MySystemActor extends Actor {
 
   // --- Pre-Create ---
   async _preCreate(data, options, user) {
-    await super._preCreate(data, options, user);
+    const allowed = await super._preCreate(data, options, user);
+    if (allowed === false) return false;
 
     const updates = {};
 
     // --- Default Items for Character ---
-    if (data.type === "character") {
-      const items = [
+    if (data.type === "character" && !data.items?.length) {
+      updates.items = [
         {
-          name: game.i18n.localize("MY_SYSTEM.Items.UnarmedStrike"),
+          name: _loc("MY_SYSTEM.Items.UnarmedStrike"),
           type: "weapon",
           system: { damage: "1", quantity: 1 },
         },
         {
-          name: game.i18n.localize("MY_SYSTEM.Items.BasicSpell"),
+          name: _loc("MY_SYSTEM.Items.BasicSpell"),
           type: "spell",
-          system: { description: game.i18n.localize("MY_SYSTEM.Items.BasicSpellDesc"), level: 0 },
+          system: { description: _loc("MY_SYSTEM.Items.BasicSpellDesc"), level: 0 },
         },
       ];
-      updates.items = items;
     }
 
     // --- Prototype Token Defaults ---
@@ -49,6 +52,8 @@ export class MySystemActor extends Actor {
       name: data.name,
       displayName: CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER,
       displayBars: CONST.TOKEN_DISPLAY_MODES.OWNER,
+      // These match primary/secondaryTokenAttribute in system.json. Every type
+      // must declare both paths, or the bar resolves to nothing.
       bar1: { attribute: "health" },
       bar2: { attribute: "power" },
       disposition: CONST.TOKEN_DISPOSITIONS.NEUTRAL,

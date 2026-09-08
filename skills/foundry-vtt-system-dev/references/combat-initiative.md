@@ -1,6 +1,6 @@
 # Combat & Initiative
 
-Deep reference for Foundry VTT v13's combat tracker and initiative customization.
+Deep reference for Foundry VTT v14+ combat tracker and initiative customization.
 
 ---
 
@@ -18,7 +18,7 @@ Hooks.once("init", () => {
 });
 ```
 
-`decimals` defaults to `0` (integer). Setting it to `2` allows fractional initiative, useful for tie-breaking without additional rolls.
+`decimals` defaults to `2`, so fractional initiative works out of the box for tie-breaking. Set it to `0` for integer initiative. `formula` defaults to `null`, and there is no core default behind it: `Combatant#_getInitiativeFormula` returns `String(CONFIG.Combat.initiative.formula || game.system.initiative)`. `game.system.initiative` is the `initiative` string in `system.json`. Leave both unset and there is nothing to roll — `Roll.create` throws. Set one of them.
 
 The formula can reference any field on the actor's roll data object. Nested paths like `@skills.initiative.total` work if the actor's `getRollData()` returns that structure.
 
@@ -67,13 +67,13 @@ class MySystemCombatant extends Combatant {
         formula = formula ?? CONFIG.Combat.initiative.formula;
     }
 
-    const roll = new Roll(formula, actor.getRollData());
-    return roll;
+    // Roll.create uses CONFIG.Dice.rolls[0], so a custom Roll class is respected
+    return Roll.create(formula, actor.getRollData());
   }
 }
 ```
 
-For safer patching that plays well with other modules, use `libWrapper` instead of direct prototype overriding:
+For safer patching that plays well with other modules, use `libWrapper` instead of direct prototype overriding. Target paths use the deprecated document globals or, preferably, the namespaced classes — `foundry.documents.Combatant.prototype.getInitiativeRoll`, `foundry.documents.Combat.prototype.rollInitiative`, `foundry.documents.Actor.prototype.applyActiveEffects`:
 
 ```js
 Hooks.once("setup", () => {
@@ -81,7 +81,7 @@ Hooks.once("setup", () => {
 
   libWrapper.register(
     "my-system",
-    "Combatant.prototype.getInitiativeRoll",
+    "foundry.documents.Combatant.prototype.getInitiativeRoll",
     function (wrapped, formula) {
       const actor = this.actor;
       if (actor?.type === "hero") {
@@ -133,6 +133,25 @@ Hooks.on("deleteCombat", (combat, options, userId) => {
 });
 ```
 
+### Combat, Combatant, and Group Fields
+
+| Member | Notes |
+|--------|-------|
+| `combat.name` | **New in v14.** A user-editable encounter name (`CombatTracker#onEditName`). Falls back to a generated label when blank. |
+| `combatant.roundJoined` | **New in v14.** The round on which the combatant entered the encounter (integer, initial `1`). `Combatant#_preCreate` stamps it with `combat.round` when the encounter has already started. Use it to date effects and "since you joined" counters. |
+| `combat.groups` | `EmbeddedCollection<CombatantGroup>`. Groups hold a shared `initiative`, `name`, `img`, `type`/`system`, and `ownership`; `group.members` is a `Set<Combatant>`. `combatant.group` stores the group id. |
+| `combat.getCombatantsByActor(actor)` | Returns **an array** of every combatant for that actor or actor id. |
+| `combat.getCombatantsByToken(token)` | Returns **an array** of every combatant for that token document or id. |
+
+**Changed in v14:** `Combat#getCombatantByActor` and `#getCombatantByToken` (singular) are deprecated until v15. They now return the first match of the plural methods, so replace them explicitly rather than relying on the shim:
+
+```js
+// Before
+const c = combat.getCombatantByActor(actor);
+// After — decide what a multi-token actor should do
+const [c] = combat.getCombatantsByActor(actor);
+```
+
 Access the current combatant and its actor safely:
 
 ```js
@@ -167,6 +186,25 @@ if (combat) {
 }
 ```
 
+`rollInitiative(ids, options)` takes:
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `formula` | `null` | Overrides the per-combatant formula for this call. |
+| `updateTurn` | `true` | Keep the current turn on the same combatant after re-sorting. |
+| `messageMode` | — | A key of `CONFIG.ChatMessage.modes`. Hidden combatants fall back to `"gm"`. |
+| `messageOptions` | `{}` | Merged into the chat message data (flavor, flags, speaker). |
+
+```js
+await combat.rollInitiative(ids, {
+  formula: "1d20 + @attributes.init.total",
+  messageMode: "gm",
+  messageOptions: { flags: { "my-system": { initiative: true } } }
+});
+```
+
+**Changed in v14:** `messageOptions.rollMode` is deprecated (until v16). Pass `messageMode` as a top-level option. `Combatant#getInitiativeRoll` now builds the roll with `Roll.create`, so `CONFIG.Dice.rolls[0]` is used.
+
 Override the initiative dialog to present system-specific options:
 
 ```js
@@ -174,7 +212,7 @@ class MySystemCombatant extends Combatant {
   getInitiativeRoll(formula) {
     const actor = this.actor;
     formula = formula ?? "1d20 + @abilities.dex.mod";
-    return new Roll(formula, actor.getRollData());
+    return Roll.create(formula, actor.getRollData());
   }
 }
 ```
@@ -188,7 +226,7 @@ Hooks.on("combatStart", async (combat) => {
     if (!combatant.actor) continue;
 
     const roll = combatant.getInitiativeRoll();
-    await roll.evaluate();  // v13: evaluate() is async
+    await roll.evaluate();  // evaluate() is async
 
     // Optionally show the roll in chat
     await roll.toMessage({
@@ -210,33 +248,63 @@ Hooks.on("combatStart", async (combat) => {
 
 Automate per-turn effects, resource expenditure, and duration tracking.
 
-### Effect Expiration on Turn Start
+### Effect Expiration
+
+**Changed in v14:** do not walk durations by hand. Core tracks expiry in `ActiveEffect.registry`, an `ActiveEffectRegistry` singleton, and calls `ActiveEffect.registry.refresh(event, context)` whenever time or the turn order moves.
+
+`CONST.ACTIVE_EFFECT_EXPIRY_EVENTS` holds the six values valid in `duration.expiry`:
+
+| Expiry event | Fired by |
+|--------------|----------|
+| `combatStart` | `Combat#startCombat`, and when combatants join a started encounter |
+| `roundStart` / `roundEnd` | round advance |
+| `turnStart` / `turnEnd` | turn advance |
+| `combatEnd` | combat deletion |
+
+Two more identifiers reach `refresh` but are not expiry choices: `combatRewind` (stepping backwards through the tracker) and `updateWorldTime` (`GameTime`).
+
+An effect's duration is `{value, units, expiry, expired}` plus a separate `start: {combat, combatant, initiative, round, turn, time}`. `units` is one of `CONST.ACTIVE_EFFECT_DURATION_UNITS` (the time units plus `rounds` and `turns`). `expiry` names the event at which the effect lapses; it initializes to `"turnStart"` when `duration.value` is a number.
+
+`CONFIG.ActiveEffect.expiryAction` decides what the registry does on expiry: `"update"` (default) sets `duration.expired`, `"delete"` deletes the effect, `null` does nothing.
 
 ```js
-Hooks.on("combatTurn", async (combat) => {
-  const combatant = combat.combatant;
-  const actor = combatant?.actor;
-  if (!actor) return;
-
-  // Iterate active effects and decrement remaining duration
-  for (const effect of actor.allApplicableEffects()) {
-    const duration = effect.duration;
-    if (!duration?.turns || duration.startTurn === undefined) continue;
-
-    // Check if this effect started on a previous turn in this round
-    const roundsElapsed = combat.round - (duration.startRound ?? 0);
-    const turnsElapsed = combat.turn - (duration.startTurn ?? 0);
-    const totalTurns = roundsElapsed * combat.turns.length + turnsElapsed;
-
-    if (totalTurns >= duration.turns) {
-      await effect.delete();
-      ui.notifications.info(
-        `${effect.name} ${game.i18n.localize("MY_SYSTEM.Expired")}`
-      );
-    }
-  }
+Hooks.once("init", () => {
+  CONFIG.ActiveEffect.expiryAction = "delete";   // system prefers removal
 });
 ```
+
+React to the refresh by overriding `Actor#onUpdateEffectDurations(effects, event, context)`. It is an empty async method on the base class, called for every user:
+
+```js
+class MySystemActor extends Actor {
+  /** @override */
+  async onUpdateEffectDurations(effects, event, context) {
+    for (const effect of effects) {
+      if (!effect.duration.expired) continue;
+      ui.notifications.info(`${effect.name} ${game.i18n.localize("MY_SYSTEM.Expired")}`);
+    }
+  }
+}
+```
+
+### Custom Expiry Events
+
+Register an event id and label in `CONFIG.ActiveEffect.expiryEvents`, then trigger it yourself. If the event also advances world time, advance the time first.
+
+```js
+Hooks.once("init", () => {
+  CONFIG.ActiveEffect.expiryEvents.shortRest = "MY_SYSTEM.Expiry.shortRest";
+});
+
+async function shortRest(actor) {
+  await game.time.advance(3600);
+  await ActiveEffect.registry.refresh("shortRest", { actors: new Set([actor]) });
+}
+```
+
+`refresh` accepts `{combat, actors}` in its context. Pass `actors` to limit the sweep.
+
+**Changed in v14:** `duration.rounds`, `duration.seconds`, `duration.turns`, `duration.startRound`, `duration.startTurn`, `duration.startTime` and `duration.combat` are deprecated. Read `duration.value` + `duration.units` and `start.*` instead.
 
 ### Resource Expenditure Per Turn
 
@@ -333,7 +401,21 @@ class MySystemCombatant extends Combatant {
     // Apply a flag-based bonus
     const bonus = this.getFlag("my-system", "initiativeBonus") ?? 0;
     formula = `1d20 + @abilities.dex.mod + ${bonus}`;
-    return new Roll(formula, this.actor.getRollData());
+    return Roll.create(formula, this.actor.getRollData());
   }
 }
 ```
+
+---
+
+## 7. Turn Marker
+
+`CONFIG.Combat.fallbackTurnMarker` is the texture drawn under the active combatant when a token has no turn marker of its own.
+
+```js
+Hooks.once("init", () => {
+  CONFIG.Combat.fallbackTurnMarker = "systems/my-system/ui/turn-marker.webp";
+});
+```
+
+**Changed in v14:** the core default moved to `canvas/tokens/turn-marker-square-circle-orange.webp`. If your system relied on the old path, set it explicitly.
