@@ -487,7 +487,7 @@ No custom property was removed in v14. These were added; use them instead of har
 
 v14 ships **Font Awesome Pro 7.2.0** (v13 shipped Font Awesome 6). The class syntax (`fa-solid fa-user`) is unchanged, but any icon name that FA renamed or retired between 6 and 7 will no longer resolve. Audit the icon names your system hardcodes in sheets, CONFIG entries and templates.
 
-`public/css/mce.css` is still shipped even though TinyMCE is gone. Do not build against it.
+Core still ships a leftover `mce.css` stylesheet even though TinyMCE is gone. Do not build against it.
 
 ---
 
