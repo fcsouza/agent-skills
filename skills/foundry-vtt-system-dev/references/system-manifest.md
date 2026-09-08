@@ -2,7 +2,7 @@
 
 Deep reference for Foundry VTT v14's `system.json`, and for the deprecated `template.json`.
 
-Every field below is checked against `common/packages/base-package.mjs` and `common/packages/base-system.mjs` in v14.
+Every field below reflects the v14 manifest schema.
 
 ---
 
@@ -276,7 +276,7 @@ Deprecated since v14, scheduled for removal in v16. Keep this section to read ol
 
 ### Exact v14 behaviour
 
-- The server still parses `template.json` and sends it to the client. `game.model` is the frozen result, keyed `game.model[documentName][type]`. `Game#setupPackages` derives `game.documentTypes` from the keys of `game.model` (`client/game.mjs`), so `game.documentTypes` is only as complete as the model the server sends.
+- The server still parses `template.json` and sends it to the client. `game.model` is the frozen result, keyed `game.model[documentName][type]`. `Game#setupPackages` derives `game.documentTypes` from the keys of `game.model`, so `game.documentTypes` is only as complete as the model the server sends.
 - `TypeDataField#_cleanType` first looks for a registered model (`CONFIG.<Doc>.dataModels[type]`). If one exists, the template is never consulted. Only when no model is registered does it fall back to `mergeObject(game.model[doc][type], value, {insertKeys})`, where `insertKeys` is `false` if `game.system.strictDataCleaning` is `true`. That fallback carries the `@deprecated since v14 until v16` marker in `common/data/fields.mjs`.
 - No client-side `logCompatibilityWarning` fires for merely shipping a `template.json`. The only warning on this client path is for a `migrateData` implementation that returns `undefined` (see `data-migration.md` §2). The server may warn separately.
 - `Game#template` and `System#template` were removed in v14 (their v12 shims expired). Use `game.model` or, better, `game.documentTypes`.

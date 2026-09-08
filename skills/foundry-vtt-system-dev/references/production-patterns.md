@@ -110,7 +110,7 @@ Modules now write `game.mySystem.dice.D20Roll` instead of monkey-patching intern
 
 ## 3. `flags.hotReload` for Dev Iteration
 
-Tell Foundry which files to live-reload during development. The shape is `{extensions: string[], paths: string[]}` (`PackageFlagsData.hotReload` in `common/packages/_types.mjs`):
+Tell Foundry which files to live-reload during development. The shape is `{extensions: string[], paths: string[]}` (`PackageFlagsData.hotReload`):
 
 ```json
 {

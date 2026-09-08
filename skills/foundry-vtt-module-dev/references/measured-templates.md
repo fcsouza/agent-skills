@@ -2,7 +2,7 @@
 
 Deep reference for area-of-effect templates in Foundry VTT v14.
 
-**Changed in v14: the MeasuredTemplate document is gone.** `common/documents/measured-template.mjs` was deleted. `MeasuredTemplateDocument`, the `MeasuredTemplate` placeable, `TemplateLayer`, `MeasuredTemplateConfig`, `Scene#templates`, `CONST.MEASURED_TEMPLATE_TYPES` and the `TEMPLATE_CREATE` permission are all deprecated since v14 and removed in v16. Templates merged into the Region document.
+**Changed in v14: the MeasuredTemplate document is gone.** `MeasuredTemplateDocument`, the `MeasuredTemplate` placeable, `TemplateLayer`, `MeasuredTemplateConfig`, `Scene#templates`, `CONST.MEASURED_TEMPLATE_TYPES` and the `TEMPLATE_CREATE` permission are all deprecated since v14 and removed in v16. Templates merged into the Region document.
 
 Write new code against Regions. The sections below cover the Region shape vocabulary, placement, targeting, and a migration recipe.
 
@@ -42,7 +42,7 @@ const radius = canvas.dimensions.distancePixels * 20;
 
 `ConeShapeData.validateJoint` rejects `angle > 90` with `curvature: "flat"` and `angle > 180` with `curvature: "semicircle"`.
 
-**Changed in v14:** `foundry.data.regionShapes.RegionShape` and its subclasses are deprecated (until v16) in favour of the `*ShapeData` classes above. `RegionPolygonTree`/`RegionPolygonTreeNode` are deprecated aliases of `foundry.data.PolygonTree`/`PolygonTreeNode`, which now live at `client/data/polygon-tree.mjs`.
+**Changed in v14:** `foundry.data.regionShapes.RegionShape` and its subclasses are deprecated (until v16) in favour of the `*ShapeData` classes above. `RegionPolygonTree`/`RegionPolygonTreeNode` are deprecated aliases of `foundry.data.PolygonTree`/`PolygonTreeNode`, which now live at its former module.
 
 ---
 

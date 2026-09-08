@@ -1,6 +1,6 @@
 # Active Effects V2
 
-Deep reference for the v14 ActiveEffect model: typed changes, phases, field-guided application, durations with expiry, token targeting, subtypes and compendium storage. Source: `common/documents/active-effect.mjs`, `common/data/active-effect.mjs`, `client/documents/active-effect.mjs`, `client/helpers/active-effect-registry.mjs`, `client/documents/actor.mjs`, `client/documents/token.mjs`.
+Deep reference for the v14 ActiveEffect model: typed changes, phases, field-guided application, durations with expiry, token targeting, subtypes and compendium storage.
 
 ---
 
@@ -48,7 +48,7 @@ Deep reference for the v14 ActiveEffect model: typed changes, phases, field-guid
 
 `duration.units` choices are `CONST.ACTIVE_EFFECT_DURATION_UNITS` = `years, months, days, hours, minutes, seconds, rounds, turns`; initial `"seconds"`. `duration.expiry` defaults to `"turnStart"` when `duration.value` is a number, else `null`.
 
-`ActiveEffectTypeDataModel` (`common/data/active-effect.mjs`) defines the one field every AE type must keep:
+`ActiveEffectTypeDataModel` defines the one field every AE type must keep:
 
 ```js
 changes: new fields.ArrayField(new fields.SchemaField({

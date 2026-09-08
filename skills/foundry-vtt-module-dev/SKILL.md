@@ -147,7 +147,7 @@ Foundry provides CSS custom properties for light/dark theme support. Always pref
 }
 ```
 
-Key variable categories (all present in `public/css/foundry2.css`):
+Key variable categories:
 
 | Category | Variables |
 |---|---|
@@ -170,7 +170,7 @@ Key variable categories (all present in `public/css/foundry2.css`):
 
 ## Namespaces (`foundry.*`)
 
-Since v13 nearly every core API lives in the `foundry.*` namespace. The legacy globals still resolve through deprecation shims (`since: 13, until: 15` in `client/client.mjs`; the appv1 framework is `until: 16`). v14 already removed the v12-era shims: bare `mergeObject`, `getProperty`, `Die`, `DiceTerm`, `Math.clamped`, `CONST.DOCUMENT_TYPES` and friends are gone. Write namespaced paths in every new file and update old files when you touch them.
+Since v13 nearly every core API lives in the `foundry.*` namespace. The legacy globals still resolve through deprecation shims (removed in v15; the appv1 framework in v16). v14 already removed the v12-era shims: bare `mergeObject`, `getProperty`, `Die`, `DiceTerm`, `Math.clamped`, `CONST.DOCUMENT_TYPES` and friends are gone. Write namespaced paths in every new file and update old files when you touch them.
 
 | Legacy global (v12 and earlier) | Namespaced path |
 |---|---|

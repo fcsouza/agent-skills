@@ -122,7 +122,7 @@ The first argument is the pending Actor document instance. Use `document.updateS
 
 Configure default token settings in `_preCreate()` so every new actor has sensible token behavior out of the box. `prototypeToken` is an Actor-level field, so write it through `this.parent`.
 
-`PrototypeToken` carries a subset of the Token schema (`common/data/data.mjs`): `name, displayName, actorLink, width, height, depth, texture, lockRotation, rotation, alpha, disposition, displayBars, bar1, bar2, light, sight, detectionModes, occludable, ring, turnMarker, movementAction, flags`, plus `randomImg`, `appendNumber`, `prependAdjective`. Changed in v14: `depth` was added, and `detectionModes` is an object keyed by mode id rather than an array. Scene-scoped Token fields — `x`, `y`, `elevation`, `shape`, `level` — are **not** on the prototype.
+`PrototypeToken` carries a subset of the Token schema: `name, displayName, actorLink, width, height, depth, texture, lockRotation, rotation, alpha, disposition, displayBars, bar1, bar2, light, sight, detectionModes, occludable, ring, turnMarker, movementAction, flags`, plus `randomImg`, `appendNumber`, `prependAdjective`. Changed in v14: `depth` was added, and `detectionModes` is an object keyed by mode id rather than an array. Scene-scoped Token fields — `x`, `y`, `elevation`, `shape`, `level` — are **not** on the prototype.
 
 ```js
 class HeroData extends foundry.abstract.TypeDataModel {

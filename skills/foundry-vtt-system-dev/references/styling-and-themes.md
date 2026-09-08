@@ -77,7 +77,7 @@ The pattern keeps every selector self-scoping. No global rules, no specificity w
 
 ## Cascade Layers
 
-Foundry declares the following layer order in its core CSS (`public/css/foundry2.css`), unchanged from v13:
+Foundry declares the following layer order in its core CSS, unchanged from v13:
 
 ```css
 @layer reset, variables, elements, blocks, applications, compatibility, layouts, system, modules, exceptions;

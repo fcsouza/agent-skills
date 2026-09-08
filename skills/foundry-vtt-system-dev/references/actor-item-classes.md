@@ -130,7 +130,7 @@ class MySystemActor extends Actor {
 
 ### Data Preparation Order
 
-`ClientDocument#prepareData` runs these steps in order (`client/documents/abstract/client-document.mjs`):
+`ClientDocument#prepareData` runs these steps in order:
 
 1. `system.prepareBaseData()` (TypeDataModel)
 2. `prepareBaseData()` — `Actor` resets `overrides`, `statuses`, `tokenActiveEffectChanges` and the completed-phase set here

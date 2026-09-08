@@ -1,6 +1,6 @@
 # Scene Levels
 
-v14 splits a Scene into one or more stacked `Level` documents. A Level owns the background and foreground textures, an elevation band, and its own set of wall edges. The canvas draws one Level at a time. Every API here was checked against the v14.367 source: `common/documents/level.mjs`, `client/documents/level.mjs`, `common/documents/scene.mjs`, `client/documents/scene.mjs`, `client/canvas/board.mjs`, `client/canvas/scene-manager.mjs`, `client/documents/abstract/canvas-document.mjs`.
+v14 splits a Scene into one or more stacked `Level` documents. A Level owns the background and foreground textures, an elevation band, and its own set of wall edges. The canvas draws one Level at a time.
 
 Related: `v14-migration.md`, `measured-templates.md`, `regions-and-grid.md`.
 
@@ -30,7 +30,7 @@ await canvas.scene.createEmbeddedDocuments("Level", [
 
 ## 2. `Level` schema
 
-`BaseLevel.defineSchema()` (`common/documents/level.mjs`, schemaVersion `14.364`):
+`BaseLevel.defineSchema()` (schemaVersion `14.364`):
 
 | Field | Type | Notes |
 |---|---|---|
@@ -51,7 +51,7 @@ await canvas.scene.createEmbeddedDocuments("Level", [
 
 `Level#prepareBaseData` replaces the nullable bounds with infinities and adds a derived `elevation.base`: `elevation.bottom` when finite, otherwise `Math.min(elevation.top, 0)`. `elevation.base` is the zero point the Token HUD uses when a user types an elevation.
 
-Client-side additions (`client/documents/level.mjs`):
+Client-side additions:
 
 | Member | Meaning |
 |---|---|
@@ -151,7 +151,7 @@ Hooks.once("init", () => { CONFIG.Canvas.managedScenes[sceneId] = TowerManager; 
 
 `AmbientLight`, `AmbientSound`, `Drawing`, `Note`, `Region`, `Tile` and `Wall` each gained `levels: new fields.SceneLevelsSetField()` — a Set of Level ids, initial `[]`.
 
-`ClientDocumentMixin` (in `client/documents/abstract/canvas-document.mjs`) adds:
+`CanvasDocumentMixin` adds:
 
 | Member | Meaning |
 |---|---|
@@ -182,7 +182,7 @@ await canvas.scene.updateEmbeddedDocuments("Wall", [{_id: wall.id, levels: [grou
 
 ## 6. Tokens: `level` and `depth`
 
-Token movement fields (`common/documents/token.mjs`, `#defineMovementFields`) now include:
+Token movement fields now include:
 
 | Field | Type | Notes |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Migrating from v13 to v14
 
-Reference for moving a module or system from Foundry VTT v13 to v14. Every API named here was checked against the v14.367 source. Deprecations added in v14 log a warning and are removed in v16 unless the table says otherwise.
+Reference for moving a module or system from Foundry VTT v13 to v14. Deprecations added in v14 log a warning and are removed in v16 unless the table says otherwise.
 
 Related deep dives: `active-effects-v2.md`, `scene-levels.md`, `measured-templates.md`.
 
@@ -62,7 +62,7 @@ These warned in v13 and are gone in v14. Code that still uses them throws `Refer
 
 ## 3. New deprecations in v14
 
-All since 14, until 16 unless noted. Each entry was found as a `logCompatibilityWarning` call in the v14 source.
+All since 14, until 16 unless noted.
 
 | Deprecated | Replacement | Removed in |
 |---|---|---|
@@ -223,7 +223,7 @@ The document is gone. `RegionDocument.create({shapes: [{type: "cone", ...}]})`, 
 
 ### Default sheet registration
 
-Core registers no default Actor or Item sheet in v14. `_registerDefaultSheets` in `client/applications/sheets/_module.mjs` lists Folder, JournalEntry, Macro, Playlist, RollTable, Scene, User and the embedded documents — Actor and Item are absent. Two consequences:
+Core registers no default Actor or Item sheet in v14. The core default-sheet registry lists Folder, JournalEntry, Macro, Playlist, RollTable, Scene, User and the embedded documents — Actor and Item are absent. Two consequences:
 
 - `Actors.unregisterSheet("core", ActorSheet)` is no longer needed. There is nothing to unregister.
 - Every Actor or Item type needs a registered sheet. A module that adds a subtype must register one for it, or the document opens with a null sheet.
