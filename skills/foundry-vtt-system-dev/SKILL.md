@@ -51,7 +51,7 @@ my-system/
 
 Use `boilerplate/system.json` and `boilerplate/main.mjs` as starting points.
 
-### System Manifest (system.json)
+### Manifest Example (system.json)
 
 Every system needs a valid `system.json`. System-specific fields beyond what modules use:
 
@@ -81,9 +81,9 @@ Every system needs a valid `system.json`. System-specific fields beyond what mod
 }
 ```
 
-Field-by-field notes are in the **System Manifest** section below; `references/system-manifest.md` has the full schema.
+Field-by-field notes are in **System Manifest (system.json)** below; `references/system-manifest.md` has the full schema.
 
-### Declaring Types
+### Type Declaration Example
 
 Declare every subtype in `system.json` under `documentTypes`, then give each one a `TypeDataModel`. The manifest declares the type; `defineSchema()` supplies the fields, defaults, validation, and derived data:
 
