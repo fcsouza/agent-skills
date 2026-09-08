@@ -4,6 +4,10 @@ Modules can contribute custom Actor, Item, JournalEntryPage, and other Document 
 
 This is the official, supported extension mechanism since v11. Use it instead of monkey-patching `CONFIG.Actor.dataModels` from outside `init`.
 
+Documents that accept sub-types in v14 (`DocumentClass.hasTypeData === true`): `ActiveEffect`, `Actor`, `Card`, `Cards`, `ChatMessage`, `Combat`, `Combatant`, `CombatantGroup`, `Item`, `JournalEntryPage`, `RegionBehavior`. Declaring a sub-type under any other Document throws at manifest validation.
+
+**Changed in v14:** `template.json` is deprecated (marked since 14, removal in v16). `documentTypes` in the manifest plus a `TypeDataModel` is the only forward-compatible way to declare a sub-type.
+
 ---
 
 ## When to Use Sub-Types
@@ -31,6 +35,7 @@ A module sub-type needs all three to work:
 ```json
 {
   "id": "my-module",
+  "compatibility": { "minimum": "14", "verified": "14.367" },
   "documentTypes": {
     "Actor": {
       "vehicle": {
@@ -133,13 +138,50 @@ Hooks.once("init", () => {
 });
 ```
 
-For JournalEntryPage sub-types, use `DocumentSheetConfig.registerSheet`:
+For Documents without a `WorldCollection` (JournalEntryPage, ActiveEffect, Combatant, ...), use `DocumentSheetConfig.registerSheet`:
 
 ```javascript
+const { DocumentSheetConfig } = foundry.applications.apps;
+
 DocumentSheetConfig.registerSheet(JournalEntryPage, "my-module", QuestPageSheet, {
   types: ["my-module.quest"],
   makeDefault: true,
 });
+```
+
+---
+
+## ActiveEffect Sub-Types
+
+ActiveEffect has accepted sub-types since v13, but v14 made them load-bearing: the `changes` array moved out of the base schema into `system`, supplied by `foundry.data.ActiveEffectTypeDataModel`. Every registered ActiveEffect data model must therefore define `changes`.
+
+```javascript
+export class HexEffectData extends foundry.data.ActiveEffectTypeDataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      ...super.defineSchema(),   // keeps `changes`
+      hexLevel: new fields.NumberField({ integer: true, min: 1, initial: 1 }),
+    };
+  }
+}
+
+Hooks.once("init", () => {
+  Object.assign(CONFIG.ActiveEffect.dataModels, { "my-module.hex": HexEffectData });
+});
+```
+
+`Game#initializeDocuments` checks every entry of `CONFIG.ActiveEffect.dataModels` before world documents are built. A model without a `changes` field is patched with `ActiveEffectTypeDataModel.defineSchema()` and an error is logged. A model whose `changes` is not an `ArrayField`, or whose element schema lacks a string `type`, a string `phase`, and a numeric `priority`, throws and blocks world load. If you redefine `changes`, keep those three fields.
+
+Two more v14 consequences:
+
+- ActiveEffect is `indexed` and appears in `CONST.FOLDER_DOCUMENT_TYPES`, so effects can live in folders and in their own compendium packs (`"type": "ActiveEffect"`).
+- ActiveEffect joins `Actor` and `Item` in `CONST.SYSTEM_SPECIFIC_COMPENDIUM_TYPES`. A `"type": "ActiveEffect"` pack must declare `"system"` in the manifest — without it the manifest fails validation and the module does not load.
+
+Declare the sub-type in the manifest like any other:
+
+```json
+{ "documentTypes": { "ActiveEffect": { "hex": {} } } }
 ```
 
 ---
@@ -165,7 +207,21 @@ Sub-type names appear in the "Create Actor" dropdown, on document headers, and i
 }
 ```
 
-Foundry reads `TYPES.<DocClass>.<prefixedTypeId>` automatically — no JS code required.
+Foundry reads `TYPES.<DocClass>.<prefixedTypeId>` automatically — no JS code required. It fills `CONFIG.<Doc>.typeLabels[typeId]` from that key during `i18nInit`.
+
+**New in v14:** `CONFIG.<Doc>.typeHints[typeId]` holds a one-line description shown under the type picker in the create-document dialog. Foundry populates it from `TYPES.HINTS.<DocClass>.<prefixedTypeId>` if that key exists:
+
+```json
+{
+  "TYPES": {
+    "HINTS": {
+      "Actor": {
+        "my-module.vehicle": "A conveyance that carries passengers and cargo."
+      }
+    }
+  }
+}
+```
 
 ---
 
@@ -223,6 +279,7 @@ async function convertVehiclesToNpcs() {
 | | System sub-types | Module sub-types |
 |---|---|---|
 | Manifest field | `system.json` `documentTypes` | `module.json` `documentTypes` |
+| `template.json` fallback | Deprecated since v14, gone in v16 | Never available |
 | ID format | bare key (`character`) | auto-prefixed (`my-module.vehicle`) |
 | Survives system change | No (tied to active system) | Yes (cross-system) |
 | Default sheet | Required | Required |
@@ -241,3 +298,5 @@ A system can also enable a module's sub-types by listing the module under `syste
 5. **Hard-coding the prefix in templates** — Use `{{actor.type}}` in templates rather than literal strings; the prefix changes if you rename the module.
 6. **Modifying `documentTypes` after init** — The list is locked once `init` fires. Late additions are ignored without warning.
 7. **No conversion path** — Users will eventually disable your module. Without a migration tool their data becomes orphaned.
+8. **ActiveEffect model without `changes`** — 14.367 patches the field in and logs a console error, so the effect works but your schema is not what you wrote. A malformed `changes` throws instead. Extend `foundry.data.ActiveEffectTypeDataModel` and spread `super.defineSchema()`, or redefine `changes` keeping string `type`, string `phase`, numeric `priority`.
+9. **Declaring a sub-type on a Document that has none** — only the eleven classes with `hasTypeData === true` accept them. Anything else throws while the manifest is parsed, so the module never loads.

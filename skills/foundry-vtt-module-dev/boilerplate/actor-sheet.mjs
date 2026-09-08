@@ -94,10 +94,12 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const roll = new Roll('1d20 + @mod', { mod });
     await roll.evaluate();
 
+    // No messageMode passed: toMessage falls back to the core.messageMode setting.
+    // Pass { messageMode: 'gm' | 'blind' | 'self' | 'ic' | 'public' } to force one.
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor }),
       flavor:  game.i18n.format('MY_MODULE.roll.abilityCheck', { ability: label }),
-    }, { rollMode: game.settings.get('core', 'rollMode') });
+    });
   }
 
   static async #onAddItem(event, target) {
@@ -137,7 +139,7 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // ─── Registration ────────────────────────────────────────────────────────────
 
   static registerSheet() {
-    Actors.registerSheet(MODULE_ID, HeroActorSheet, {
+    foundry.documents.collections.Actors.registerSheet(MODULE_ID, HeroActorSheet, {
       types: ['hero'],
       makeDefault: true,
       label: 'MY_MODULE.sheet.hero.label',

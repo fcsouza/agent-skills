@@ -1,90 +1,105 @@
 # Advanced System Features
 
-System-specific patterns for status effects, macros, custom enrichers, token customization, and journal pages. These extend the shared APIs covered in the **foundry-vtt-module-dev** skill with system-specific context.
+System-specific patterns for status effects, macros, custom enrichers, token customization, journal pages, Active Effect subtypes, and region behaviors. These extend the shared APIs covered in the **foundry-vtt-module-dev** skill with system-specific context.
 
 ---
 
 ## 1. Status Effects (CONFIG.statusEffects)
 
-Every RPG system needs custom conditions on the Token HUD. Override `CONFIG.statusEffects` in `init` to replace the generic defaults with system-specific conditions.
+Every RPG system needs custom conditions on the Token HUD. Add them to `CONFIG.statusEffects` in `init`, and remove the core defaults your system does not use.
 
-### Replacing Core Status Effects
+### Registering Status Effects
+
+**Changed in v14:** `CONFIG.statusEffects` is a Proxy over an array that also indexes entries by `id`. Assign by id to add or replace one condition; `delete` removes it. Both keep the array and the id index in sync.
 
 ```js
 Hooks.once("init", () => {
-  // Replace the entire array for a system (modules should push, systems should replace)
-  CONFIG.statusEffects = [
-    {
-      id: "my-system.prone",
-      name: "MY_SYSTEM.Conditions.Prone",
-      icon: "systems/my-system/icons/conditions/prone.svg",
+  CONFIG.statusEffects["my-system.prone"] = {
+    id: "my-system.prone",
+    name: "MY_SYSTEM.Conditions.Prone",
+    img: "systems/my-system/icons/conditions/prone.svg",
+    system: {
       changes: [
-        { key: "system.attributes.ac", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-2" },
-      ],
-    },
-    {
-      id: "my-system.stunned",
-      name: "MY_SYSTEM.Conditions.Stunned",
-      icon: "systems/my-system/icons/conditions/stunned.svg",
-      changes: [],
-    },
-    {
-      id: "my-system.poisoned",
-      name: "MY_SYSTEM.Conditions.Poisoned",
-      icon: "systems/my-system/icons/conditions/poisoned.svg",
-      changes: [
-        { key: "system.abilities.con", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-2" },
-      ],
-    },
-    {
-      id: "my-system.dead",
-      name: "MY_SYSTEM.Conditions.Dead",
-      icon: "systems/my-system/icons/conditions/dead.svg",
-      overlay: true,
-      changes: [],
-    },
-  ];
+        { key: "system.attributes.ac", type: "add", value: -2 }
+      ]
+    }
+  };
 
-  // Set the special "defeated" status for combat tracker
+  CONFIG.statusEffects["my-system.stunned"] = {
+    id: "my-system.stunned",
+    name: "MY_SYSTEM.Conditions.Stunned",
+    img: "systems/my-system/icons/conditions/stunned.svg"
+  };
+
+  CONFIG.statusEffects["my-system.dead"] = {
+    id: "my-system.dead",
+    name: "MY_SYSTEM.Conditions.Dead",
+    img: "systems/my-system/icons/conditions/dead.svg"
+  };
+
+  // Drop a core condition your system does not use
+  delete CONFIG.statusEffects.paralysis;
+
+  // Set the special "defeated" status for the combat tracker
   CONFIG.specialStatusEffects.DEFEATED = "my-system.dead";
 });
 ```
 
+Assigning a whole array (`CONFIG.statusEffects = [...]`) still works — the setter clears the proxy and pushes each entry — but it is marked deprecated since v14. Prefer keyed assignment, which lets modules and systems coexist.
+
 ### Status Effect Fields
+
+A status entry is `{id, order?, hud?}` merged with partial `ActiveEffectData`. `ActiveEffect.fromStatusEffect(statusId)` strips `id` and `hud`, localizes `name`, folds `id` into `statuses`, and defaults `showIcon` to `ALWAYS`. Everything else is passed to the `ActiveEffect` constructor unchanged.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | `string` | Unique ID, namespaced with system ID (e.g. `"my-system.prone"`) |
+| `id` | `string` | Unique ID, namespaced with your system ID (`"my-system.prone"`) |
 | `name` | `string` | Localization key for the condition name |
-| `icon` | `string` | Path to the icon displayed on the Token HUD |
-| `overlay` | `boolean` | If `true`, the icon covers the entire token (used for "dead") |
-| `changes` | `object[]` | Active Effect changes applied when the status is toggled |
+| `img` | `string` | Icon shown on the Token HUD |
+| `hud` | `boolean \| {actorTypes: string[]}` | Show in the Token HUD, optionally only for certain actor sub-types |
+| `order` | `number` | Sort order in the HUD |
+| `showIcon` | `number` | `CONST.ACTIVE_EFFECT_SHOW_ICON`: `NEVER` 0, `CONDITIONAL` 1, `ALWAYS` 2 |
+| `system.changes` | `object[]` | The Active Effect changes applied when the status is toggled |
+| `_id` | `string` | Required if the entry declares extra `statuses` beyond its own id |
 
-### Active Effect Change Modes
+**Changed in v14:** `label` and `icon` are deprecated aliases of `name` and `img`. `showIcon` is new and decides when the icon appears on the token. Overlay display is a flag — `actor.toggleStatusEffect(id, {overlay: true})` sets `flags.core.overlay`. Changes live under `system.changes`, not at the root; a root `changes` array is still migrated by `BaseActiveEffect.migrateData`, but write the new shape.
 
-| Constant | Value | Behavior |
-|----------|-------|----------|
-| `CONST.ACTIVE_EFFECT_MODES.CUSTOM` | 0 | No automatic application — handle in `prepareDerivedData()` |
-| `CONST.ACTIVE_EFFECT_MODES.MULTIPLY` | 1 | Multiply the current value |
-| `CONST.ACTIVE_EFFECT_MODES.ADD` | 2 | Add to the current value |
-| `CONST.ACTIVE_EFFECT_MODES.DOWNGRADE` | 3 | Set to the lower of current and effect value |
-| `CONST.ACTIVE_EFFECT_MODES.UPGRADE` | 4 | Set to the higher of current and effect value |
-| `CONST.ACTIVE_EFFECT_MODES.OVERRIDE` | 5 | Replace the current value entirely |
+### Active Effect Change Types
+
+**Changed in v14:** numeric `mode` is deprecated in favour of a string `type`. `CONST.ACTIVE_EFFECT_CHANGE_TYPES` maps each type to its default priority.
+
+| `type` | Default priority | Behavior |
+|--------|-----------------|----------|
+| `"custom"` | 0 | Handled by a `handler` in `CONFIG.ActiveEffect.changeTypes`, or ignored |
+| `"multiply"` | 10 | Multiply the current numeric value |
+| `"add"` | 20 | Add numbers, concatenate strings, push onto Arrays, add to Sets |
+| `"subtract"` | 20 | Subtract from the current value |
+| `"downgrade"` | 30 | Take the lower of current and effect value |
+| `"upgrade"` | 40 | Take the higher of current and effect value |
+| `"override"` | 50 | Replace the current value |
+
+`value` is an `AnyField`, so a number stays a number. Strings may contain `@` references resolved against the target's roll data. Each change also carries `phase` (`"initial"` or `"final"`, or a phase you registered) and an optional `priority` that overrides the default.
 
 ### Checking Active Conditions
 
 ```js
-// Check if a token has a specific condition
+// Check if an actor has a specific condition
 const isProne = actor.statuses.has("my-system.prone");
 
 // Toggle a condition programmatically
-await token.toggleActiveEffect({ id: "my-system.stunned" });
+await actor.toggleStatusEffect("my-system.stunned");
+await actor.toggleStatusEffect("my-system.dead", { active: true, overlay: true });
 
-// Get all active conditions on a token
+// Build the effect without applying it
+const effect = await ActiveEffect.fromStatusEffect("my-system.prone");
+
+// Get all active conditions
 for (const statusId of actor.statuses) {
   console.log(`Active condition: ${statusId}`);
 }
 ```
+
+**Changed in v14:** `TokenDocument#toggleActiveEffect` and `Token#toggleEffect` are gone. Use `Actor#toggleStatusEffect(statusId, {active, overlay})`.
 
 ---
 
@@ -226,7 +241,43 @@ static async #onRollDamage(event, target) {
 |-------|------|-------------|
 | `pattern` | `RegExp` | Global regex matching the inline syntax |
 | `enricher` | `async function` | Receives `(match, options)`, returns `HTMLElement` or `null` |
-| `replaceParent` | `boolean` | If `true`, replaces the parent element instead of inserting inline |
+| `replaceParent` | `boolean` | Hoist the replacement out of its container when it replaces the whole contents |
+| `onRender` | `function` | Called with the `HTMLEnrichedContentElement` once the enriched content enters the DOM |
+
+### ProseMirror Inserts
+
+**New in v14:** `CONFIG.TextEditor.inserts` adds entries to the editor's insert menu. Each entry is `{action, title, inline?, html?, children?}`. A `<selection>` placeholder inside `html` wraps the current selection; content inside the placeholder is the fallback when nothing is selected.
+
+```js
+Hooks.once("init", () => {
+  CONFIG.TextEditor.inserts.push({
+    action: "my-system-readaloud",
+    title: "MY_SYSTEM.Insert.Readaloud",
+    html: `
+      <div class="readaloud">
+        <selection><blockquote>Read this aloud.</blockquote></selection>
+      </div>
+    `
+  });
+});
+```
+
+`children` nests inserts under a submenu; `inline: true` marks the insert as inline rather than block content.
+
+**Changed in v14:** TinyMCE is gone. `CONFIG.TinyMCE`, `JournalTextTinyMCESheet` and `TextEditor.create({engine: "tinymce"})` were removed. ProseMirror is the only bundled editor; register another with `CONFIG.TextEditor.engines`.
+
+### Customizing @Embed Output
+
+`CONFIG.<Doc>.embedHandlers` is an array of `(doc, content, config, options) => Promise<HTMLElement|HTMLCollection|null>`. Handlers post-process the element produced by `@Embed[...]`; returning `null` cancels the embed.
+
+```js
+CONFIG.Item.embedHandlers.push(async (item, content, config, options) => {
+  if (content && item.type === "spell") content.classList.add("spell-embed");
+  return content;
+});
+```
+
+For work that must happen after the embed reaches the DOM, override `TypeDataModel#onEmbed(element)` on the document's data model.
 
 ---
 
@@ -243,26 +294,61 @@ Hooks.once("init", () => {
   CONFIG.Token.objectClass = MySystemToken;
 });
 
-class MySystemToken extends Token {
-  // Override the resource bar drawing
-  _drawBar(number, bar, data) {
-    const val = Number(data.value);
-    const max = Number(data.max);
-    const pct = Math.clamped(val, 0, max) / max;
-
-    // Custom color based on percentage
-    let color;
-    if (pct > 0.5) color = 0x4caf50;      // green
-    else if (pct > 0.25) color = 0xff9800; // orange
-    else color = 0xf44336;                 // red
-
-    bar.clear();
-    bar.beginFill(0x000000, 0.5).drawRoundedRect(0, 0, this.w, 8, 2).endFill();
-    bar.beginFill(color, 0.8).drawRoundedRect(0, 0, pct * this.w, 8, 2).endFill();
-    bar.position.set(0, number === 0 ? this.h - 8 : 0);
+class MySystemToken extends foundry.canvas.placeables.Token {
+  /**
+   * Pick the empty/full colors for a resource bar.
+   * Core mixes between them by percentage in _drawBar.
+   * @param {number} index          0 for bar1, 1 for bar2
+   * @param {object} data           The tracked attribute data
+   * @returns {{empty: Color, full: Color}}
+   * @override
+   */
+  _getBarColors(index, data) {
+    const pct = Number(data.value) / Number(data.max);
+    if (index === 0 && pct <= 0.25) {
+      return { empty: Color.from("#7F0000"), full: Color.from("#FF3B30") };
+    }
+    return super._getBarColors(index, data);
   }
 }
 ```
+
+**New in v14:** `Token#_getBarColors(index, data)` reads `CONFIG.Token.barConfig`, so a system can retint the bars without touching `_drawBar`:
+
+```js
+Hooks.once("init", () => {
+  CONFIG.Token.barConfig.bar1.colors = { empty: Color.from("#3F0000"), full: Color.from("#00C853") };
+  CONFIG.Token.barConfig.bar2.colors = { empty: Color.from("#001F3F"), full: Color.from("#40C4FF") };
+});
+```
+
+`Math.clamped` was removed; use `Math.clamp`.
+
+### Movement Actions
+
+**Changed in v14:** `CONFIG.Token.movement.actions` entries are declarative. `getAnimationOptions`, `deriveTerrainDifficulty` and `getCostFunction` closures are replaced by `speedMultiplier`, `terrainAction` and `costMultiplier`; `canSelect` can be a plain boolean.
+
+```js
+Hooks.once("init", () => {
+  CONFIG.Token.movement.actions.blink = {
+    label: "MY_SYSTEM.Movement.blink",
+    icon: "fa-solid fa-bolt",
+    order: 20,
+    teleport: true,
+    measure: false,
+    walls: null,          // an EdgeRestrictionType, or null to ignore walls
+    canSelect: false,     // not offered in the Token HUD or cycling
+    terrainAction: null,  // terrain difficulty is always 1
+    costMultiplier: 1
+  };
+});
+
+// Plan a move from code, then commit it
+const plan = await token.planMovement({ allowedActions: ["blink"], direct: true, maxDistance: 30 });
+if (plan) await token.document.startMovement(plan.id);
+```
+
+`planMovement` resolves to `null` if the user cancels, the token is released, or the token is locked.
 
 ### CONFIG.Token.documentClass
 
@@ -346,6 +432,8 @@ class ClassPageData extends foundry.abstract.TypeDataModel {
 ### Registration
 
 ```js
+const { DocumentSheetConfig } = foundry.applications.apps;
+
 Hooks.once("init", () => {
   // Register the data model for the custom page type
   CONFIG.JournalEntryPage.dataModels["class"] = ClassPageData;
@@ -357,6 +445,19 @@ Hooks.once("init", () => {
     label: "MY_SYSTEM.Sheet.ClassPage",
   });
 });
+```
+
+### Core Text Page Sheets
+
+**Changed in v14:** TinyMCE is gone, so the sheet lineup for built-in `text` pages changed. `JournalEntryPageCodeMirrorSheet` extends `JournalEntryPageTextSheet`; the HTML and Markdown sheets extend the CodeMirror sheet. `JournalEntryPageHTMLSheet` is registered for `text` pages under the label `EDITOR.HTML`, taking the slot the TinyMCE sheet held. If your system registered a sheet against `JournalTextTinyMCESheet`, retarget it.
+
+### Journal Entry Categories
+
+`JournalEntryCategory` is an embedded document in `JournalEntry#categories` (`{_id, name, sort, flags, _stats}`). Pages reference one through `JournalEntryPage#category`. Use categories to group system compendium pages instead of a custom flag scheme.
+
+```js
+const [category] = await journal.createEmbeddedDocuments("JournalEntryCategory", [{ name: "Classes" }]);
+await page.update({ category: category.id });
 ```
 
 ### Declaring in system.json
@@ -413,11 +514,149 @@ class ClassPageSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     context.system = this.document.system;
-    context.enrichedDescription = await TextEditor.enrichHTML(
+    context.enrichedDescription = await foundry.applications.ux.TextEditor.implementation.enrichHTML(
       context.system.description,
-      { relativeTo: this.document, async: true }
+      { relativeTo: this.document }
     );
     return context;
   }
 }
 ```
+
+---
+
+## 6. Active Effect Subtypes and Custom Change Types
+
+**New in v14:** `ActiveEffect` is a typed document. `changes` moved out of the base schema into `system` via `ActiveEffectTypeDataModel`, so a system can add its own effect subtypes with extra fields.
+
+### Declaring a Subtype
+
+Declare the type in `system.json` (`"documentTypes": { "ActiveEffect": { "condition": {} } }`), then register the model:
+
+```js
+class ConditionEffectData extends foundry.data.ActiveEffectTypeDataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      ...super.defineSchema(),        // keeps `changes`
+      stacks: new fields.NumberField({ integer: true, min: 1, initial: 1 })
+    };
+  }
+}
+
+Hooks.once("init", () => {
+  CONFIG.ActiveEffect.dataModels.condition = ConditionEffectData;
+  CONFIG.ActiveEffect.typeLabels.condition = "MY_SYSTEM.EffectType.condition";
+});
+```
+
+At startup Foundry verifies that every model in `CONFIG.ActiveEffect.dataModels` declares a `changes` ArrayField with the expected sub-schema, and logs an error if it does not — so keep `...super.defineSchema()` in your override. `ActiveEffect` is now indexed, foldable, and allowed in system-specific compendia (`CONST.SYSTEM_SPECIFIC_COMPENDIUM_TYPES`), so effects can ship in packs.
+
+### Registering a Change Type
+
+`CONFIG.ActiveEffect.changeTypes` holds types beyond the seven core ones. Each entry is `{label, defaultPriority, handler?, render?}`.
+
+```js
+Hooks.once("init", () => {
+  CONFIG.ActiveEffect.changeTypes.diceUpgrade = {
+    label: "MY_SYSTEM.ChangeType.diceUpgrade",
+    defaultPriority: 45,
+    // (targetDoc, change, {field, replacementData, modifyTarget}) => overrides|void
+    async handler(targetDoc, change, { modifyTarget } = {}) {
+      const stepped = stepDieUp(foundry.utils.getProperty(targetDoc, change.key), change.value);
+      if (modifyTarget) foundry.utils.setProperty(targetDoc, change.key, stepped);
+      return { [change.key]: stepped };
+    }
+  };
+});
+```
+
+`render(context)` returns the markup for the change row in `ActiveEffectConfig`; `context` is `{change, index, fields, defaultPriority}`.
+
+**Changed in v14:** the per-instance `_applyAdd`, `_applyMultiply`, `_applyOverride`, `_applyUpgrade`, `_applyCustom` and `applyField` methods are deprecated. Override the statics `ActiveEffect._applyChangeAdd`, `._applyChangeMultiply`, `._applyChangeOverride`, `._applyChangeUpgrade`, `._applyChangeCustom`, `._applyChangeUnguided` and `.applyChangeField`. `ActiveEffect#apply` became `ActiveEffect.applyChange`. `ActiveEffectConfig.DEFAULT_PRIORITIES` is gone; priorities come from `CONFIG.ActiveEffect.changeTypes[type].defaultPriority`.
+
+See `foundry-vtt-module-dev/references/active-effects-v2.md` for the full model.
+
+---
+
+## 7. Region Behaviors for Systems
+
+Regions replace MeasuredTemplates in v14, and a `RegionBehavior` subtype is how a system attaches rules to an area.
+
+### Core Behaviors Worth Knowing
+
+| Type | What it does |
+|------|--------------|
+| `applyActiveEffect` | Creates the configured effects on a token's actor while the token is inside; deletes them on exit. Its schema is `effects: SetField<DocumentUUIDField>` of ActiveEffect UUIDs. |
+| `defineSurface` | Turns the region into a surface that blocks or filters `light`, `move`, `sight`, `sound`, `occlusion`, `exposure`, `culling` on a chosen side (`bottom`, `top`, `both`). |
+| `changeLevel` | Moves a token to another scene level. |
+| `teleportToken` | Teleports to one of `destinations` (plural — `destination` is deprecated). |
+
+### Writing a Custom Behavior
+
+```js
+class SacredGroundBehavior extends foundry.data.regionBehaviors.RegionBehaviorType {
+  static LOCALIZATION_PREFIXES = ["MY_SYSTEM.BEHAVIOR.sacredGround", "BEHAVIOR.TYPES.base"];
+
+  static defineSchema() {
+    return {
+      events: this._createEventsField({
+        events: [CONST.REGION_EVENTS.TOKEN_ENTER, CONST.REGION_EVENTS.TOKEN_EXIT]
+      }),
+      damagePerTurn: new foundry.data.fields.StringField({ initial: "1d6" })
+    };
+  }
+
+  // Handlers are bound to the behavior instance
+  static events = {
+    [CONST.REGION_EVENTS.TOKEN_ENTER]: async function (event) {
+      if (!event.user.isSelf) return;
+      if (event.data.token.actor?.system.undead) {
+        ui.notifications.warn("MY_SYSTEM.Warn.SacredGround", { localize: true });
+      }
+    }
+  };
+}
+
+Hooks.once("init", () => {
+  CONFIG.RegionBehavior.dataModels.sacredGround = SacredGroundBehavior;
+  CONFIG.RegionBehavior.typeLabels.sacredGround = "MY_SYSTEM.BEHAVIOR.sacredGround.label";
+  CONFIG.RegionBehavior.typeIcons.sacredGround = "fa-solid fa-place-of-worship";
+});
+```
+
+Declare the subtype in `system.json` under `documentTypes.RegionBehavior`. `this.behavior`, `this.region` and `this.scene` reach the containing documents.
+
+### Areas of Effect
+
+`RegionLayer#placeRegion(data, options)` runs the interactive placement workflow and returns the created `RegionDocument` (or the prepared data with `{create: false}`). `placeRegions` does the same for several at once.
+
+```js
+const region = await canvas.regions.placeRegion({
+  name: "Fireball",
+  shapes: [{ type: "circle", x: 0, y: 0, radius: canvas.dimensions.distancePixels * 20, gridBased: true }],
+  levels: [canvas.level.id],
+  displayMeasurements: true
+});
+```
+
+Shape types are `circle, cone, ellipse, emanation, grid, line, polygon, rectangle, ring, token`. For a burst centred on a token, `RegionDocument.createTokenEmanation(token, range, regionData, options)` builds the emanation and sets `attachment.token`, so the region follows the token. `RegionDocument#spawnTokens` and `#teleportTokens` place or move tokens within a region. `RegionLayer#templateMode` toggles the transient placement mode the old template tools used.
+
+**Changed in v14:** `MeasuredTemplateDocument`, the `MeasuredTemplate` placeable, `TemplateLayer`, `MeasuredTemplateConfig`, `Scene#templates`, `CONST.MEASURED_TEMPLATE_TYPES` and the `TEMPLATE_CREATE` permission are all deprecated until v16. The permission is now `REGION_CREATE`. See `foundry-vtt-module-dev/references/measured-templates.md`.
+
+---
+
+## 8. Scene Levels
+
+**New in v14:** a Scene holds an embedded `Level` collection. Scene `background`, `foreground`, `foregroundElevation` and `backgroundColor` moved onto `Level`, and every placeable document gained a `levels` set that decides which levels it appears on. Tokens gained `level` and `depth`.
+
+```js
+// scene.background.src is deprecated. Read the Level instead:
+const level = canvas.level;                   // the viewed Level document
+const img = level.background.src;
+const bottom = level.elevation.bottom;        // null means -Infinity
+```
+
+`Scene#levels`, `Scene#availableLevels`, `Scene#cycleLevel(±1)`, `canvas.level` and `CONFIG.Level` are the entry points. `Scene#fog.exploration` (boolean) became `Scene#fog.mode` (`CONST.FOG_EXPLORATION_MODES`: `DISABLED` 0, `INDIVIDUAL` 1, `SHARED` 2).
+
+Full reference: `foundry-vtt-module-dev/references/scene-levels.md`.

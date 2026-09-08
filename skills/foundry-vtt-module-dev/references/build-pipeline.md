@@ -8,11 +8,13 @@ But once you want TypeScript, Sass/LESS, Svelte/Lit components, npm dependencies
 
 ## The Foundry Constraint
 
-Foundry serves your module files directly via its own static router. Three implications shape how you configure any bundler:
+Foundry serves your module files directly via its own static router. Four implications shape how you configure any bundler:
 
-1. **No asset hashing.** Foundry references files via the fixed paths in `module.json` (`esmodules`, `styles`, `templates`). A bundle that emits `main.[hash].mjs` breaks Foundry's reference. Disable hashing on JS, CSS, and assets you reference from the manifest.
-2. **No HTML entry point.** Foundry IS the HTML — your bundle is a library that mounts into the existing DOM. The bundler's `index.html` workflow doesn't apply.
-3. **Module structure must mirror the manifest.** Whatever paths you put in `module.json` must exist relative to the module root. A bundler that flattens or relocates files needs a copy step to preserve structure.
+1. **Static `.html` files are not pages.** Since 14.361 the server sends any file whose mime type is `text/html` or `application/xhtml+xml` as `text/plain`. A `.html` file in your module can no longer be opened in a browser or iframe. Handlebars templates still work — they are fetched and compiled, never navigated to. Use `.hbs` for templates and drop any standalone HTML page from your build output.
+2. **No asset hashing.** Foundry references files via the fixed paths in `module.json` (`esmodules`, `styles`, `templates`). A bundle that emits `main.[hash].mjs` breaks Foundry's reference. Disable hashing on JS, CSS, and assets you reference from the manifest.
+3. **No HTML entry point.** Foundry IS the HTML — your bundle is a library that mounts into the existing DOM. The bundler's `index.html` workflow doesn't apply.
+4. **Node 24.** Foundry v14 runs on Node `>=24.13.1 <25` and its server is Express 5. Your build scripts run on whatever Node you install, but pin CI to Node 24 so `engines` checks and native deps behave the same as on the server.
+5. **Module structure must mirror the manifest.** Whatever paths you put in `module.json` must exist relative to the module root. A bundler that flattens or relocates files needs a copy step to preserve structure.
 
 ---
 
@@ -78,8 +80,11 @@ A working `vite.config.mjs` for a Foundry module:
 
 ```javascript
 import { defineConfig } from "vite";
-import { resolve } from "node:path";
-import { copyFileSync, cpSync, mkdirSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { cpSync, mkdirSync } from "node:fs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));   // no __dirname in ESM
 
 const MODULE_ID = "my-module";
 
@@ -167,7 +172,7 @@ For TypeScript, add `import ts from "typescript"` setup is automatic — Vite ha
     "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,
-    "types": ["fvtt-types"]
+    "types": ["fvtt-types"]   // check the fvtt-types repo for its v14 status before relying on it
   },
   "include": ["src"]
 }
@@ -261,7 +266,7 @@ Run with `bunx rollup -c -w` for watch mode.
 
 ## `flags.hotReload` (Foundry-Side Live Reload)
 
-Declare in `module.json` to tell Foundry which files to live-reload:
+Declare in `module.json` to tell Foundry which files to live-reload. The shape is `{extensions: string[], paths: string[]}`:
 
 ```json
 {
@@ -274,7 +279,25 @@ Declare in `module.json` to tell Foundry which files to live-reload:
 }
 ```
 
-Foundry watches the listed paths for matching extensions; on change, it reloads the affected sub-system (CSS hot-swaps, templates re-render, language files reapply on next localize).
+Foundry watches the listed paths for matching extensions; on change, it reloads the affected sub-system. Only three cases are handled: `css` hot-swaps the stylesheet, `hbs` and `html` recompile the template and re-render open applications, `json` reloads language files. Anything else in `extensions` is watched but ignored.
+
+Intercept a reload with the `hotReload` hook — return `false` to suppress Foundry's own handling:
+
+```javascript
+Hooks.on("hotReload", (data) => {
+  // data: { packageType, packageId, content, path, extension }
+  if (data.extension !== "json") return;
+  console.log("reloading", data.path);
+});
+```
+
+Stylesheets declared in `module.json` may also name a cascade layer, which decides where your rules land against core's:
+
+```json
+"styles": [{ "src": "styles/main.css", "layer": "modules" }]
+```
+
+Core declares its cascade layers in this order: `reset, variables, elements, blocks, applications, compatibility, layouts, system, modules, exceptions`. Naming `modules` puts your rules after core's own and before `exceptions`; omit `layer` and your stylesheet sits outside the layer order, above all of them.
 
 This is **Foundry's** mechanism, independent of your bundler. Vite/Rollup writes to `dist/` → Foundry sees the file change → Foundry reloads. Pair it with bundler watch mode and you get a near-instant edit→see loop without restarting Foundry.
 
@@ -319,4 +342,6 @@ Run via `"prebuild": "node scripts/prebuild.mjs"` in `package.json` scripts.
 6. **Sourcemaps in shipped builds** — set `sourcemap: true` (separate file) for production, not `"inline"` — inline maps double the bundle size.
 7. **Watching `dist/` itself** — never. Only watch sources. Some bundlers loop forever otherwise.
 8. **Multiple entry points** — Foundry's `module.json` `esmodules` field accepts multiple entries, but EACH must be a fully bundled file. Either build N bundles or use one entry that imports the others.
-9. **NPM dependencies that assume Node** — module bundles run in the browser. A dep that imports `node:fs` won't work; prefer browser-friendly alternatives or avoid the dep.
+9. **Shipping a `template.json`** — deprecated since v14 and removed in v16. Declare document subtypes with `documentTypes` in `module.json` and back them with `TypeDataModel` classes.
+10. **Packing compendia** — the Foundry CLI (`@foundryvtt/foundryvtt-cli`) builds and extracts LevelDB packs. Check its repo for the release that matches v14 rather than pinning from memory.
+11. **NPM dependencies that assume Node** — module bundles run in the browser. A dep that imports `node:fs` won't work; prefer browser-friendly alternatives or avoid the dep.

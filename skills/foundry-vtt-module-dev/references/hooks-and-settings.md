@@ -1,6 +1,8 @@
 # Hooks & Settings
 
-Deep reference for Foundry VTT v13's hook system and settings API.
+Deep reference for Foundry VTT v14's hook system and settings API.
+
+**Changed in v14:** every render now fires a `preRender<Class>` hook first; detached windows fire `openDetachedWindow` / `closeDetachedWindow`; placeables get `get<Document>PlaceableContextOptions`; token movement fires `planToken`; `canvasTearDown`, `drawLayer` and `tearDownLayer` gained an options argument; hook registration logs are gated behind `CONFIG.debug.hooks`; token movement keys split away from canvas panning keys. See `foundry-vtt-module-dev/references/v14-migration.md`.
 
 ---
 
@@ -27,6 +29,8 @@ Hooks.off("updateActor", myHandler);
 ```
 
 Always store hook IDs when you register inside a class — you'll need them to clean up in `_onClose()` or when your module is disabled.
+
+**Changed in v14:** `Hooks.on` and `Hooks.off` only log to the console when `CONFIG.debug.hooks` is `true`. In v13 they logged on every call. Set `CONFIG.debug.hooks = true` in a macro when you need to trace which hooks fire and in what order.
 
 ---
 
@@ -182,33 +186,55 @@ Hooks.on("preDeleteActor", (actor, options, userId) => {
 
 Fired when any Application renders. The class name is appended to `render` or `get`.
 
+Substitute your own class name for the base class to target one application; the hooks fire once for every class in the inheritance chain, so `renderApplicationV2` fires for every framed app and `renderHeroActorSheet` only for yours.
+
 ```js
-// Fires every time any ActorSheet renders
-Hooks.on("renderActorSheet", (app, html, data) => {
-  // app  — the ApplicationV2 instance
-  // html — the rendered HTML element
-  // data — the context object passed to the template
+// Before the render — v14. Mutate the context before the template sees it.
+Hooks.on("preRenderHeroActorSheet", (app, context, options) => {
+  context.myModuleBadge = app.document.getFlag("my-module", "badge");
+});
+
+// After the render
+Hooks.on("renderActorSheetV2", (app, html, context, options) => {
+  // app     — the ApplicationV2 instance
+  // html    — the rendered HTMLElement
+  // context — the object passed to the template
   html.querySelector(".window-content")?.classList.add("my-module-style");
 });
 
-// Add a custom button to actor sheet headers
-Hooks.on("getActorSheetHeaderButtons", (app, buttons) => {
-  buttons.unshift({
-    label:   "My Tool",
-    class:   "my-module-tool",
-    icon:    "fa-solid fa-wand-magic-sparkles",
-    onclick: () => new MyTool(app.document).render({ force: true })
+// Add an entry to a sheet's header menu — v14 entry shape
+Hooks.on("getHeaderControlsActorSheetV2", (app, controls) => {
+  controls.push({
+    label: "MY_MODULE.Tools.open",
+    icon: "fa-solid fa-wand-magic-sparkles",
+    visible: () => game.user.isGM,
+    onClick: () => new MyTool(app.document).render({ force: true })
   });
 });
 
-// Handle drag-and-drop onto actor sheets
+// Handle drag-and-drop onto sheets
 Hooks.on("dropActorSheetData", (actor, sheet, data) => {
   // data.type — e.g. "Item", "Actor", "Macro"
-  if (data.type === "Item") {
-    console.log(`Item dropped onto ${actor.name}`);
-    // return false to prevent the default handling
-  }
+  if ( data.type === "Item" ) return false;   // false cancels the default handling
 });
+Hooks.on("dropItemSheetData", (item, sheet, data) => { /* v14 */ });
+```
+
+`preRender<Class>` uses `Hooks.callAll`, so returning `false` does not cancel the render. Throw inside `_preRender` if you need to abort. `getHeaderControls<Class>` entries use `label` / `visible` / `onClick` and take an optional `action` naming an entry in the app's `DEFAULT_OPTIONS.actions`. `getApplicationV1HeaderButtons` still exists for appv1 apps and keeps the old `{label, class, icon, onclick}` shape.
+
+### Detached window hooks (v14)
+
+```js
+Hooks.on("openDetachedWindow", (id, win) => {
+  // id  — the window's unique identifier
+  // win — the WindowProxy; write to win.document, not the global document
+});
+Hooks.on("closeDetachedWindow", (id, win) => { /* tear down what you injected */ });
+```
+
+`activateEditorLegacy(editor, options, initialContent)` is also new in v14. It fires when the editor activation button is pressed and exists only to bridge code written for the removed TinyMCE path; it goes away with the appv1 editor.
+
+```js
 
 // React to a specific app rendering — e.g. the settings window
 Hooks.on("renderSettingsConfig", (app, html, data) => {
@@ -255,15 +281,45 @@ Hooks.on("canvasPan", (canvas, position) => {
 });
 
 // Something was dropped onto the canvas
-Hooks.on("canvasDrop", (canvas, event) => {
-  // event is the native DragEvent
-  const data = JSON.parse(event.dataTransfer.getData("text/plain"));
-  console.log("Dropped onto canvas:", data);
+Hooks.on("dropCanvasData", (canvas, data, event) => {
+  // data carries the drag payload plus the canvas {x, y} of the drop
+  // return false to prevent the default handling
+  console.log("Dropped onto canvas:", data.type, data.x, data.y);
 });
+
+// Canvas teardown — v14 passes options describing what comes next
+Hooks.on("canvasTearDown", (canvas, options) => {
+  // options.nextScene — the Scene about to be drawn, or null if going blank
+  // options.nextLevel — the Level about to be drawn, or null
+});
+
+// Layer draw and teardown — v14 added the options argument to both
+Hooks.on("drawLayer", (layer, options) => { });
+Hooks.on("tearDownLayer", (layer, options) => { });   // options is CanvasTearDownOptions
 
 // Highlight objects on the canvas (e.g. during targeting)
 Hooks.on("highlightObjects", (active) => {
   // active: boolean
+});
+
+// Token movement — v14 adds planToken alongside moveToken/stopToken/pauseToken
+Hooks.on("planToken", (document) => {
+  // The token's movement has been planned but not yet committed
+});
+```
+
+### Placeable context menus (v14)
+
+The Document name goes inside the hook name: `getTokenPlaceableContextOptions`, `getWallPlaceableContextOptions`, and so on. `getPlaceableContextOptions` is only the naming template — registering that literal name never fires.
+
+```js
+Hooks.on("getTokenPlaceableContextOptions", (app, entries) => {
+  entries.push({
+    label: "MY_MODULE.Canvas.inspect",
+    icon: "fa-solid fa-magnifying-glass",
+    visible: () => game.user.isGM,
+    onClick: () => canvas.tokens.controlled[0]?.actor?.sheet.render({ force: true })
+  });
 });
 ```
 
@@ -343,6 +399,19 @@ Available modifiers: `"Control"`, `"Shift"`, `"Alt"`, `"Meta"` (Cmd on Mac, Win 
 
 Key codes follow the `KeyboardEvent.code` format: `"KeyA"`, `"Digit1"`, `"Space"`, `"F1"`, `"ArrowUp"`, etc.
 
+### Core bindings that changed in v14
+
+Token movement and canvas panning are now separate bindings. In v13 the `pan*` bindings did both jobs.
+
+| Binding | Default keys | Does |
+|---|---|---|
+| `core.moveUp` / `moveDown` / `moveLeft` / `moveRight` | `W` `S` `A` `D` | Move controlled tokens |
+| `core.moveUpLeft` / `moveUpRight` / `moveDownLeft` / `moveDownRight` | — | Diagonal token movement |
+| `core.ascend` / `core.descend` | `E` / `Q` | Move tokens up and down between Scene Levels |
+| `core.panUp` / `panDown` / `panLeft` / `panRight` (+ diagonals) | Arrows, numpad | Pan the canvas |
+
+If your module rebinds or listens for WASD movement, target the `move*` bindings; `pan*` no longer moves tokens.
+
 ---
 
 ## 8. Settings Registration
@@ -414,6 +483,17 @@ Hooks.once("init", () => {
 ```
 
 `scope: "world"` — stored in the server database. Only GMs can write. All connected clients read the same value.
+
+### Core settings that changed in v14
+
+| Setting | Status |
+|---|---|
+| `core.messageMode` | New. The user's default chat message mode, a key of `CONFIG.ChatMessage.modes`. Client scope. |
+| `core.rollMode` | Deprecated until v16. Reads and writes proxy to `core.messageMode` through `Roll._mapLegacyRollMode`. |
+| `core.gridTemplates` | Deprecated until v16, no replacement. MeasuredTemplate is gone; see `foundry-vtt-module-dev/references/measured-templates.md`. |
+| `core.coneTemplateType` | Deprecated until v16, no replacement. |
+
+Reading either deprecated setting logs a compatibility warning.
 `scope: "client"` — stored in `localStorage`. Each player has their own value. GMs cannot override other players' settings.
 
 ---
@@ -456,7 +536,7 @@ Hooks.once("init", () => {
     label:      "MY_MODULE.Settings.advancedConfig.label",   // button text
     hint:       "MY_MODULE.Settings.advancedConfig.hint",
     icon:       "fa-solid fa-cog",
-    type:       AdvancedConfigApp,   // ApplicationV2 class to open
+    type:       AdvancedConfigApp,   // ApplicationV2 subclass to open
     restricted: true                 // true = GM only
   });
 });
@@ -509,7 +589,7 @@ The submenu's backing settings (`specialMode`, `debugLevel`, `customEndpoint`) s
 
 ## 11. DataModel-Backed Settings
 
-v13 supports using a `DataModel` subclass as the `type` in `game.settings.register()`. This replaces JSON-stringified objects with validated, typed, auto-migrated structured settings.
+A `DataModel` subclass works as the `type` in `game.settings.register()`. This replaces JSON-stringified objects with validated, typed, auto-migrated structured settings.
 
 ### Define a settings DataModel
 
@@ -554,7 +634,17 @@ await game.settings.set("my-module", "config", { difficulty: "hard" });
 // Other fields (showTooltips, maxPartySize, customColor) are unchanged
 ```
 
-The DataModel validates all data on set — invalid values throw before saving. The `default: {}` uses the model's `initial` values for each field.
+The DataModel validates all data on set — invalid values throw before saving. The `default: {}` uses the model's `initial` values for each field. A single `DataField` also works as `type`, which is how core registers `core.messageMode`:
+
+```js
+game.settings.register("my-module", "mode", {
+  scope: "client",
+  config: false,
+  type: new foundry.data.fields.StringField({ required: true, blank: false, initial: "public" })
+});
+```
+
+**Changed in v14:** validation calls `type.validate(value, {fallback: false, strict: true})`, so a bad value throws a `DataModelValidationError` directly instead of the older two-step failure check.
 
 ---
 

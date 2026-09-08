@@ -1,8 +1,16 @@
 // --- Custom Item ---
 export class MySystemItem extends Item {
   // --- Roll ---
-  async roll() {
-    const formula = this.system.formula ?? this.system.damage;
+  /**
+   * Roll this item's formula to chat.
+   * @param {object} [options]
+   * @param {string} [options.messageMode]  A key of CONFIG.ChatMessage.modes
+   *   ("public", "gm", "blind", "self", ...). Defaults to the user's
+   *   core.messageMode setting. v13 `rollMode` is deprecated until v16.
+   * @returns {Promise<Roll|null>}
+   */
+  async roll({ messageMode } = {}) {
+    const formula = this.system.formula || this.system.damage;
     if (!formula) {
       ui.notifications.warn(`${this.name} has no roll formula.`);
       return null;
@@ -15,17 +23,21 @@ export class MySystemItem extends Item {
     await roll.evaluate();
 
     // --- Send to Chat ---
-    roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-      flavor: this.name,
-    });
+    await roll.toMessage(
+      {
+        speaker: ChatMessage.getSpeaker({ actor: this.actor }),
+        flavor: this.name,
+      },
+      { messageMode }
+    );
 
     return roll;
   }
 
   // --- Roll Data ---
   getRollData() {
-    const data = super.getRollData();
+    // Item#getRollData returns the live system model; copy before merging.
+    const data = { ...super.getRollData() };
 
     // --- Merge Actor Roll Data ---
     if (this.actor) {

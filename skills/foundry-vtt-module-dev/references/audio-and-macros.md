@@ -1,12 +1,18 @@
 # Audio & Macros
 
-Deep reference for Foundry VTT v13's AudioHelper, Playlists, and Macro/Hotbar APIs.
+Deep reference for Foundry VTT v14's AudioHelper, Playlists, and Macro/Hotbar APIs.
 
 ---
 
 ## 1. AudioHelper
 
-`game.audio` is the singleton `AudioHelper` instance for all audio playback.
+`game.audio` is the singleton `AudioHelper` instance for all audio playback. The class lives at `foundry.audio.AudioHelper`; the bare `AudioHelper` global was a v12 shim and is gone in v14, so import or alias it:
+
+```js
+const { AudioHelper, Sound } = foundry.audio;
+```
+
+**Changed in v14:** `client/audio` is otherwise stable. The removed v12 shims are `AudioHelper#getCache/setCache/updateCache` (use `game.audio.buffers`, an `AudioBufferCache`), `Sound#on/off/emit` (use `addEventListener/removeEventListener/dispatchEvent`), `Sound#container/node/loadState` (`sourceNode`, `Sound.STATES`), `AudioContainer.LOAD_STATES`, and positional arguments to `Sound#play` (pass an options object). Positional sounds now default their elevation to `canvas.level.elevation.base` instead of `0`.
 
 ### Play locally (current user only)
 
@@ -21,25 +27,26 @@ const sound = await game.audio.play("modules/my-module/sounds/boom.wav", {
 
 ```js
 // Play on ALL connected clients
-AudioHelper.play({
+foundry.audio.AudioHelper.play({
   src: "modules/my-module/sounds/boom.wav",
   volume: 0.8,
   loop: false,
-  autoplay: true,
   channel: "interface"    // "interface", "environment", or "music"
 }, true);                 // true = broadcast to all clients
 
 // Play on specific clients
-AudioHelper.play({ src: "sounds/alert.wav", volume: 1.0 }, {
+foundry.audio.AudioHelper.play({ src: "sounds/alert.wav", volume: 1.0 }, {
   recipients: [userId1, userId2]
 });
 ```
+
+`AudioHelper.play` returns the local `Sound`, or nothing when you pass `autoplay: false` (the sound is still broadcast).
 
 ### Preload
 
 ```js
 // Preload a sound for faster playback later
-const sound = await AudioHelper.preloadSound("modules/my-module/sounds/ambient.mp3");
+const sound = await foundry.audio.AudioHelper.preloadSound("modules/my-module/sounds/ambient.mp3");
 ```
 
 ### Create a Sound instance
@@ -47,12 +54,20 @@ const sound = await AudioHelper.preloadSound("modules/my-module/sounds/ambient.m
 ```js
 // Create without playing
 const sound = game.audio.create({ src: "modules/my-module/music/theme.mp3" });
-// Later: sound.play(), sound.pause(), sound.stop()
+await sound.load();
+await sound.play({ fade: 500, loop: true, offset: 0 });   // SoundPlaybackOptions object
+await sound.fade(0, { duration: 1000 });
+await sound.stop();
+
+// Lifecycle events (EventEmitterMixin) — states in Sound.STATES
+sound.addEventListener("end", () => console.log("finished"));
 ```
 
 ### Volume helpers
 
 ```js
+const { AudioHelper } = foundry.audio;
+
 // Convert slider value (0-1) to perceptual volume
 const volume = AudioHelper.inputToVolume(sliderValue, 1.5);
 
@@ -72,6 +87,19 @@ game.audio.interface;     // UI sounds, dice rolls
 game.audio.environment;   // Ambient environmental sounds
 game.audio.music;         // Background music
 ```
+
+### Positional sound
+
+```js
+const { Sound } = foundry.audio;
+const sound = new Sound("modules/my-module/sounds/thunder.ogg", { context: game.audio.environment });
+await sound.load();
+await sound.playAtPosition({ x: 3200, y: 2400 }, 30, { volume: 0.8 });
+```
+
+`Sound#playAtPosition(origin, radius, options)` attenuates by distance and walls; `radius` is in scene distance units, not pixels. `origin` takes `{x, y, elevation}`; when you omit `elevation` it falls back to `canvas.level.elevation.base`, the bottom elevation of the active Scene Level (see `foundry-vtt-module-dev/references/scene-levels.md`).
+
+The VFX framework wraps the same call in a serializable component, `VFXPositionalSoundComponent` (`type: "positionalSound"`), with `angle`, `rotation`, `gmAlways`, `baseEffect`, `muffledEffect`, `fade`, `duration` and `channel` fields. VFX is experimental and off by default (`CONFIG.Canvas.vfx.enabled`).
 
 ### Unlock requirement
 
@@ -114,8 +142,9 @@ await playlist.playAll();
 // Stop all
 await playlist.stopAll();
 
-// Play next (sequential mode)
-await playlist.playNext(playlist.sounds.first());
+// Play next (sequential or shuffle mode) — finds the playing sound itself
+await playlist.playNext();
+await playlist.playNext(soundId, { direction: -1 });   // step backwards
 
 // Update playing state
 await playlist.update({ playing: true });
@@ -151,11 +180,19 @@ Hooks.on("updatePlaylistSound", (sound, changes, options, userId) => {
 });
 ```
 
+The Playlist and PlaylistSound APIs did not change in v14.
+
 ---
 
 ## 3. Macros
 
 Macros are documents that store executable commands. They can be dragged to the hotbar for quick access.
+
+**Changed in v14:** `Macro#author` is nullable. A macro whose author was deleted keeps `author: null` instead of a dangling user id, and `Macro#_preCreate` only stamps the author when a user is in context. Guard reads of `macro.author`:
+
+```js
+const authorName = macro.author?.name ?? "Unknown";
+```
 
 ### Create a macro
 
@@ -194,7 +231,12 @@ if (macro) await macro.execute();
 // Execute by name
 const macro = game.macros.getName("Quick Attack");
 if (macro) await macro.execute();
+
+// Script macros receive a scope object, exposed as named variables inside the command
+await macro.execute({ actor, token, speaker: ChatMessage.getSpeaker({ actor }), event });
 ```
+
+`Macro#execute` returns nothing when `canExecute` is false (it warns instead of throwing). For script macros the scope must be a plain object; `speaker`, `actor`, `token` and `event` are the documented keys.
 
 ### Assign to hotbar
 

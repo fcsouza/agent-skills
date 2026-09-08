@@ -1,9 +1,18 @@
 /**
- * my-system — entry point.
+ * my-system — entry point (Foundry VTT v14).
  *
  * Production pattern: import each subdirectory as a namespace via barrel
  * (_module.mjs) files, expose the system API on `globalThis.mySystem`, and
  * stage initialization across init / i18nInit / setup / ready hooks.
+ *
+ * Type declarations: `documentTypes` in system.json plus the TypeDataModel
+ * classes in data/ are the source of truth. template.json is deprecated since
+ * v14 and support ends in v16; a new system ships without it. The copy here
+ * lists type names only, for legacy tooling. Note the cost of keeping it: the
+ * server rebuilds `documentTypes[Doc][subtype]` from template.json's
+ * document-level block, so htmlFields and filePathFields declared per subtype
+ * in system.json are dropped unless template.json repeats them. Delete the file
+ * and that stops. Never put field defaults in it.
  *
  * See references/production-patterns.md for the full rationale.
  */
@@ -52,13 +61,17 @@ Hooks.once("init", () => {
     decimals: 0,
   };
 
-  // v13: legacy effect transferral off — use allApplicableEffects()
-  CONFIG.ActiveEffect.legacyTransferral = false;
+  // Status effects: v14 indexes CONFIG.statusEffects by id. Assign by key to
+  // add or replace one entry; `delete CONFIG.statusEffects.dead` removes one.
+  // Assigning a whole array still works but is deprecated since v14.
+  CONFIG.statusEffects.exhausted = {
+    id: "exhausted",
+    name: "MY_SYSTEM.StatusExhausted",
+    img: "icons/svg/downgrade.svg",
+  };
 
-  // Sheet Registration (v13 namespaced collections)
-  foundry.documents.collections.Actors.unregisterSheet("core", foundry.appv1.sheets.ActorSheet);
-  foundry.documents.collections.Items.unregisterSheet("core", foundry.appv1.sheets.ItemSheet);
-
+  // Sheet Registration. Core registers no default Actor or Item sheet in v14,
+  // so there is nothing to unregister; register the system sheets directly.
   foundry.documents.collections.Actors.registerSheet(SYSTEM_ID, sheets.CharacterSheet, {
     types: ["character"],
     makeDefault: true,
@@ -71,20 +84,42 @@ Hooks.once("init", () => {
 });
 
 // --- i18nInit: translate static CONFIG strings before any sheet renders ---
+// `_loc` is the v14 global alias for game.i18n.localize.
 Hooks.once("i18nInit", () => {
   for (const ability of Object.values(CONFIG.MY_SYSTEM.abilities ?? {})) {
-    ability.label = game.i18n.localize(ability.label);
+    ability.label = _loc(ability.label);
   }
   for (const [key, value] of Object.entries(CONFIG.MY_SYSTEM.damageTypes ?? {})) {
-    CONFIG.MY_SYSTEM.damageTypes[key] = game.i18n.localize(value);
+    CONFIG.MY_SYSTEM.damageTypes[key] = _loc(value);
   }
 });
 
 // --- setup: enrichers, macros, packs ---
 Hooks.once("setup", () => {
   console.log(`${SYSTEM_ID} | setup`);
-  // Custom enrichers, hotbarDrop handlers, etc. go here.
 });
+
+// --- hotbarDrop: create a roll macro when an owned Item is dropped on the hotbar ---
+Hooks.on("hotbarDrop", (hotbar, data, slot) => {
+  if (data.type !== "Item") return true;
+  createItemMacro(data, slot);
+  return false; // handled
+});
+
+async function createItemMacro(data, slot) {
+  const item = await fromUuid(data.uuid);
+  if (!item?.isEmbedded) return;
+  const command = `const item = await fromUuid("${item.uuid}");\nif (item) await item.roll();`;
+  let macro = game.macros.find((m) => m.name === item.name && m.command === command);
+  macro ??= await Macro.create({
+    name: item.name,
+    type: "script",
+    img: item.img,
+    command,
+    flags: { [SYSTEM_ID]: { itemMacro: true } },
+  });
+  await game.user.assignHotbarMacro(macro, slot);
+}
 
 // --- ready: migrations, socket listeners, GM-only side effects ---
 Hooks.once("ready", async () => {

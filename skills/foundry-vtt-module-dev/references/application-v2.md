@@ -1,6 +1,8 @@
 # Application Framework (v2)
 
-Deep reference for Foundry VTT v13's ApplicationV2 UI framework.
+Deep reference for Foundry VTT v14's ApplicationV2 UI framework.
+
+**Changed in v14:** applications can detach into their own browser window (§12), `preRender<Class>` hooks fire before every render, header controls use the `label/visible/onClick` entry shape, `_getFrameButtons` adds header buttons, `_insertElement` is async, and the `bringToTop` shim is gone (use `bringToFront`). Sheets gain built-in drag-drop (§9). See `foundry-vtt-module-dev/references/v14-migration.md` for the full list.
 
 ---
 
@@ -39,11 +41,18 @@ class MyWindow extends foundry.applications.api.ApplicationV2 {
 ### Lifecycle
 
 ```
-_preRender(context, options)    → async, can cancel render by throwing
+_preFirstRender(context, options) → async, first render only
+_preRender(context, options)    → async, can cancel render by throwing; fires the preRender<Class> hook
 _renderHTML(context, options)   → returns HTMLElement (or HTML string)
 _replaceHTML(result, content)   → inserts rendered HTML into the window
-_onRender(context, options)     → sync, DOM is ready (native HTMLElement, NOT jQuery), attach listeners here
+_insertElement(element, options) → async (v14), puts the element in the host document
+_onFirstRender(context, options) → async, first render only
+_onRender(context, options)     → async, DOM is ready (native HTMLElement, NOT jQuery), attach listeners here
 ```
+
+Hooks fire for every class in the inheritance chain: `preRenderApplicationV2`, `preRenderMyApp`, then `renderApplicationV2`, `renderMyApp`. Both use `Hooks.callAll`, so returning `false` from a hook does not cancel the render — throw inside `_preRender` instead.
+
+Detach lifecycle (v14): `_onDetach(from, to)` runs after the app moves into its own browser window and `_onAttach(from, to)` after it returns. `from`/`to` are `Document` objects. See §12.
 
 Closing lifecycle:
 ```
@@ -76,7 +85,12 @@ class InfoWindow extends foundry.applications.api.ApplicationV2 {
 // Open it
 const win = new InfoWindow();
 win.render({ force: true });
+
+// Find open instances of a class (v14)
+for (const app of InfoWindow.instances()) app.bringToFront();
 ```
+
+`ApplicationV2.instances()` is a static generator over `foundry.applications.instances` filtered by `instanceof`. `bringToFront()` raises the z-index; the old `bringToTop` alias was removed in v14.
 
 ---
 
@@ -157,8 +171,10 @@ class HeroActorSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
     position: { width: 680, height: 720 },
     form: {
       submitOnChange: true,   // auto-submit when any input changes
-      closeOnSubmit: false
-    }
+      closeOnSubmit: false    // there is no submitOnClose in ApplicationV2
+    },
+    canImport: true,          // "Import" frame button when viewing a compendium document (default true)
+    ownershipConfig: true     // "Configure Ownership" header control for GMs (default true)
   };
 
   static PARTS = {
@@ -183,7 +199,7 @@ class HeroActorSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
       armorClass:    system.armorClass,
       isEditable:    this.isEditable,       // false if user lacks Owner permission
       isGM:          game.user.isGM,
-      enrichedBiography: await TextEditor.enrichHTML(system.biography, {
+      enrichedBiography: await foundry.applications.ux.TextEditor.implementation.enrichHTML(system.biography, {
         relativeTo: actor,
         rollData: actor.getRollData()
       })
@@ -194,6 +210,10 @@ class HeroActorSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
 
 `this.isEditable` is automatically `false` when the current user doesn't have Owner permission — use this to disable inputs in your template.
 
+`DocumentSheetV2` options beyond the base class: `viewPermission`, `editPermission`, `canCreate`, `canImport`, `sheetConfig`, `ownershipConfig`. Its default header controls are Detach, Attach (inherited), Configure Sheet and Configure Ownership; frame buttons are Copy UUID and, for compendium documents, Import.
+
+`submitOnClose` is an appv1 option. ApplicationV2 ignores it — use `submitOnChange: true` if you need edits to persist without an explicit save.
+
 ---
 
 ## 4. Registering Sheets
@@ -202,6 +222,8 @@ Register sheets in the `init` hook. The `types` array must match strings declare
 
 ```js
 Hooks.once("init", () => {
+  const { Actors, Items } = foundry.documents.collections;
+
   // Register Actor sheets
   Actors.registerSheet("my-module", HeroActorSheet, {
     types:       ["hero"],
@@ -374,10 +396,13 @@ const result = await foundry.applications.api.DialogV2.wait({
       callback: () => "flee"
     }
   ],
-  close: () => null    // resolves to null if dialog is closed without choosing
+  close: () => null,   // resolves to null if dialog is closed without choosing
+  renderOptions: { window: { detached: true } }   // v14: forwarded to dialog.render()
 });
 console.log("Player chose:", result);
 ```
+
+`renderOptions` (v14) is spread into the `render()` call, so any `RenderOptions` key works — `window.detached: true` opens the dialog in its own browser window. `rejectClose: true` makes the promise reject instead of resolving `null` on dismiss.
 
 ---
 
@@ -411,6 +436,16 @@ class HeroActorSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
     }
     return data;
   }
+}
+```
+
+On `DocumentSheetV2` the default form handler calls `_processSubmitData(event, form, submitData, options)`, which updates an existing document or creates a new one. Since v14 it returns `{updated}` or `{created}` (or `{}` when nothing changed) so overrides can tell which happened:
+
+```js
+async _processSubmitData(event, form, submitData, options) {
+  const result = await super._processSubmitData(event, form, submitData, options);
+  if (result.created) ui.notifications.info(`Created ${result.created.name}`);
+  return result;
 }
 ```
 
@@ -508,33 +543,32 @@ Key conventions:
 - `data-action="..."` on buttons to wire the Actions system.
 - `data-*` attributes on elements to pass context to action handlers.
 - `name="system.field.path"` on inputs for automatic form submission.
-- `<prose-mirror>` for rich text fields (v13).
+- `<prose-mirror>` for rich text fields.
 - `{{#each}} ... {{else}} ... {{/each}}` for graceful empty states.
 
 ---
 
 ## 9. Drag & Drop
 
-`ActorSheetV2` provides built-in drag-drop infrastructure. Override the `_onDrop*` methods to customize what happens when documents are dropped onto your sheet.
+`ActorSheetV2` and `ItemSheetV2` ship a built-in `DragDrop` instance (v14). The `_dragDrop` getter creates it lazily with `dragSelector: ".draggable"`, permission callbacks `_canDragStart(selector)` / `_canDragDrop(selector)`, and event callbacks `_onDragStart(event)` / `_onDragOver(event)` / `_onDrop(event)`. `_onRender` binds it to `this.element`. Override the `_onDrop*` methods to customize what happens when documents are dropped onto your sheet.
+
+The drop pipeline resolves the payload to a document before calling the type handler: `_onDrop(event)` reads the drag data, fires the `dropActorSheetData` (or `dropItemSheetData`) hook, resolves `documentClass.fromDropData(data)`, then calls `_onDropDocument(event, document)`, which dispatches to `_onDropItem(event, item)`, `_onDropActor(event, actor)`, `_onDropActiveEffect(event, effect)` or `_onDropFolder(event, folder)`. The second argument is the resolved document, not the raw drag data.
 
 ### Override _onDropItem to filter drops
 
 ```js
 class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   // Only accept specific item types
-  async _onDropItem(event, data) {
-    const item = await fromUuid(data.uuid);
-    if (!item) return;
-
+  async _onDropItem(event, item) {
     // Reject items that don't belong on this actor type
     const allowedTypes = ["weapon", "armor", "consumable"];
     if (!allowedTypes.includes(item.type)) {
       ui.notifications.warn(`Cannot add ${item.type} items to this actor.`);
-      return;
+      return null;
     }
 
-    // Call super to handle the default drop behavior
-    return super._onDropItem(event, data);
+    // Call super to handle the default drop behavior (sort or create)
+    return super._onDropItem(event, item);
   }
 }
 ```
@@ -542,10 +576,7 @@ class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 ### Transfer items between actors
 
 ```js
-async _onDropItem(event, data) {
-  const item = await fromUuid(data.uuid);
-  if (!item) return;
-
+async _onDropItem(event, item) {
   // If the item belongs to a different actor, transfer it
   const sourceActor = item.parent;
   if (sourceActor && sourceActor.id !== this.document.id) {
@@ -556,7 +587,18 @@ async _onDropItem(event, data) {
     return newItem;
   }
 
-  return super._onDropItem(event, data);
+  return super._onDropItem(event, item);
+}
+```
+
+### ActiveEffect drops
+
+Both sheets implement `_onDropActiveEffect(event, effect)`: it creates a copy of the effect on the actor or item unless the effect already belongs there. Override it to reject or transform effects:
+
+```js
+async _onDropActiveEffect(event, effect) {
+  if (effect.type !== "base") return null;   // v14: effects have subtypes
+  return super._onDropActiveEffect(event, effect);
 }
 ```
 
@@ -592,7 +634,7 @@ Handle custom drop zones by overriding `_onDrop` and checking the target:
 async _onDrop(event) {
   const target = event.target.closest("[data-drop-target]");
   if (target?.dataset.dropTarget === "equipment") {
-    const data = TextEditor.getDragEventData(event);
+    const data = foundry.applications.ux.TextEditor.implementation.getDragEventData(event);
     const item = await fromUuid(data.uuid);
     if (item?.type === "armor") {
       const slot = target.dataset.slot;
@@ -606,13 +648,17 @@ async _onDrop(event) {
 
 ### Hooks for drop events
 
-The `dropActorSheetData` hook fires after the sheet handles a drop. Use it to react to drops from other modules:
+The `dropActorSheetData(actor, sheet, data)` hook fires before the sheet resolves a drop; `dropItemSheetData(item, sheet, data)` (v14) does the same for `ItemSheetV2`. Both use `Hooks.call`, so returning `false` cancels the default handling:
 
 ```js
 Hooks.on("dropActorSheetData", (actor, sheet, data) => {
   if (data.type === "JournalEntry") {
     console.log(`Journal "${data.uuid}" dropped onto ${actor.name}`);
   }
+});
+
+Hooks.on("dropItemSheetData", (item, sheet, data) => {
+  if (data.type === "ActiveEffect" && item.type === "consumable") return false;
 });
 ```
 
@@ -676,33 +722,33 @@ Foundry sets a single string on `event.dataTransfer` under the `application/json
 Read it consistently:
 
 ```javascript
+const TextEditor = foundry.applications.ux.TextEditor.implementation;
 const data = TextEditor.getDragEventData(event);
 // => { type: "Item", uuid: "..." }
 const doc = await fromUuid(data.uuid);
 ```
 
-`TextEditor.getDragEventData` handles the JSON parse, MIME fallback, and base64 edge cases. Always use it instead of `event.dataTransfer.getData` directly.
+`TextEditor.getDragEventData` handles the JSON parse, MIME fallback, and base64 edge cases. Always use it instead of `event.dataTransfer.getData` directly. Documents produce this payload with `document.toDragData()`.
 
-### Per-Document-Type Drop Hooks
+### Per-Document-Type Drop Handlers
 
-`DocumentSheetV2` calls type-specific handlers before the generic `_onDrop` — override the one you need:
+`ActorSheetV2#_onDrop` resolves the payload and dispatches through `_onDropDocument(event, document)` — override the handler you need:
 
 | Override | Fires when |
 |---|---|
-| `_onDropItem(event, data)` | An Item document is dropped |
-| `_onDropActor(event, data)` | An Actor is dropped |
-| `_onDropFolder(event, data)` | A Folder of documents is dropped |
-| `_onDropActiveEffect(event, data)` | An ActiveEffect is dropped |
-| `_onDrop(event)` | Fallback — fires for everything else |
+| `_onDropItem(event, item)` | An Item document is dropped |
+| `_onDropActor(event, actor)` | An Actor is dropped (default: no-op) |
+| `_onDropFolder(event, folder)` | A Folder of documents is dropped (default: no-op) |
+| `_onDropActiveEffect(event, effect)` | An ActiveEffect is dropped |
+| `_onDrop(event)` | Entry point — override for non-document payloads |
 
-Returning a falsy value from a type-specific handler skips the rest of the drop pipeline.
+`ItemSheetV2` only dispatches `_onDropActiveEffect`; everything else resolves to `null`. Each handler returns the resulting document, or `null` when it took no action.
 
 ### Folder Drops (Multi-Document Import)
 
 ```javascript
-async _onDropFolder(event, data) {
-  const folder = await fromUuid(data.uuid);
-  if (folder.type !== "Item") return false; // wrong document kind
+async _onDropFolder(event, folder) {
+  if (folder.type !== "Item") return null; // wrong document kind
   const items = folder.contents.map(i => i.toObject());
   await this.document.createEmbeddedDocuments("Item", items);
   ui.notifications.info(`Imported ${items.length} items from "${folder.name}".`);
@@ -728,18 +774,20 @@ The hook receives `{ x, y }` in canvas (world) coordinates already. Return `fals
 
 ### Drag Sources Inside a Sheet
 
-Make sheet items draggable so users can drag from one sheet to another, or to the hotbar:
+Make sheet items draggable so users can drag from one sheet to another, or to the hotbar. On `ActorSheetV2` the built-in `DragDrop` already watches `.draggable` elements and the default `_onDragStart` reads `data-item-id` / `data-effect-id` from the drag target:
 
 ```hbs
-<li class="item" draggable="true" data-item-id="{{item.id}}">
+<li class="item draggable" draggable="true" data-item-id="{{item.id}}">
   {{item.name}}
 </li>
 ```
 
+For a plain `ApplicationV2` (no sheet base class), build the `DragDrop` yourself:
+
 ```javascript
-_onRender(context, options) {
-  super._onRender(context, options);
-  const dragDrop = new DragDrop({
+async _onRender(context, options) {
+  await super._onRender(context, options);
+  const dragDrop = new foundry.applications.ux.DragDrop.implementation({
     dragSelector: ".item[draggable='true']",
     dropSelector: ".inventory",
     permissions: {
@@ -791,10 +839,9 @@ The setTimeout is required — the browser snapshots the element on the next fra
 The basic example in section 9 transfers an item between actors but leaves a race condition: if `createEmbeddedDocuments` succeeds and `deleteEmbeddedDocuments` fails (network, permissions), the item is duplicated. Sequence them and roll back on failure:
 
 ```javascript
-async _onDropItem(event, data) {
-  const item = await fromUuid(data.uuid);
-  if (!item?.parent || item.parent.id === this.document.id) {
-    return super._onDropItem(event, data);
+async _onDropItem(event, item) {
+  if (!item.parent || item.parent.id === this.document.id) {
+    return super._onDropItem(event, item);
   }
   let created;
   try {
@@ -938,3 +985,64 @@ Hooks.on("refreshToken", (token) => {
 ```
 
 The flag de-duplicates multiple hook fires per frame.
+
+---
+
+## 12. Header Controls, Frame Buttons and Detached Windows (v14)
+
+### Header controls
+
+The `window.controls` array feeds the "⋯" menu in the window header. Each entry is an `ApplicationHeaderControlsEntry`: a `ContextMenuEntry` (`label`, `icon`, `visible`, `onClick`) plus an `action` name that maps to `DEFAULT_OPTIONS.actions`. `DocumentSheetV2` entries may also set `ownership` to hide the control below a `CONST.DOCUMENT_OWNERSHIP_LEVELS` value.
+
+```js
+static DEFAULT_OPTIONS = {
+  window: {
+    controls: [{
+      icon: "fa-solid fa-file-export",
+      label: "MY_MODULE.Export",        // localized for you
+      action: "export",
+      visible: function () { return game.user.isGM; }   // called with `this` = the app
+    }]
+  },
+  actions: { export: MyApp.#onExport }
+};
+```
+
+**Changed in v14:** entries use `label` / `visible` / `onClick`; the v13 names `name` / `condition` / `callback` are deprecated until v16. `DEFAULT_OPTIONS` arrays concatenate along the inheritance chain, so every app inherits the core "Detach" and "Attach" controls. Override `_getHeaderControls()` to filter them, or listen to the `getHeaderControls<Class>` hook (`(app, controls)`) to edit another app's menu.
+
+### Frame buttons
+
+`_getFrameButtons(options)` returns entries rendered as icon buttons directly in the header, next to the close button (template `templates/generic/frame-buttons.hbs`). Core prefers header controls; use frame buttons for one or two high-traffic actions. `DocumentSheetV2` adds "Copy UUID" and, when `canImport` applies, "Import" this way.
+
+```js
+_getFrameButtons(options) {
+  const buttons = super._getFrameButtons(options);
+  buttons.push({ icon: "fa-solid fa-dice-d20", label: "MY_MODULE.RollAll", action: "rollAll" });
+  return buttons;
+}
+```
+
+### Detached windows
+
+Any framed application can move into its own browser window. Users pick "Detach" from the header menu; code can do the same:
+
+```js
+await app.detachWindow();                 // render({ window: { detached: true } })
+await app.attachWindow();                 // back into the main workspace
+await app.renderChild(childApp);          // render childApp in the same window as app
+app.parent;                               // ApplicationV2|null, set by renderChild
+app.children;                             // Map<string, ApplicationV2>
+app.window.windowId;                      // id of the hosting detached window, undefined when attached
+```
+
+Behaviour:
+- `renderChild` keeps the child in the parent's window; it follows the parent on detach/attach, and closing the parent closes the child.
+- `detachWindow()` on a child breaks the parent link; `attachWindow()` first tries to rejoin the prior parent.
+- `_canDetach()` / `_canAttach()` gate the default controls. Override them to opt out (return `false` from `_canDetach`).
+- `_onDetach(from, to)` and `_onAttach(from, to)` run after the move.
+- `_refit(positionUpdate)` re-measures a non-resizable app after its content changes; in a detached window it also resizes the browser window.
+- `render({ window: { windowId } })` targets an existing detached window.
+
+Write DOM code against `this.element.ownerDocument` rather than the global `document` — the app may not live in the main page. Custom elements that can be adopted across documents should extend `foundry.applications.elements.AdoptableHTMLElement` (all core form elements do) so Firefox keeps their prototype.
+
+`foundry.applications.detached` is the `DetachedWindowManager` singleton: `windows` (Map of open windows), `focused`, `openWindow({id, position, timeout, source})`, `checkEmpty(win)`, `adoptNodes`, `importNodes`, `copyAttributes`, `querySelector(selector)` / `querySelectorAll(selector)` across every window. Hooks `openDetachedWindow(id, win)` and `closeDetachedWindow(id, win)` fire when windows open and close. The popup loads `templates/detached/index.html`, and `Game#configureUI` copies theme attributes onto each detached window's `<html>`/`<body>`.

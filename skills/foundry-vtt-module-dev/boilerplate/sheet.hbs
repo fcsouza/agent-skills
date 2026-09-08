@@ -1,5 +1,5 @@
 {{!-- Actor Sheet — Body Part --}}
-{{!-- Rendered as modules/my-module/templates/actor-body.hbs --}}
+{{!-- Rendered as modules/my-module/templates/sheet.hbs --}}
 
 <form class="hero-sheet-body sheet-body" autocomplete="off">
 
@@ -13,17 +13,13 @@
              name="name"
              value="{{actor.name}}"
              placeholder="{{localize "MY_MODULE.hero.namePlaceholder"}}"
-             {{unless isEditable disabled=true}}>
+             {{disabled (not isEditable)}}>
     </div>
 
     <div class="form-group">
       <label>{{localize "MY_MODULE.hero.class"}}</label>
-      <select name="system.characterClass" {{unless isEditable disabled=true}}>
-        {{#each classChoices as |label key|}}
-          <option value="{{key}}" {{selected key ../system.characterClass}}>
-            {{localize label}}
-          </option>
-        {{/each}}
+      <select name="system.characterClass" {{disabled (not isEditable)}}>
+        {{selectOptions classChoices selected=system.characterClass}}
       </select>
     </div>
 
@@ -35,7 +31,7 @@
                value="{{system.health}}"
                min="0"
                max="{{system.maxHealth}}"
-               {{unless isEditable disabled=true}}>
+               {{disabled (not isEditable)}}>
         <span class="sep">/</span>
         <span class="max-value">{{system.maxHealth}}</span>
       </div>
@@ -49,7 +45,7 @@
                value="{{system.mana}}"
                min="0"
                max="{{system.maxMana}}"
-               {{unless isEditable disabled=true}}>
+               {{disabled (not isEditable)}}>
         <span class="sep">/</span>
         <span class="max-value">{{system.maxMana}}</span>
       </div>
@@ -76,7 +72,7 @@
                  min="1"
                  max="20"
                  class="ability-score"
-                 {{unless ../isEditable disabled=true}}>
+                 {{disabled (not ../isEditable)}}>
 
           <span class="ability-mod">
             {{#if (gte ability.mod 0)}}+{{/if}}{{ability.mod}}
@@ -86,7 +82,7 @@
                   class="ability-roll"
                   data-action="rollAbility"
                   data-ability="{{ability.key}}"
-                  {{unless ../isOwner disabled=true}}>
+                  {{disabled (not ../isOwner)}}>
             <i class="fa-solid fa-dice-d20"></i>
           </button>
         </div>

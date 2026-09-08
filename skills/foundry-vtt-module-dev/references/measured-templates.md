@@ -1,160 +1,229 @@
-# Measured Templates
+# Templates with Regions
 
-Deep reference for Foundry VTT v13's MeasuredTemplate API — area-of-effect shapes on the canvas.
+Deep reference for area-of-effect templates in Foundry VTT v14.
+
+**Changed in v14: the MeasuredTemplate document is gone.** `common/documents/measured-template.mjs` was deleted. `MeasuredTemplateDocument`, the `MeasuredTemplate` placeable, `TemplateLayer`, `MeasuredTemplateConfig`, `Scene#templates`, `CONST.MEASURED_TEMPLATE_TYPES` and the `TEMPLATE_CREATE` permission are all deprecated since v14 and removed in v16. Templates merged into the Region document.
+
+Write new code against Regions. The sections below cover the Region shape vocabulary, placement, targeting, and a migration recipe.
 
 ---
 
-## 1. Template Document
+## 1. Region shapes
 
-`MeasuredTemplateDocument` is an embedded document on Scene that defines an area-of-effect shape.
+A Region carries a `shapes` array (`foundry.data.fields.ShapesField`). Each entry is a `BaseShapeData` subtype identified by its `type`. `foundry.data.BaseShapeData.TYPES` lists all ten.
 
-### Schema fields
-
-| Field | Type | Purpose |
+| Type | Fields | Notes |
 |---|---|---|
-| `t` | StringField | Shape type: `"circle"`, `"cone"`, `"rect"`, `"ray"` |
-| `direction` | AngleField | Direction angle in degrees |
-| `distance` | NumberField | Radius/length in grid units |
-| `width` | NumberField | Width for `"ray"` and `"rect"` types (grid units) |
-| `angle` | AngleField | Arc angle for `"cone"` type (degrees) |
-| `x` | NumberField | X-coordinate origin (pixels) |
-| `y` | NumberField | Y-coordinate origin (pixels) |
-| `fillColor` | ColorField | Fill color |
-| `borderColor` | ColorField | Border color |
-| `texture` | FilePathField | Texture overlay |
-| `hidden` | BooleanField | Hidden from players |
-| `elevation` | NumberField | Elevation |
-| `flags` | DocumentFlagsField | Module/system flags |
+| `"circle"` | `x, y, radius` | Radius in **pixels** |
+| `"cone"` | `x, y, radius, angle, rotation, curvature` | `curvature` is `"round"`, `"flat"` or `"semicircle"` |
+| `"ellipse"` | `x, y, radiusX, radiusY, rotation` | |
+| `"rectangle"` | `x, y, width, height, anchorX, anchorY, rotation` | `anchorX/anchorY` place the origin inside the rect (0 = top-left) |
+| `"line"` | `x, y, length, width, rotation` | Beam/ray |
+| `"ring"` | `x, y, radius, innerWidth, outerWidth` | |
+| `"emanation"` | `base` (a nested shape), `radius` | Expands the base shape outward by `radius` |
+| `"polygon"` | `points` ([x0,y0,x1,y1,…], min 4), `origin` | Must not self-intersect if filled |
+| `"token"` | `x, y, width, height, shape` | `width/height` in grid spaces; `shape` from `CONST.TOKEN_SHAPES` |
+| `"grid"` | `offsets` (GridOffset2D[]), `origin` | Union of explicit grid spaces |
 
-`rotation` is an alias for `direction`.
+Every shape also has `type`, `hole` (subtract this shape from the others) and, on the geometric types, `rotation`.
 
-### Shape types
+### `gridBased`
 
-| Type | `distance` | `angle` | `width` | Description |
-|---|---|---|---|---|
-| `"circle"` | radius | — | — | Sphere/circle AoE |
-| `"cone"` | length | arc degrees | — | Cone from origin |
-| `"rect"` | length | — | width | Rectangle |
-| `"ray"` | length | — | width | Line/beam |
+All types except `polygon`, `token` and `grid` accept `gridBased: true`. A grid-based shape divides its pixel dimensions by `grid.size`, multiplies by `grid.distance`, then builds the shape using the grid's own metric — the v13 "grid templates" behaviour, now per shape instead of a world setting.
+
+```js
+// 20 ft radius on a 5 ft / 100 px grid
+const radius = canvas.dimensions.distancePixels * 20;
+```
+
+`canvas.dimensions.distancePixels` converts grid units to pixels.
+
+### Shape validation
+
+`ConeShapeData.validateJoint` rejects `angle > 90` with `curvature: "flat"` and `angle > 180` with `curvature: "semicircle"`.
+
+**Changed in v14:** `foundry.data.regionShapes.RegionShape` and its subclasses are deprecated (until v16) in favour of the `*ShapeData` classes above. `RegionPolygonTree`/`RegionPolygonTreeNode` are deprecated aliases of `foundry.data.PolygonTree`/`PolygonTreeNode`, which now live at `client/data/polygon-tree.mjs`.
 
 ---
 
-## 2. Creating Templates
+## 2. Creating a template
 
-### Programmatically
+### Directly as a document
 
 ```js
-const scene = canvas.scene;
+const px = canvas.dimensions.distancePixels;
 
-// Circle (e.g., Fireball — 20ft radius)
-const [circle] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-  t: "circle",
-  x: 800,
-  y: 600,
-  distance: 20,
-  fillColor: "#ff0000",
-  borderColor: "#ff0000"
+// Fireball — 20 ft radius
+const [circle] = await canvas.scene.createEmbeddedDocuments("Region", [{
+  name: "Fireball",
+  color: "#ff4400",
+  shapes: [{ type: "circle", x: 800, y: 600, radius: px * 20 }],
+  elevation: { bottom: 0, top: null },
+  levels: [canvas.level.id],
+  visibility: CONST.REGION_VISIBILITY.ALWAYS,
+  highlightMode: "coverage",
+  displayMeasurements: true
 }]);
 
-// Cone (e.g., Cone of Cold — 60ft cone, 90° arc)
-const [cone] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-  t: "cone",
-  x: 500,
-  y: 300,
-  distance: 60,
-  angle: 90,
-  direction: 45,
-  fillColor: "#00aaff"
+// Cone of Cold — 60 ft, 90 degree arc pointing at 45 degrees
+await canvas.scene.createEmbeddedDocuments("Region", [{
+  name: "Cone of Cold",
+  shapes: [{
+    type: "cone", x: 500, y: 300,
+    radius: px * 60, angle: 90, rotation: 45, curvature: "round"
+  }]
 }]);
 
-// Line (e.g., Lightning Bolt — 100ft line, 5ft wide)
-const [ray] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-  t: "ray",
-  x: 500,
-  y: 300,
-  distance: 100,
-  width: 5,
-  direction: 0,
-  fillColor: "#ffff00"
-}]);
-
-// Rectangle
-const [rect] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-  t: "rect",
-  x: 500,
-  y: 300,
-  distance: 30,
-  width: 15,
-  direction: 0
+// Lightning Bolt — 100 ft long, 5 ft wide
+await canvas.scene.createEmbeddedDocuments("Region", [{
+  name: "Lightning Bolt",
+  shapes: [{ type: "line", x: 500, y: 300, length: px * 100, width: px * 5, rotation: 0 }]
 }]);
 ```
 
-### Via Roll.toMessage with template
+Creating a Region needs the `REGION_CREATE` permission. Only GMs may create a Region that carries behaviors, and `executeScript` behaviors additionally need `MACRO_SCRIPT`.
 
-Some systems auto-create templates from rolls. For custom modules, create the template after the roll:
+### Interactively with `placeRegion`
 
-```js
-const roll = new Roll("8d6");
-await roll.evaluate();
-await roll.toMessage({ flavor: "Fireball Damage" });
-
-// Place the template
-const template = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
-  t: "circle",
-  x: targetX,
-  y: targetY,
-  distance: 20,
-  fillColor: "#ff4400",
-  flags: { "my-module": { spellId: "fireball", damage: roll.total } }
-}]);
-```
-
----
-
-## 3. Interacting with Templates
-
-### Update / Delete
+`RegionLayer#placeRegion(data, options)` gives the user the drag-and-rotate placement flow the old template tool had, then returns the created `RegionDocument` (or `null` if the user cancelled).
 
 ```js
-// Move a template
-await template.update({ x: 900, y: 700 });
-
-// Change size
-await template.update({ distance: 30 });
-
-// Delete
-await template.delete();
-```
-
-### Lifecycle hooks
-
-```js
-Hooks.on("createMeasuredTemplate", (template, options, userId) => {
-  console.log("Template placed:", template.id);
+const region = await canvas.regions.placeRegion({
+  name: "Fireball",
+  shapes: [{ type: "circle", x: 0, y: 0, radius: canvas.dimensions.distancePixels * 20 }],
+  levels: [canvas.level.id]
+}, {
+  create: true,          // false returns an unsaved preview document
+  allowRotation: true,   // mouse wheel rotates the preview
+  onMove: preview => {}, // called as the preview moves
+  preConfirm: preview => true
 });
-
-Hooks.on("preDeleteMeasuredTemplate", (template, options, userId) => {
-  // Return false to cancel deletion
-});
+if ( !region ) return;   // user cancelled
 ```
 
-### Stored flags
+`placeRegions(dataArray, options)` places several at once and returns an array. Both accept `createOptions`, `allowEmpty`, `attachToToken`, `onMove`, `onRotate`, `onChange`, `preConfirm`, `preSkip` and `preCommit`.
 
-Templates support module flags for tracking spell data, damage, or other metadata:
+### Template mode
+
+`canvas.regions.templateMode` is a boolean getter/setter on the Region layer. In template mode the layer presents the shape tools as one-off template placement rather than persistent region editing. It defaults to `true` for non-GM users.
 
 ```js
-const spellData = template.getFlag("my-module", "spellId");
-await template.setFlag("my-module", "damage", 48);
+canvas.regions.templateMode = true;
 ```
 
 ---
 
-## 4. MeasuredTemplateConfig
+## 3. Shape equivalents for old template types
 
-The built-in configuration sheet for templates is `foundry.applications.sheets.MeasuredTemplateConfig`. Users can right-click a template to configure it.
+Core's own converter is `foundry.documents.BaseRegion._migrateMeasuredTemplateData`. It maps as follows.
 
-Modules can render it programmatically:
+| v13 `t` | v14 shape | Conversion |
+|---|---|---|
+| `"circle"` | `{type: "circle", x, y, radius}` | `radius = distance * distancePixels` |
+| `"cone"` | `{type: "cone", x, y, radius, angle, rotation, curvature}` | `rotation = direction`; `curvature` is `"round"` for grid templates or the old round cone type, else `"flat"` |
+| `"ray"` | `{type: "line", x, y, length, width, rotation}` | `length = distance * distancePixels`, `width = width * distancePixels` |
+| `"rect"` | `{type: "rectangle", x, y, width, height, anchorX: 0, anchorY: 0, rotation}` | `rotation` snaps down to the nearest 90 degrees; width/height swap at 90 and 270 |
+
+Old `hidden: true` becomes `visibility: CONST.REGION_VISIBILITY.OBSERVER`; `fillColor` becomes `color`; the template author becomes an `ownership` entry at OWNER.
+
+**Changed in v14:** the `core.gridTemplates` and `core.coneTemplateType` world settings are deprecated. Per-shape `gridBased` and `ConeShapeData#curvature` replace them.
+
+---
+
+## 4. Targeting tokens inside a template
+
+`RegionDocument#tokens` is the live set of tokens the Region contains. For an unsaved preview, test points yourself.
 
 ```js
-new foundry.applications.sheets.MeasuredTemplateConfig(template).render({ force: true });
+// Persisted region
+for ( const token of region.tokens ) game.user.targets.add(token.object);
+
+// Point test — accepts an ElevatedPoint
+const hit = region.testPoint({ x: 150, y: 250, elevation: 5 });
 ```
+
+`Region#highlightMode` controls the on-canvas highlight: `"shapes"` outlines the geometry, `"coverage"` fills the grid spaces the shape covers — the behaviour players expect from a template. `displayMeasurements: true` prints the shape's dimensions on the canvas.
+
+---
+
+## 5. Auras: attaching a region to a token
+
+**New in v14.** A Region can follow a token through `attachment.token`. `RegionDocument.createTokenEmanation` builds one.
+
+```js
+// A 10 ft aura that moves with the token
+await foundry.documents.RegionDocument.createTokenEmanation(
+  token.document,
+  10,                                  // range in grid units
+  { name: "Aura of Protection", color: "#ffcc00" },
+  { excludeToken: false, gridBased: false }
+);
+```
+
+An attached Region must sit in exactly the token's level and share its `hidden` state. `placeRegion(..., {attachToToken: true})` attaches a single-shape Region interactively.
+
+---
+
+## 6. Applying an effect to everything in the area
+
+**New in v14:** the `applyActiveEffect` region behavior. Its schema is a single field, `effects`, a set of ActiveEffect UUIDs. While a token is inside the Region, those effects apply; when it leaves, they lift.
+
+```js
+await region.createEmbeddedDocuments("RegionBehavior", [{
+  name: "Aura of Protection",
+  type: "applyActiveEffect",
+  system: { effects: ["Compendium.my-module.effects.ActiveEffect.abc123"] }
+}]);
+```
+
+For one-shot damage on entry, keep using `executeScript` or `executeMacro` with the `tokenEnter` event.
+
+---
+
+## 7. Migration recipe
+
+Before (v13):
+
+```js
+const [t] = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
+  t: "circle", x, y, distance: 20, fillColor: "#ff0000", hidden: false
+}]);
+const affected = canvas.tokens.placeables.filter(tok => t.object.shape.contains(
+  tok.center.x - t.x, tok.center.y - t.y
+));
+```
+
+After (v14):
+
+```js
+const px = canvas.dimensions.distancePixels;
+const [region] = await scene.createEmbeddedDocuments("Region", [{
+  name: "Fireball",
+  color: "#ff0000",
+  shapes: [{ type: "circle", x, y, radius: px * 20 }],
+  levels: [canvas.level.id],
+  visibility: CONST.REGION_VISIBILITY.ALWAYS,
+  highlightMode: "coverage"
+}]);
+const affected = [...region.tokens];
+```
+
+Checklist:
+
+1. `scene.templates` → `scene.regions`. `Scene#getEmbeddedCollection("MeasuredTemplate")` still works as a shim.
+2. `MeasuredTemplate*` classes and `CONFIG.MeasuredTemplate.layerClass` → Regions and `CONFIG.Canvas.layers.regions.layerClass`.
+3. `CONST.MEASURED_TEMPLATE_TYPES` → `foundry.data.BaseShapeData.TYPES`.
+4. `TEMPLATE_CREATE` permission → `REGION_CREATE`.
+5. Distances in grid units → pixel values (multiply by `canvas.dimensions.distancePixels`), or set `gridBased: true` and keep the grid metric.
+6. `MeasuredTemplate.getCircleShape/getConeShape/getRectShape/getRayShape` → `CircleShapeData`, `ConeShapeData`, `RectangleShapeData`, `LineShapeData`.
+7. Hooks: `createMeasuredTemplate` → `createRegion`; the same `preCreate`/`preUpdate`/`preDelete` pattern applies.
+8. Sheet: `MeasuredTemplateConfig` → `foundry.applications.sheets.RegionConfig`; `foundry.applications.apps.ShapeConfig` edits a single shape.
+
+Flags work the same way:
+
+```js
+await region.setFlag("my-module", "spellId", "fireball");
+const spellId = region.getFlag("my-module", "spellId");
+```
+
+See `foundry-vtt-module-dev/references/regions-and-grid.md` for the full Region schema, behaviors and grid API, and `foundry-vtt-module-dev/references/v14-migration.md` for the wider v13 → v14 checklist.

@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "A Foundry VTT module.",
+  "engines": {
+    "node": ">=24.13.1 <25.0.0"
+  },
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",

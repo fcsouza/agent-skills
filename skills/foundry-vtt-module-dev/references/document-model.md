@@ -1,6 +1,8 @@
 # Document Model
 
-Deep reference for Foundry VTT v13's document and data model system.
+Deep reference for Foundry VTT v14's document and data model system.
+
+**Changed in v14:** new cleaning pipeline (§3b), data operators replace `-=`/`==` keys (§8), `template.json` deprecated (§3), ActiveEffect rewritten (§8b), `Level` and `CombatantGroup` added, `MeasuredTemplate` removed (§13). Full list: `foundry-vtt-module-dev/references/v14-migration.md`.
 
 ---
 
@@ -169,6 +171,42 @@ Stores a serialized JSON string. Useful for module interop or complex nested sta
 exportPayload: new fields.JSONField({ initial: null, nullable: true })
 ```
 
+### TypedObjectField
+
+An object whose keys are free-form but whose values share one field type. Use it for records keyed by id instead of arrays with an `id` element. Core uses it for `TokenDocument#detectionModes` (**changed in v14:** it was an `ArrayField` of `{id, enabled, range}`; it is now keyed by mode id).
+
+```js
+// { basicSight: { enabled: true, range: 30 }, ... }
+detectionModes: new fields.TypedObjectField(new fields.SchemaField({
+  enabled: new fields.BooleanField({ initial: true }),
+  range:   new fields.NumberField({ required: true, min: 0, step: 0.01 })
+}), {
+  validateKey: key => key in CONFIG.Canvas.detectionModes, // optional key predicate
+  expandKeys: false                                        // keep dots in keys literal
+})
+```
+
+### DocumentUUIDField and AnyField
+
+```js
+// A UUID string. relative: true stores UUIDs relative to the owning document when possible.
+origin: new fields.DocumentUUIDField({ relative: true }),
+
+// Any JSON-serializable value. ActiveEffect change values use this.
+value: new fields.AnyField({ required: true, nullable: true, serializable: true, initial: "" })
+```
+
+### Fields added in v14
+
+| Field | Purpose |
+|---|---|
+| `DataModelSchemaField` | The root `SchemaField` of a DataModel (`Model.schema`). Base class of `EmbeddedDataField`. You rarely construct it yourself. |
+| `SceneLevelsSetField` | A `SetField` of `DocumentIdField` naming Scene Levels. Every placeable document has a `levels` field of this type; an empty set means "every level". See `foundry-vtt-module-dev/references/scene-levels.md`. |
+| `ShapesField` | An `ArrayField` of `TypedSchemaField(foundry.data.BaseShapeData.TYPES)`. `RegionDocument#shapes` uses it (circle, cone, ellipse, emanation, grid, line, polygon, rectangle, ring, token). |
+| `GridOffsetField` / `GridOffsetsField` | A `SchemaField` `{i, j}` (or `{i, j, k}` with `dimensions: 3`) and an `ArrayField` of them. Used by `GridShapeData#offsets`. |
+
+`SchemaField` also gained `extendFields(fields)` and `removeFields(names)` for adding to or trimming a schema after definition. Core uses `extendFields` in `Game#verifyActiveEffectModels` to patch AE models that lack a `changes` field.
+
 ### Complete Example
 
 ```js
@@ -248,7 +286,7 @@ Hooks.once("init", () => {
 
 When Foundry instantiates an Actor with `type: "hero"`, it automatically creates a `HeroData` instance and attaches it to `actor.system`. The type string in the document's data must exactly match the key in `CONFIG.Actor.dataModels`.
 
-To declare valid type labels in your `system.json` or `module.json` (v13+):
+Declare the types in your `system.json` or `module.json` under `documentTypes`. **Changed in v14:** `template.json` is deprecated (since 14, until 16). `game.model` still merges its defaults, but new code should define every type with `documentTypes` plus a `TypeDataModel`:
 
 ```json
 {
@@ -266,6 +304,60 @@ To declare valid type labels in your `system.json` or `module.json` (v13+):
   }
 }
 ```
+
+Two per-document CONFIG keys describe types to the UI:
+
+- `CONFIG.<Doc>.typeLabels` — filled at `i18nInit` from `TYPES.<Doc>.<type>` when unset.
+- `CONFIG.<Doc>.typeHints` (new in v14) — filled from `TYPES.HINTS.<Doc>.<type>` when that key exists. The create-document dialog shows the localized hint under the type select. Ship `"TYPES": {"HINTS": {"Actor": {"hero": "A player character."}}}` in `lang/en.json`, or set `CONFIG.Actor.typeHints.hero` in `init`.
+
+---
+
+## 3b. Cleaning and Migration Pipeline
+
+Every DataModel source passes through `cleanData` before validation. **Changed in v14:** the signature is `cleanData(data, options, _state)`.
+
+```js
+// options: DataModelCleaningOptions — all default to true unless noted
+// addTypes (false), copy, fields, expand, migrate, model, partial (false), prune, persisted, sanitize
+const clean = HeroData.cleanData(raw, { partial: true });
+```
+
+Passing `options.source` is deprecated (since 14, until 16); the source object now travels in the third `_state` argument. Two static hooks let a model shape the pass: `_preCleanData(data, options, _state)` runs first and may adjust options or state; `_cleanData(data, options, _state)` runs after every field was cleaned. Both mutate in place.
+
+```js
+static _cleanData(data, options, _state) {
+  if ( data.level > 20 ) data.level = 20;   // do not return a new object
+}
+```
+
+### migrateData must return data
+
+`static migrateData(source, options)` runs inside the pipeline. **Changed in v14:** it must return the (migrated) source. Implementations that return nothing log a deprecation (since 14, until 16) and the original value is used.
+
+```js
+static migrateData(source, options) {
+  if ( "hp" in source && !("health" in source) ) {
+    source.health = { value: source.hp, max: source.hp };
+    delete source.hp;
+  }
+  return super.migrateData(source, options);
+}
+```
+
+### Per-field migration: `_migrate`
+
+`DataField#migrateSource(sourceData, fieldData)` is deprecated (since 14, until 16). Override `_migrate(value, options, _state)` and return the migrated value:
+
+```js
+_migrate(value, options, _state) {
+  if ( typeof value === "string" ) value = parseInt(value, 10);
+  return super._migrate(value, options, _state);
+}
+```
+
+### Looking up the field for a property
+
+`DataModel#getFieldForProperty("attributes.strength")` (new in v14) returns the `DataField` for a dot path (or key array), resolving through `TypeDataField`, `EmbeddedDataField` and `TypedObjectField` with the instance's own source.
 
 ---
 
@@ -432,6 +524,10 @@ _onDelete(options, userId) {
 }
 ```
 
+### Batch statics: _onCreateOperation / _onUpdateOperation / _onDeleteOperation
+
+Document classes (not TypeDataModels) also get one static call per batch: `static async _onCreateOperation(documents, operation, user)` and the update/delete twins receive every document touched by the operation. **Changed in v14:** the v12 names `_onCreateDocuments`, `_onUpdateDocuments` and `_onDeleteDocuments` are gone (their shim expired). Only the `*Operation` statics exist.
+
 ---
 
 ## 7. prepareDerivedData()
@@ -501,8 +597,9 @@ await actor.update({
   "system.attributes.strength": 18
 });
 
-// Full system object replacement (replaces entire system block)
-await actor.update({ system: { ...actor.system, level: 5 } });
+// Force replacement of a whole object (no recursive merge) or deletion of a key — data operators
+await actor.update({ "system.attributes": _replace({ strength: 18 }) });
+await actor.update({ "system.legacyField": _del });
 
 // Delete the actor
 await actor.delete();
@@ -523,6 +620,61 @@ const [newActor] = await Actor.createDocuments([{
 
 Dot-notation updates are the preferred pattern for partial changes — they avoid overwriting fields you didn't intend to touch and minimize the data sent to the server.
 
+### Data operators (`_del`, `_replace`)
+
+**Changed in v14:** the special update keys `{"-=key": null}` (delete) and `{"==key": value}` (replace without merge) are deprecated (since 14, until 16). Use operator values from `foundry.data.operators`:
+
+```js
+const { ForcedDeletion, ForcedReplacement } = foundry.data.operators;
+
+await actor.update({
+  "system.oldName": new ForcedDeletion(),          // same as the global `_del`
+  "system.tags": ForcedReplacement.create(["a"])   // same as the global `_replace(["a"])`
+});
+
+// Globals provided by core
+await actor.update({ "flags.my-module.cache": _del });
+await actor.update({ "flags.my-module.state": _replace({ step: 1 }) });
+```
+
+`foundry.utils.mergeObject` only applies operators when asked: `mergeObject(a, b, { applyOperators: true })` (the old `performDeletions` option is deprecated). `foundry.utils.applyDataOperators(obj)` strips them from a plain object; it replaces `applySpecialKeys`.
+
+### Batched multi-document writes
+
+`foundry.documents.modifyBatch(operations)` (new in v14) sends several create/update/delete operations in one request. Operations run in sequence with no network gap; a cancelled `_preUpdate` or a thrown error cancels the whole batch.
+
+```js
+await foundry.documents.modifyBatch([
+  { action: "update", documentName: "Actor", updates: [{ _id: actor.id, "system.size": "big" }] },
+  { action: "update", documentName: "Token", parent: sceneA,
+    updates: [{ _id: tokenA.id, width: 2, height: 2 }] }
+]);
+// resolves to Document[][] — one array per operation
+```
+
+An operation cannot read the result of an earlier one in the same batch.
+
+### Is this document saved? `persisted`
+
+`ClientDocument#persisted` (new in v14) is `true` when the document's id resolves in its collection (or compendium index) and every ancestor is persisted. Clones and unsaved `new Actor({...})` instances report `false`. Core APIs such as `Scene#updateTokenRegions` and `RegionDocument.createTokenEmanation` throw on non-persisted documents.
+
+---
+
+## 8b. ActiveEffect (v14 summary)
+
+**Changed in v14:** ActiveEffect was rewritten. The `changes` array now lives at `effect.system.changes` (from `foundry.data.ActiveEffectTypeDataModel`), each entry is `{ key, type, value, phase, priority }` with a string `type` (`"add"`, `"multiply"`, `"override"`, `"upgrade"`, `"downgrade"`, `"subtract"`, `"custom"`) instead of a numeric `mode`. `duration` became `{ value, units, expiry, expired }` with a separate `start` object, `origin` is a `DocumentUUIDField({relative: true})`, and ActiveEffect has `type`/`system` — systems and modules may register subtypes via `documentTypes.ActiveEffect` and `CONFIG.ActiveEffect.dataModels`. Application is phased: `Actor#applyActiveEffects("initial")` and `("final")`.
+
+```js
+await actor.createEmbeddedDocuments("ActiveEffect", [{
+  name: "Blessed",
+  img: "icons/svg/aura.svg",
+  system: { changes: [{ key: "system.attributes.strength", type: "add", value: 2, phase: "initial" }] },
+  duration: { value: 10, units: "rounds" }
+}]);
+```
+
+Full model, expiry registry (`ActiveEffect.registry`), `CONFIG.ActiveEffect.changeTypes/phases/expiryEvents`, and migration from numeric modes: `foundry-vtt-module-dev/references/active-effects-v2.md`.
+
 ---
 
 ## 9. Journal Pages
@@ -531,10 +683,21 @@ Dot-notation updates are the preferred pattern for partial changes — they avoi
 
 ### Built-in page types
 
-- `text` — rich text content (ProseMirror editor)
+- `text` — rich text content
 - `image` — a single image with optional caption
 - `video` — video or animated content
 - `pdf` — embedded PDF viewer
+
+Three core sheets are registered for `text` pages (`foundry.applications.sheets.journal.*`): `JournalEntryPageProseMirrorSheet` (default), `JournalEntryPageMarkdownSheet`, and `JournalEntryPageHTMLSheet` (a CodeMirror source editor, built on `JournalEntryPageCodeMirrorSheet`). **Changed in v14:** TinyMCE is gone — `CONFIG.TinyMCE`, `JournalTextTinyMCESheet` and `TextEditor.create({engine: "tinymce"})` no longer exist. `TextEditor.create()` defaults to ProseMirror; custom engines register under `CONFIG.TextEditor.engines`.
+
+### Page categories
+
+`JournalEntryCategory` (new in v14) is an embedded document of `JournalEntry` (`journal.categories`, schema `{_id, name, sort, flags}`). A page points at one through `page.category` (a `DocumentIdField`). The sheet for editing them is `foundry.applications.sheets.journal.JournalEntryCategoryConfig`.
+
+```js
+const [cat] = await journal.createEmbeddedDocuments("JournalEntryCategory", [{ name: "Locations" }]);
+await page.update({ category: cat.id });
+```
 
 ### Register a custom page type
 
@@ -563,9 +726,10 @@ class StatblockPageData extends foundry.abstract.TypeDataModel {
 ### Register a custom page sheet
 
 ```js
-const { JournalPageSheet, HandlebarsApplicationMixin } = foundry.applications.sheets;
+const { JournalEntryPageHandlebarsSheet } = foundry.applications.sheets.journal;
+const { TextEditor } = foundry.applications.ux;
 
-class StatblockPageSheet extends HandlebarsApplicationMixin(JournalPageSheet) {
+class StatblockPageSheet extends JournalEntryPageHandlebarsSheet {
   static PARTS = {
     content: { template: "modules/my-module/templates/journal/statblock.hbs" }
   };
@@ -575,23 +739,35 @@ class StatblockPageSheet extends HandlebarsApplicationMixin(JournalPageSheet) {
   };
 
   async _prepareContext(options) {
+    const context = await super._prepareContext(options);
     const page = this.document;
-    return {
-      page,
-      system: page.system,
-      enriched: await TextEditor.enrichHTML(page.system.description, {
-        relativeTo: page, async: true
-      })
-    };
+    context.system = page.system;
+    context.enriched = await TextEditor.implementation.enrichHTML(page.system.description, {
+      relativeTo: page
+    });
+    return context;
   }
 }
 
 // Register during init
 Hooks.once("init", () => {
-  JournalEntryPage.registerSheet("my-module", StatblockPageSheet, {
+  foundry.applications.apps.DocumentSheetConfig.registerSheet(JournalEntryPage, "my-module", StatblockPageSheet, {
     types: ["statblock"],
     makeDefault: true
   });
+});
+```
+
+`JournalEntryPageHandlebarsSheet` is `HandlebarsApplicationMixin(JournalEntryPageSheet)`; core's image, video and PDF sheets extend it.
+
+### Embedding pages: `@Embed` and `embedHandlers`
+
+`TypeDataModel#toEmbed(config, options)` returns the element rendered for `@Embed[uuid]`; `onEmbed(element)` fires once it is in the DOM. **New in v14:** `CONFIG.<Doc>.embedHandlers` is an array of `(doc, content, config, options) => Promise<HTMLElement|HTMLCollection|null>` callbacks. Each handler receives the candidate element and may replace it, wrap it, or return `null` to block the embed. Handlers exist on every document config (`CONFIG.JournalEntryPage.embedHandlers`, `CONFIG.Actor.embedHandlers`, ...).
+
+```js
+CONFIG.JournalEntryPage.embedHandlers.push(async (page, content, config, options) => {
+  if ( page.type === "statblock" ) content?.classList.add("my-module-statblock");
+  return content;
 });
 ```
 
@@ -668,6 +844,15 @@ const token = fromUuidSync("Scene.sceneId.Token.tokenId");   // null if scene no
 
 Use `fromUuid` (async) whenever possible — `fromUuidSync` only works for documents in memory.
 
+### Relative UUIDs
+
+`foundry.utils.buildRelativeUuid(target, origin)` (new in v14) returns the shortest UUID of `target` relative to `origin` — `.Item.itemId` for an item on the origin actor — or the absolute UUID when no relative form exists. Both arguments accept a Document or a UUID string. It replaces `ClientDocument#getRelativeUUID` (deprecated since 14, until 16). `DocumentUUIDField({relative: true})` uses the same rule when storing.
+
+```js
+const rel = foundry.utils.buildRelativeUuid(item, actor);   // ".Item.abc123"
+const doc = await fromUuid(rel, { relative: actor });
+```
+
 ---
 
 ## 11. Essential Utilities (foundry.utils)
@@ -692,15 +877,30 @@ foundry.utils.isEmpty({});   // true
 
 // Generate a random 16-char hex ID
 const id = foundry.utils.randomID();   // "a1b2c3d4e5f6g7h8"
+
+// Deep equality for primitives, plain objects, and anything with an equals() method
+foundry.utils.equals({ a: [1, 2] }, { a: [1, 2] });   // true
 ```
 
 `mergeObject` is critical — it's how Foundry processes document updates internally. Understanding it prevents bugs when working with `actor.update()` and `item.update()`.
+
+**Changed in v14:** these helpers exist only under `foundry.utils` — the bare globals (`mergeObject`, `getProperty`, `deepClone`, ...) were removed. `objectsEqual` is deprecated (since 14, until 16) in favour of `equals`; `applySpecialKeys` in favour of `applyDataOperators`.
+
+### Querying other clients: `User.queryMany`
+
+```js
+// CONFIG.queries.myQuery = async data => ({ ok: true }) — registered in init on every client
+const results = await User.queryMany(game.users.filter(u => u.active), "myQuery", { foo: 1 }, { timeout: 5000 });
+for ( const [user, r] of results ) if ( r.status === "fulfilled" ) console.log(user.name, r.value);
+```
+
+`User#query(name, data, options)` targets one user; `User.queryMany` (new in v14) returns a `Map<User, PromiseSettledResult>`. Both need the `QUERY_USER` permission and a query registered in `CONFIG.queries`.
 
 ---
 
 ## 12. Folder API
 
-Folders organize documents in the sidebar. Supported types: `Actor`, `Item`, `JournalEntry`, `Scene`, `RollTable`, `Macro`.
+Folders organize documents in the sidebar. Supported types are `CONST.FOLDER_DOCUMENT_TYPES`: `ActiveEffect`, `Actor`, `Adventure`, `Item`, `Scene`, `JournalEntry`, `Playlist`, `RollTable`, `Cards`, `Macro`, `Compendium`. **Changed in v14:** `ActiveEffect` joined the list (effects can live in world folders and compendiums).
 
 ### Creating folders
 
@@ -767,4 +967,28 @@ await folder.exportToCompendium(pack, {
 Key rules:
 - Nesting uses the `folder` field in the data object, NOT `parent`. `parent` is a runtime property for document embedding (e.g., Actor → Item).
 - A folder's `type` must match the documents it contains — you can't put Items in an Actor folder.
-- `Folder.TYPES` lists all valid types at runtime.
+- `CONST.FOLDER_DOCUMENT_TYPES` lists all valid types.
+- `Folder#exportDialog(pack)` opens the core export dialog; `Folder#exportToCompendium` is the headless path and uses `foundry.documents.modifyBatch` internally.
+
+---
+
+## 13. Documents Added and Removed in v14
+
+### Level (embedded in Scene)
+
+Scenes are stacks of `Level` documents (`scene.levels`, collection name `levels`). The visual fields moved off Scene: `Level#background {color, src, tint, alphaThreshold}`, `Level#foreground {src, tint, alphaThreshold}`, `Level#elevation {bottom, top}` (null = unbounded), `Level#fog.src`, `Level#textures {anchorX, anchorY, offsetX, offsetY, fit, scaleX, scaleY, rotation}`, `Level#visibility.levels`. `Scene#background`, `Scene#foreground`, `Scene#foregroundElevation` and `Scene#backgroundColor` are deprecated shims (since 14, until 16). Read the viewed level with `canvas.level`; the scene's start level is `scene.initialLevel`. `CONFIG.Level.documentClass` configures the class.
+
+```js
+const src = canvas.level.background.src;          // was scene.background.src
+await scene.updateEmbeddedDocuments("Level", [{ _id: canvas.level.id, "elevation.top": 40 }]);
+```
+
+Every placeable document (Token, Tile, Wall, AmbientLight, AmbientSound, Drawing, Note, Region) carries `levels: SceneLevelsSetField`; Token also has `level` (id) and `depth`. Details: `foundry-vtt-module-dev/references/scene-levels.md`.
+
+### CombatantGroup (embedded in Combat)
+
+`CombatantGroup` (`combat.groups`) has `type`/`system` (subtype-capable, `baseTypeAllowed: true`), `name`, `img`, `initiative`, `ownership`, `flags`. Combatants reference it through `combatant.group`. Related v14 additions: `Combat#name` (`StringField`) and `Combatant#roundJoined` (integer, initial 1).
+
+### MeasuredTemplate removed
+
+`MeasuredTemplateDocument`, `Scene#templates`, `TemplateLayer`, `CONST.MEASURED_TEMPLATE_TYPES` and the `TEMPLATE_CREATE` permission are deprecated shims (since 14, until 16). Templates are Regions with shapes (`RegionDocument#shapes`, `canvas.regions.placeRegion()`, `RegionDocument.createTokenEmanation()`, `REGION_CREATE` permission). See `foundry-vtt-module-dev/references/measured-templates.md`.

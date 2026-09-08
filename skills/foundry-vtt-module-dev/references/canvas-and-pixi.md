@@ -1,6 +1,6 @@
 # Canvas & PIXI Extensions
 
-Deep reference for extending Foundry VTT v13's canvas using PIXI.js.
+Deep reference for extending Foundry VTT v14's canvas using PIXI.js. Foundry pins PIXI `7.4.3`.
 
 Most modules never need canvas extensions. Read this when you need custom visual elements on the game board — markers, overlays, custom token visuals, measurement tools, or interactive map elements.
 
@@ -33,11 +33,16 @@ Layer groups (in z-order):
 
 ```javascript
 canvas.scene;        // Active Scene document
-canvas.dimensions;   // { width, height, size, distance, rect, sceneRect, ... }
+canvas.dimensions;   // { width, height, size, distance, distancePixels, rect, sceneRect, ... }
 canvas.stage;        // Root PIXI.Container
 canvas.app;          // PIXI.Application instance
 canvas.app.ticker;   // PIXI ticker for frame-synced updates
+canvas.level;        // NEW in v14 — the Level document currently in view
+canvas.edges;        // NEW in v14 — the CanvasEdges collection for canvas.level
+canvas.transition;   // NEW in v14 — TransitionContainer for scene transitions
 ```
+
+**New in v14: Scene Levels.** A Scene holds one or more `Level` embedded documents, and the canvas draws one at a time. `canvas.level` is the Level in view, `canvas.scene.cycleLevel(1)` steps up, and `canvas.inferLevelFromElevation(elevation)` finds the level an elevation belongs to. Every placeable document carries a `levels` set. Scene `background`, `foreground`, `foregroundElevation` and `backgroundColor` moved onto `Level`. See `foundry-vtt-module-dev/references/scene-levels.md`.
 
 ---
 
@@ -56,10 +61,22 @@ Hooks.once("init", () => {
 });
 ```
 
+**Changed in v14:** replacing a *core* layer class moved here too. `CONFIG.<Document>.layerClass` is deprecated (until v16).
+
+```javascript
+// v13
+CONFIG.Token.layerClass = MyTokenLayer;
+
+// v14
+CONFIG.Canvas.layers.tokens.layerClass = MyTokenLayer;
+```
+
+The mapping is `AmbientLight` → `lighting`, `AmbientSound` → `sounds`, `Drawing` → `drawings`, `Note` → `notes`, `Region` → `regions`, `Tile` → `tiles`, `Token` → `tokens`, `Wall` → `walls`. `CONFIG.Canvas.layers.templates` still exists but is deprecated along with the rest of MeasuredTemplate.
+
 ### Layer Class
 
 ```javascript
-class MyLayer extends CanvasLayer {
+class MyLayer extends foundry.canvas.layers.CanvasLayer {
   static get layerOptions() {
     return foundry.utils.mergeObject(super.layerOptions, {
       name: "myLayer",
@@ -77,6 +94,11 @@ class MyLayer extends CanvasLayer {
   async _tearDown(options) {
     this.removeChildren().forEach(c => c.destroy({ children: true }));
     await super._tearDown(options);
+  }
+
+  /** Optional: control this layer's stacking within its group. */
+  getZIndex() {
+    return super.getZIndex();
   }
 
   /** Public API used by the rest of the module. */
@@ -102,7 +124,7 @@ For interactive objects on the canvas that behave like tokens — draggable, cli
 ### Minimal Implementation
 
 ```javascript
-class MarkerObject extends PlaceableObject {
+class MarkerObject extends foundry.canvas.placeables.PlaceableObject {
   /** @override — render the object's PIXI graphics */
   async _draw() {
     // Circle body
@@ -138,6 +160,15 @@ class MarkerObject extends PlaceableObject {
     this.label.destroy();
   }
 
+  /**
+   * NEW in v14 — reset transient interaction state.
+   * Public clear() is deprecated; override the protected _clear() instead.
+   */
+  _clear() {
+    super._clear();
+    this.hover = false;
+  }
+
   // --- Event Handlers ---
 
   _onClickLeft(event) {
@@ -149,12 +180,12 @@ class MarkerObject extends PlaceableObject {
     // Show context menu
   }
 
-  _onHoverIn(event) {
+  _onHoverIn(event, { hoverOutOthers = false, updateLegend = true } = {}) {
     this.hover = true;
     this._refresh();
   }
 
-  _onHoverOut(event) {
+  _onHoverOut(event, options) {
     this.hover = false;
     this._refresh();
   }
@@ -174,6 +205,55 @@ class MarkerObject extends PlaceableObject {
   }
 }
 ```
+
+### New PlaceableObject members in v14
+
+| Member | Purpose |
+|---|---|
+| `_clear()` | Protected reset of transient state. The public `clear()` is a deprecated no-op. |
+| `isFilteredOut` | True when the Placeables sidebar filter hides this object. |
+| `isInteractable` | True when the object accepts pointer interaction right now. |
+| `isVisible` | Whether the object is currently visible to the user. |
+| `previewType` | What kind of preview this object is, if any. |
+| `_refreshState()` / `_refreshVisibility()` | Split render-flag handlers. |
+| `_pasteObject(offset, {hidden, snap, cut})` | Paste handling, used by the layer's copy/cut/paste keys. |
+
+### Shape mixins
+
+**New in v14:** `AmbientLight`, `AmbientSound`, `Drawing`, `Region` and `Tile` extend `ShapeObjectMixin(PlaceableObject)`, and `DrawingsLayer`, `LightingLayer`, `RegionLayer`, `SoundsLayer` and `TilesLayer` extend `ShapeLayerMixin(PlaceablesLayer)`. The mixins own the drag-to-create and drag-to-resize behaviour that each class used to hand-roll, plus `bounds` and `isVisible`.
+
+Handle rendering moved to `foundry.canvas.containers.ShapeControls` and `ShapeControlsHandle`. If you patched `Tile#_onHandleDragMove` or the equivalent on `Drawing`, that code no longer has a target.
+
+Layer hooks the mixin exposes: `_createDragPreviewData`, `_createDragShapeData`, `_updateDragPreview`, `_updateMouseWheelPreview`, `_commitDragLeftDrop`, `_isCreationToolActive`, `paletteCreateData`, and the static `paletteClass`.
+
+### Iterating the documents on a layer
+
+**Changed in v14:** `PlaceablesLayer#getDocuments()` is deprecated (until v16) because it is not Level-aware. Use the `viewedDocuments` generator, which yields only the documents in the level currently in view.
+
+```javascript
+// v13
+for ( const doc of canvas.tokens.getDocuments() ) { /* ... */ }
+
+// v14
+for ( const doc of canvas.tokens.viewedDocuments() ) { /* ... */ }
+```
+
+`PlaceablesLayer.CREATION_STATES` is deprecated without replacement, and `PlaceablesLayer.SORT_ORDER` was removed.
+
+### ControlIcon
+
+**Changed in v14:** `ControlIcon` is now a `RenderFlagsMixin(PIXI.Container)`. Several members are deprecated until v16.
+
+| Deprecated | Replacement |
+|---|---|
+| `new ControlIcon({tint: null})` | pass `0xFFFFFF` or omit `tint` |
+| `ControlIcon#refresh(options)` | set `#visible`, `#icon.tint`, `#border.tint` directly |
+| `ControlIcon#rect` | `ControlIcon#size` |
+| `ControlIcon#tintColor` | `ControlIcon#icon.tint` |
+| `ControlIcon#borderColor` | `ControlIcon#border.tint` |
+| `ControlIcon#iconSrc` | `ControlIcon#texture` |
+
+`ControlsLayer` now extends `CanvasLayer` rather than `InteractionLayer`.
 
 ---
 
@@ -199,9 +279,10 @@ function canvasToScreen(x, y) {
   return canvas.clientCoordinatesFromCanvas({ x, y });
 }
 
-// Snap a canvas point to the nearest grid center
+// Snap a canvas point to the nearest grid center.
+// canvas.grid.getCenter(x, y) was removed in v14.
 function snapToGrid(x, y) {
-  return canvas.grid.getCenter(x, y); // returns [cx, cy]
+  return canvas.grid.getCenterPoint({ x, y }); // returns {x, y}
 }
 
 // Convert a grid cell position {i, j} to pixel top-left
@@ -258,7 +339,7 @@ function makeLabel(text) {
 
 ```javascript
 async function makeIcon(path, x, y) {
-  const texture = await loadTexture(path);   // Foundry's texture loader
+  const texture = await foundry.canvas.loadTexture(path);   // Foundry's texture loader
   const sprite = new PIXI.Sprite(texture);
   sprite.anchor.set(0.5);
   sprite.position.set(x, y);
@@ -298,6 +379,8 @@ Always use Foundry's `CanvasAnimation` — never `requestAnimationFrame` directl
 ### CanvasAnimation.animate()
 
 ```javascript
+const { CanvasAnimation } = foundry.canvas.animation;
+
 // Animate an object's position and alpha simultaneously
 await CanvasAnimation.animate(
   [
@@ -340,6 +423,105 @@ function cleanup() {
   ticker.remove(onFrame);
 }
 ```
+
+### Particles
+
+**Changed in v14:** `foundry.canvas.containers.ParticleEffect` and `foundry.canvas.primary.PrimaryParticleEffect` are deprecated (until v16) in favour of `foundry.canvas.animation.ParticleGenerator`, which pools particles and supports ambient and effect modes.
+
+```javascript
+const gen = new foundry.canvas.animation.ParticleGenerator({
+  mode: "effect",
+  count: 220,
+  spawnRate: 180,
+  area: { from: { x: 900, y: 700 }, to: { x: 1300, y: 760 } },
+  textures: ["modules/my-module/particles/spark.png"],
+  lifetime: [900, 1300],
+  velocity: {
+    angle: [70, 110],
+    speed: { min: 525, max: 700, curve: [{ time: 0, value: 1 }, { time: 1, value: 0.2 }] }
+  },
+  rotation: { speed: { min: -120, max: 120 } },
+  alpha: { min: 0.45, max: 0.8, curve: [{ time: 0, value: 0 }, { time: 1, value: 0 }] },
+  scale: { min: 0.48, max: 0.8 },
+  tint: { curve: [{ time: 0, value: 0x66CCFF }, { time: 1, value: 0x4F6DFF }] }
+});
+gen.start();
+```
+
+Ranges accept `[min, max]` or `{min, max}`, and `{curve: [{time, value}, ...]}` shapes a property over each particle's life.
+
+Deprecated `ParticleGenerator` options: `perFrame` (use `spawnRate`), `maxParticlesPerFrame` (use `spawnRate`), `alphaRange` (use `alpha`), `scaleRange` (use `scale`), `rotationSpeed` (use `rotation.speed`), and an implicit centred `particleAnchor` (set it, or set `texture.defaultAnchor`).
+
+Weather effects follow the same change: `CONFIG.weatherEffects.<id>.effects[]` now takes a `particles` array instead of an `effectClass`.
+
+```javascript
+CONFIG.weatherEffects.myAsh = {
+  id: "myAsh",
+  label: "MY_MODULE.Weather.ash",
+  effects: [{
+    id: "ashParticles",
+    particles: [{
+      textures: ["modules/my-module/particles/ash.png"],
+      count: 150, lifetime: 8000, viewPadding: 0.1,
+      velocity: { speed: [8, 30], angle: [85, 95] },
+      alpha: [0.2, 0.6], scale: [0.05, 0.2], fade: { out: 0.4 }
+    }]
+  }]
+};
+```
+
+### Screen shake
+
+**New in v14:** `foundry.canvas.animation.CanvasShakeEffect`.
+
+```javascript
+const shake = new foundry.canvas.animation.CanvasShakeEffect({
+  target: canvas.stage,     // defaults to canvas.stage
+  duration: 800,
+  maxDisplacement: 20,
+  smoothness: 0.5,
+  returnSpeed: 0.1
+});
+```
+
+### Scene transitions
+
+**New in v14:** `canvas.transition` is a `TransitionContainer`. `CONFIG.Canvas.sceneTransitions` holds the built-ins — `fade`, `swirl`, `waterDrop`, `morph`, `crosshatch`, `wind`, `waves`, `whiteNoise`, `hologram`, `hole`, `holeSwirl`, `glitch`, `dots`. A Scene picks its own via `scene.transition = {type, duration, activeOnly}`.
+
+```javascript
+// Transition around a camera pan
+await canvas.transition.run({
+  operation: async () => {
+    await canvas.animatePan({ x: 2000, y: 1500, scale: 1.25, duration: 0 });
+  },
+  duration: 800,
+  transitionType: "dots"
+});
+
+// Switch scenes with a transition
+await canvas.transition.run({
+  nextScene: game.scenes.get("ABC123"),
+  activate: true,
+  duration: 1200,
+  transitionType: "fade"
+});
+```
+
+`Token#panCanvas({transitionType, duration, speed, easing, force})` plays a transition while following a token. `Canvas#animatePan` itself takes `{x, y, scale, duration, speed, easing}` and has no transition option.
+
+### VFX (experimental)
+
+**New in v14, and explicitly unstable.** `foundry.canvas.vfx` holds a serialisable effect framework — `VFXEffect extends DataModel`, `VFXComponent`, components for particle generators, positional sound, scrolling text, shake, single attacks and single impacts, plus animations and path helpers. It is gated behind a flag that defaults to false:
+
+```javascript
+CONFIG.Canvas.vfx.enabled = true;
+```
+
+Core's own documentation calls the classes, functions and configuration likely to change across releases regardless of the build's stability label. Do not ship a module that depends on it.
+
+### animejs
+
+**New in v14:** animejs 4 is bundled and exposed as the global `animejs`. Core uses it for its own canvas animation engine, activating and deactivating it with the canvas. Prefer `CanvasAnimation.animate` for anything that has to interact with Foundry's frame budget; reach for animejs when you want its timeline model.
 
 ---
 
@@ -393,69 +575,37 @@ container.destroy({ children: true, texture: false });
 
 ---
 
-## Scene Regions (v13)
+## Scene Regions
 
-v13 introduces the **Scene Regions** API — interactive areas on the canvas that trigger events without relying on drawing-based workarounds. Use them for difficult terrain, teleporters, trigger zones, ambient effects, and encounter areas.
-
-### Core Concepts
-
-- `Region` — a document embedded in a Scene, defining an area with one or more geometric shapes
-- `RegionGeometry` — the shape definitions (rectangles, circles, polygons) that compose a region
-- Regions fire **Region Events** when tokens enter, exit, or move within them
-
-### Creating Regions
-
-Regions are embedded documents on Scenes:
+Regions are interactive areas on the canvas that trigger events as tokens move. In v14 they also absorbed MeasuredTemplate, so they cover difficult terrain, teleporters, trigger zones, auras and area-of-effect templates alike.
 
 ```javascript
+const px = canvas.dimensions.distancePixels;
+
 await canvas.scene.createEmbeddedDocuments("Region", [{
   name: "Trap Zone",
   color: "#ff0000",
-  shapes: [{
-    type: "rectangle",
-    x: 500, y: 500,
-    width: 200, height: 200,
-  }],
+  shapes: [{ type: "rectangle", x: 500, y: 500, width: 200, height: 200 }],
+  levels: [canvas.level.id],
   behaviors: [{
     type: "executeScript",
-    system: false,
-    events: ["tokenEnter"],
-    script: `
-      const token = event.data.token;
-      ui.notifications.warn(\`\${token.name} triggered the trap!\`);
-    `,
-  }],
+    system: {
+      events: ["tokenEnter"],
+      script: `ui.notifications.warn(\`\${event.data.token.name} triggered the trap!\`);`
+    }
+  }]
 }]);
 ```
 
-### Region Events
+Ten shape types: `rectangle`, `circle`, `ellipse`, `cone`, `ring`, `line`, `emanation`, `polygon`, `token`, `grid`. `RegionLayer#placeRegion(data, options)` runs the interactive placement flow.
 
-| Event | When |
-|---|---|
-| `tokenEnter` | A token moves into the region |
-| `tokenExit` | A token moves out of the region |
-| `tokenMoveWithin` | A token moves within the region (without crossing boundary) |
-| `tokenTurnStart` | A token's combat turn starts while in the region |
-| `tokenTurnEnd` | A token's combat turn ends while in the region |
-| `tokenRoundStart` | A combat round starts with the token in the region |
-| `tokenRoundEnd` | A combat round ends with the token in the region |
-
-### Region Behaviors
-
-Behaviors are the actions triggered by region events:
-- `executeScript` — run arbitrary JavaScript
-- `executeMacro` — run a Macro document
-- `adjustMovement` — modify token movement (difficult terrain)
-- `teleportToken` — move token to another location
-- `toggleBehavior` — enable/disable other behaviors
-
-Regions are managed via the canvas UI (Drawing tools → Regions) or programmatically. They replace the common pattern of invisible drawings + `canvasDrop` hooks for interactive map areas.
+The full schema, behaviors, shape fields, spawning and teleporting live in `foundry-vtt-module-dev/references/regions-and-grid.md`; the template migration is in `foundry-vtt-module-dev/references/measured-templates.md`.
 
 ---
 
-## v13 Canvas Layer Groups (Restructure)
+## Canvas Layer Groups
 
-v13 reorganized the canvas from a flat z-ordered layer list into named **layer groups** under `foundry.canvas.*`. Each group is a `PIXI.Container` with a fixed render priority; layers (TokenLayer, LightingLayer, etc.) live inside one of them. Use this map when registering custom layers via `CONFIG.Canvas.layers.<name> = { layerClass, group }`.
+The canvas is organised into named **layer groups** under `foundry.canvas.*`, a structure introduced in v13 and unchanged in v14. Each group is a `PIXI.Container` with a fixed render priority; layers (TokenLayer, LightingLayer, etc.) live inside one of them. Use this map when registering custom layers via `CONFIG.Canvas.layers.<name> = { layerClass, group }`.
 
 | Group | Contains | Custom layers go here when… |
 |---|---|---|
@@ -479,7 +629,13 @@ canvas.visibility;     // CanvasVisibility
 canvas.rendered;       // RenderedCanvasGroup (read-only)
 ```
 
-Each group is also reachable through `canvas.stage.children` but the named accessors are the documented v13 API.
+Each group is also reachable through `canvas.stage.children`, but the named accessors are the documented API.
+
+### Primary group internals
+
+`PrimaryCanvasGroup#objects` is the flat, unordered array of every `PrimaryCanvasObject` in the group. `#drawLevelTextures` draws the current Level's background and foreground; `#hoverFadeElevation` drives the hover fade, configured by `CONFIG.Canvas.hoverFade = {delay: 250, duration: 750}`. `PrimaryCanvasGroup#mapElevationToDepth` was removed — use `canvas.masks.depth.mapElevation`.
+
+`PrimaryCanvasContainer#sortLayer` (a number) and `#inPrimary` control where a container sorts inside the primary group; sorting compares `sortLayer` first, then elevation and sort.
 
 ### Choosing a Group for a Custom Layer
 
@@ -488,25 +644,98 @@ Each group is also reachable through `canvas.stage.children` but the named acces
 - **Screen-space UI** → `interface` (panned/zoomed with the canvas) or `overlay` (above HUD)
 - **Debug-only / dev tools** → `overlay`
 
-### v13 Namespace Notes
+### Namespaces (`foundry.canvas.*`)
 
-The Canvas class itself moved to `foundry.canvas.Canvas`. Subclasses you'll commonly extend:
+The namespaced layout arrived in v13 and is still correct in v14. The Canvas class itself is `foundry.canvas.Canvas`. Classes you'll commonly extend:
 
-| v12 / legacy global | v13 namespaced |
+| Legacy global | Namespaced |
 |---|---|
 | `CanvasLayer` | `foundry.canvas.layers.CanvasLayer` |
 | `InteractionLayer` | `foundry.canvas.layers.InteractionLayer` |
 | `PlaceableObject` | `foundry.canvas.placeables.PlaceableObject` |
 | `Token` (object) | `foundry.canvas.placeables.Token` |
-| `MeasuredTemplate` | `foundry.canvas.placeables.MeasuredTemplate` |
+| `Region` (object) | `foundry.canvas.placeables.Region` |
+| `CanvasAnimation` | `foundry.canvas.animation.CanvasAnimation` |
+| `VisionMode` / `DetectionMode` | `foundry.canvas.perception.*` |
 
-Legacy globals still exist as deprecation shims in v13 — they emit a console warning. Update imports when you touch a file.
+Legacy globals still exist as deprecation shims and log a console warning. **Changed in v14:** a large batch of v12-era globals was removed outright — among them `BaseGrid`, `HexagonalGrid`, `SquareGrid`, `GridHex`, `LightSource`, `VisionSource`, `DarknessSource`, `MovementSource`, `SoundSource`, `GlobalLightSource` — plus the bare `foundry.utils` globals (`mergeObject`, `getProperty`, `deepClone`, `randomID`). Use `foundry.grid.*`, `foundry.canvas.sources.*` and `foundry.utils.*`.
+
+---
+
+## Textures and Shaders
+
+### KTX2 textures
+
+**New in v14:** `foundry.canvas.KTX2Parser` reads KTX2/Basis compressed textures. `CONST.TEXTURE_FILE_EXTENSIONS` adds `basis` and `ktx2`, the FilePicker gains a `"texture"` type, and `TextureData` fields can declare `categories: ["TEXTURE"]` to accept them.
+
+### Loading
+
+```javascript
+const texture = await foundry.canvas.loadTexture("modules/my-module/art/marker.webp");
+const exists = await foundry.utils.srcExists(src);
+const data = await foundry.utils.fetchResource(src, { bustCache: true });
+const busted = foundry.utils.getCacheBustURL(src);
+```
+
+**Changed in v14:** `TextureLoader.fetchResource`, `TextureLoader.getCacheBustURL` and `foundry.canvas.srcExists` are deprecated (until v16) in favour of the `foundry.utils` versions above. `TextureLoader.hasTextExtension` is deprecated without replacement.
+
+### Custom shaders
+
+**Changed in v14:** the static `fragmentShader` and `vertexShader` getters on shader classes are deprecated. Override the factory methods instead, which receive the compile options.
+
+```javascript
+class MyShader extends foundry.canvas.rendering.shaders.AbstractBaseShader {
+  static _createFragmentShader(options) {
+    return `
+      precision mediump float;
+      void main() { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); }`;
+  }
+
+  static _createVertexShader(options) {
+    return super._createVertexShader(options);
+  }
+}
+```
+
+`AbstractBaseShader#_defaults` was removed — use `initialUniforms`. Foundry sets `PIXI.Program.defaultVertexPrecision` and `defaultFragmentPrecision` to `HIGH` globally.
+
+### Occlusion
+
+**Changed in v14:** `CanvasOcclusionMask#updateOcclusion` is deprecated. Request the refresh through the perception manager.
+
+```javascript
+canvas.perception.update({ refreshOcclusion: true });
+```
+
+Tile occlusion moved from a single mode to a set. `CONST.OCCLUSION_MODES` was renumbered as bit flags: `NONE 0`, `FADE 1`, `SURFACE 2`, `RADIAL 4`, `VISION 8`.
+
+```javascript
+// v13
+await tile.document.update({ "occlusion.mode": CONST.OCCLUSION_MODES.FADE });
+
+// v14 — a Set of modes
+await tile.document.update({ "occlusion.modes": [CONST.OCCLUSION_MODES.FADE, CONST.OCCLUSION_MODES.RADIAL] });
+```
+
+`occlusion.mode` still reads as a shim until v16, returning the first entry of the set.
+
+**Changed in v14:** a Tile's `x, y` is now its origin, not its top-left corner. The schema is unchanged — `texture.anchorX` and `texture.anchorY` have defaulted to `0.5` since v13 — but the placeable changed how it reads them. v13 drew the mesh at `(x + width/2, y + height/2)`; v14 draws it at `(x, y)` and lets the anchor place the texture. With the default anchor, `x, y` is the tile's centre, and rotation happens around it.
+
+```javascript
+// Recover the old top-left from a v14 Tile
+const { x, y, width, height, anchorX, anchorY } = tile.document.shape;
+const topLeft = { x: x - (width * anchorX), y: y - (height * anchorY) };
+```
+
+`TileDocument#shape` is new in v14: a derived `RectangleShapeData` built in `prepareDerivedData` from `x`, `y`, `width`, `height`, `texture.anchorX`, `texture.anchorY` and `rotation`. Read geometry from it rather than assembling the fields yourself.
 
 ---
 
 ## GSAP (GreenSock)
 
 Foundry bundles the **full Club GreenSock bonus pack** (a paid premium license) and exposes it as the global `gsap`. No import, no `<script>` tag — it's already loaded along with every plugin. Reach for it when you need orchestrated UI/canvas animations that go beyond what CSS or `CanvasAnimation.animate` cover.
+
+Unchanged in v14: the same GreenSock distribution ships in `public/scripts/greensock/`. Core canvas animation itself does not use it — that runs on `CanvasAnimation` and, new in v14, the bundled animejs (`globalThis.animejs`).
 
 ### What's Available
 
@@ -558,6 +787,7 @@ For the full API see greensock.com/docs. Module devs benefit most from PixiPlugi
 | Orchestrated multi-step sequence | **GSAP timeline** — reads cleanly, supports labels, callbacks, reverse |
 | Animating multiple PIXI properties together | **GSAP** — handles position, alpha, rotation, scale in one tween |
 | Ease-aware easing curves beyond `linear`/`ease-in-out` | **GSAP** — 30+ named eases vs CSS's handful |
+| A timeline you want to build from data | **animejs** — bundled in v14 as `globalThis.animejs` |
 
 If a single CSS line works, use CSS. If it's "animate four properties of three sprites in sequence with a callback at the end," use GSAP.
 

@@ -3,9 +3,10 @@
   "title": "My System",
   "description": "A custom game system for Foundry VTT.",
   "version": "1.0.0",
+  "type": "system",
   "compatibility": {
-    "minimum": "13",
-    "verified": "13"
+    "minimum": "14",
+    "verified": "14"
   },
   "authors": [
     {
@@ -27,16 +28,10 @@
     },
     "Item": {
       "weapon": {
-        "htmlFields": ["description"],
-        "filePathFields": {
-          "img": ["IMAGE"]
-        }
+        "htmlFields": ["description"]
       },
       "spell": {
-        "htmlFields": ["description"],
-        "filePathFields": {
-          "img": ["IMAGE"]
-        }
+        "htmlFields": ["description"]
       }
     }
   },
@@ -95,11 +90,6 @@
       ]
     }
   ],
-  "relationships": {
-    "requires": [],
-    "systems": [],
-    "modules": []
-  },
   "socket": true,
   "flags": {
     "hotReload": {

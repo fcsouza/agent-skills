@@ -1,6 +1,8 @@
 # Chat & UI Extensions
 
-Deep reference for Foundry VTT v13's chat system, context menus, rich text processing, and FilePicker API.
+Deep reference for Foundry VTT v14's chat system, context menus, rich text processing, and FilePicker API.
+
+**Changed in v14:** roll modes became message modes (`CONFIG.ChatMessage.modes`, the `messageMode` create option, the `core.messageMode` setting); slash commands are registered in `ChatLog.CHAT_COMMANDS`; the chat input is a `<prose-mirror>` element, not a `<textarea>`; context menu entries use `label` / `visible` / `onClick`; TinyMCE is gone. See `foundry-vtt-module-dev/references/v14-migration.md` for the full list.
 
 ---
 
@@ -21,12 +23,11 @@ await ChatMessage.create({
   whisper: ChatMessage.getWhisperRecipients("GM")   // array of User IDs
 });
 
-// Blind roll — GM sees result, player sees "Rolled privately"
+// Apply a message mode instead of setting whisper/blind by hand (v14)
 await ChatMessage.create({
   content: "<p>Perception: 18</p>",
-  speaker: ChatMessage.getSpeaker({ actor }),
-  blind: true
-});
+  speaker: ChatMessage.getSpeaker({ actor })
+}, { messageMode: "blind" });
 
 // Roll chat card via Roll.toMessage()
 const roll = new Roll("2d6 + @mod", { mod: 3 });
@@ -34,7 +35,7 @@ await roll.evaluate();
 await roll.toMessage({
   speaker: ChatMessage.getSpeaker({ actor }),
   flavor: "Damage Roll"
-});
+}, { messageMode: "gm" });
 
 // Retrieve messages
 const recent = game.messages.contents.slice(-10);   // last 10 messages
@@ -43,40 +44,112 @@ const specific = game.messages.get("messageId");
 
 `ChatMessage.getSpeaker()` accepts `{ actor, token, alias }`. When called without arguments, it uses the current user's character.
 
+### Message modes (v14)
+
+`CONFIG.ChatMessage.modes` replaces `CONFIG.Dice.rollModes`. Core ships five modes:
+
+| Mode | Effect on the message data |
+|---|---|
+| `public` | `whisper` cleared, `blind: false` |
+| `gm` | `whisper` set to the GM user ids unless already set, `blind: false` |
+| `blind` | `whisper` set to the GM user ids unless already set, `blind: true` |
+| `self` | `whisper` set to `[game.user.id]`, `blind: false` |
+| `ic` | as `public`, plus `style: CONST.CHAT_MESSAGE_STYLES.IC` |
+
+Pass `messageMode` in the create options and `ChatMessage#_preCreate` applies it. The old `rollMode` option still works but logs a deprecation warning and is mapped through `foundry.dice.Roll._mapLegacyRollMode` — removal in v16.
+
+```js
+// Apply a mode to a data object before creating the message
+ChatMessage.applyMode(chatData, "gm");            // static — mutates and returns chatData
+message.applyMode("self");                        // instance — updates the message source
+
+// The user's current default
+game.settings.get("core", "messageMode");         // "public" | "gm" | "blind" | "self" | "ic"
+```
+
+Add a mode of your own with a `handler` that shapes the data however you like:
+
+```js
+Hooks.once("init", () => {
+  CONFIG.ChatMessage.modes.table = {
+    label: "MY_MODULE.Modes.table",
+    icon: "fa-solid fa-users",
+    handler: chatData => {
+      chatData.whisper = game.users.filter(u => u.active && !u.isGM).map(u => u.id);
+      chatData.blind = false;
+    }
+  };
+});
+```
+
+A mode that is not in `CONFIG.ChatMessage.modes` falls back to the user's `core.messageMode` setting. `ic` downgrades to `public` when the message has no speaker actor or token, or carries rolls.
+
 ---
 
 ## 2. Custom Slash Commands
 
-Intercept chat input before a message is created to register custom `/commands`.
+Two ways in: register a pattern in `ChatLog.CHAT_COMMANDS` (v14), or intercept the `chatMessage` hook.
+
+### ChatLog.CHAT_COMMANDS (preferred)
+
+`ChatLog.CHAT_COMMANDS` is a static record of `{rgx, fn, mode, isRoll, isMultiline}` entries. Core registers `roll`, `gmroll`, `blindroll`, `selfroll`, `publicroll`, `ooc`, `ic`, `emote`, `gm`, `whisper`, `reply`, `players` and `macro` there. Add your own in `init`:
 
 ```js
-Hooks.on("chatMessage", (chatLog, content, data) => {
-  // Parse custom command
-  const match = content.match(/^\/mycommand\s+(.+)$/i);
-  if (!match) return true;   // not our command — pass through
-
-  const args = match[1].trim().split(/\s+/);
-  const [target, ...rest] = args;
-
-  // Build output
-  const html = `<div class="my-module-command">
-    <h3><i class="fa-solid fa-wand-magic-sparkles"></i> My Command</h3>
-    <p>Target: <strong>${target}</strong></p>
-    <p>Args: ${rest.join(", ")}</p>
-  </div>`;
-
-  ChatMessage.create({
-    content: html,
-    speaker: ChatMessage.getSpeaker()
-  });
-
-  return false;   // prevent the raw "/mycommand ..." text from posting
+Hooks.once("init", () => {
+  foundry.applications.sidebar.tabs.ChatLog.CHAT_COMMANDS.summon = {
+    rgx: /^(\/summon )([^]*)/i,
+    isRoll: false,
+    isMultiline: false,
+    fn: function (command, match, chatData, createOptions) {
+      // `this` is the ChatLog. `match` is the RegExp match.
+      const name = match[2].trim();
+      chatData.content = `<p>Summoning <strong>${foundry.utils.escapeHTML(name)}</strong>…</p>`;
+      createOptions.messageMode = "gm";
+    }
+  };
 });
 ```
 
-Return `false` to suppress the raw command text. Return `true` (or nothing) to let Foundry handle the message normally.
+`ChatLog#processMessage` calls your `fn`, then runs `ChatMessage.create(chatData, createOptions)`. So the handler mutates both objects in place; return `false` to stop message creation entirely. Set the message mode by writing `createOptions.messageMode` — the registry's `mode` key is only read automatically for roll commands (`isRoll: true`), where it also decides whether the dice can roll interactively. Set `isMultiline: true` to let the command run over several lines; writing to `ChatLog.MULTILINE_COMMANDS` or `ChatLog.MESSAGE_PATTERNS` is deprecated.
 
----
+### The chatMessage hook
+
+Still supported, and the right tool when you want to inspect every message rather than own a command:
+
+```js
+Hooks.on("chatMessage", (chatLog, message, { user, speaker }) => {
+  const match = message.match(/^\/mycommand\s+(.+)$/i);
+  if ( !match ) return;              // not our command — pass through
+
+  ChatMessage.create({
+    content: `<p>Target: <strong>${foundry.utils.escapeHTML(match[1])}</strong></p>`,
+    speaker
+  });
+
+  return false;                      // prevent the raw "/mycommand ..." text from posting
+});
+```
+
+The hook fires with the trimmed message string and `{user, speaker}`, not the old `data` object. Returning `false` suppresses the default message.
+
+### The chat input is ProseMirror
+
+`ui.chat`'s input is an `HTMLProseMirrorElement` (`#chat-message`), not a `<textarea>`. Handle keystrokes through the `chatInput(event, options)` hook — return `false` to take over, and set `options.recordPending = false` at the same time so chat history stays in sync.
+
+The element dispatches a cancelable `plugins` event before it builds its editor, and `ChatLog` listens for it in `_onConfigurePlugins`. The editor is built when the element connects, which is earlier than `renderChatInput` — so subclass the ChatLog and set `CONFIG.ui.chat` rather than adding a listener from a render hook:
+
+```js
+class MyChatLog extends foundry.applications.sidebar.tabs.ChatLog {
+  _onConfigurePlugins(event) {
+    super._onConfigurePlugins(event);
+    if ( !event.target.closest("#chat-message") ) return;
+    event.plugins.myPlugin = new foundry.prosemirror.Plugin({ /* ... */ });
+  }
+}
+Hooks.once("init", () => { CONFIG.ui.chat = MyChatLog; });
+```
+
+`event.plugins` is the plugin record (also `event.detail`); calling `event.preventDefault()` drops every plugin. The same event fires on every `<prose-mirror>` element, so filter on the target.
 
 ## 3. Chat Card Templates
 
@@ -88,7 +161,7 @@ Create rich HTML chat cards that users can interact with:
 // Build and post an interactive card
 async function postAbilityCheck(actor, ability) {
   const mod = actor.system.abilities[ability]?.mod ?? 0;
-  const html = await renderTemplate("modules/my-module/templates/chat/ability-card.hbs", {
+  const html = await foundry.applications.handlebars.renderTemplate("modules/my-module/templates/chat/ability-card.hbs", {
     actorName: actor.name,
     ability,
     mod,
@@ -121,42 +194,38 @@ async function postAbilityCheck(actor, ability) {
 
 ### Handling card button clicks
 
-Wire up button clicks on chat cards via event delegation in the `ready` hook:
+Bind the listener to the message element the render hook hands you. Do not query `document` for the chat log — messages also render in the notifications area, in a popped-out chat, and in detached windows, so a single global listener misses them.
 
 ```js
-Hooks.on("ready", () => {
-  // Attach to the chat log container
-  document.getElementById("chat-log")?.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-action]");
-    if (!button) return;
+Hooks.on("renderChatMessageHTML", (message, html) => {
+  const flags = message.flags["my-module"];
+  if ( !flags ) return;
 
-    const action = button.dataset.action;
-    const card = button.closest(".my-module-card");
-    const messageId = card?.closest(".message")?.dataset.messageId;
-    const message = game.messages.get(messageId);
-    const flags = message?.flags["my-module"];
+  html.addEventListener("click", async event => {
+    const button = event.target.closest("[data-action='rollCheck']");
+    if ( !button ) return;
 
-    if (action === "rollCheck" && flags) {
-      const actor = game.actors.get(flags.actorId);
-      if (!actor) return;
-      const mod = actor.system.abilities[flags.ability]?.mod ?? 0;
-      const roll = new Roll(`1d20 + ${mod}`);
-      await roll.evaluate();
-      await roll.toMessage({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        flavor: `${flags.ability.capitalize()} Check`
-      });
-    }
+    const actor = game.actors.get(flags.actorId);
+    if ( !actor ) return;
+    const mod = actor.system.abilities[flags.ability]?.mod ?? 0;
+    const roll = new Roll(`1d20 + ${mod}`);
+    await roll.evaluate();
+    await roll.toMessage({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      flavor: `${flags.ability.capitalize()} Check`
+    });
   });
 });
 ```
 
+To reach chat DOM from outside a render hook, use `foundry.applications.detached.querySelectorAll(selector)`, which searches every open window rather than only the main page.
+
 ### Injecting buttons into existing messages
 
-Use `renderChatMessage` to add buttons to other modules' or system chat cards:
+Use `renderChatMessageHTML` to add buttons to other modules' or system chat cards:
 
 ```js
-Hooks.on("renderChatMessage", (message, html, data) => {
+Hooks.on("renderChatMessageHTML", (message, html, context) => {
   // Add a "Save to Journal" button to every chat message
   if (!game.user.isGM) return;
   const button = document.createElement("button");
@@ -169,67 +238,92 @@ Hooks.on("renderChatMessage", (message, html, data) => {
 });
 ```
 
-`html` in `renderChatMessage` is a native `HTMLElement` (not jQuery) in v13.
+`html` is a native `HTMLElement`. The third argument is the rendering context, and it is only passed when the core message template rendered the message. `renderChatMessage` (jQuery) still fires but is deprecated — removal in v16.
 
 ---
 
-## 4. Context Menus (v13)
+## 4. Context Menus
 
-v13 renamed context menu hooks from the legacy `getChatLogEntryContext` / `getSidebarTabEntryContext` to per-document hooks.
+### Entry shape (changed in v14)
 
-### Actor sidebar context menu
+A `ContextMenuEntry` is `{label, icon, classes, group, visible, onClick}`. The v13 names `name`, `condition` and `callback` still work but log a deprecation warning — removal in v16.
+
+| v13 | v14 |
+|---|---|
+| `name` | `label` |
+| `condition` | `visible` (function or plain boolean) |
+| `callback` | `onClick` |
+
+`visible(target)` and `onClick(event, target)` both receive the row element the menu was opened on, not a document. Resolve the document from the element's dataset the way core does.
+
+### Sidebar context menus
+
+The hook is `get<DocumentName>ContextOptions` and it fires with `(application, menuItems)`.
 
 ```js
-Hooks.on("getActorContextOptions", (entry, options) => {
-  options.push({
-    name: "MY_MODULE.ContextMenu.quickHeal",
-    icon: '<i class="fa-solid fa-heart"></i>',
-    condition: () => game.user.isGM,
-    callback: async () => {
-      const actor = entry.document ?? entry;
+Hooks.on("getActorContextOptions", (app, entries) => {
+  const getActor = li => game.actors.get(li.closest("[data-entry-id]").dataset.entryId);
+  entries.push({
+    label: "MY_MODULE.ContextMenu.quickHeal",
+    icon: "fa-solid fa-heart",
+    visible: li => game.user.isGM && getActor(li).isOwner,
+    onClick: async (event, li) => {
+      const actor = getActor(li);
       await actor.update({ "system.health.value": actor.system.health.max });
-      ui.notifications.info(`${actor.name} fully healed.`);
+      ui.notifications.info("MY_MODULE.Notifications.healed", { format: { name: actor.name } });
     }
   });
 });
 ```
+
+`icon` takes a class string (a full HTML element also works). `label` is localized for you — pass the i18n key.
 
 ### Chat message context menu
 
 ```js
-Hooks.on("getChatMessageContextOptions", (entry, options) => {
-  options.push({
-    name: "MY_MODULE.ContextMenu.pinMessage",
-    icon: '<i class="fa-solid fa-thumbtack"></i>',
-    callback: async () => {
-      const message = entry.document ?? entry;
-      await message.setFlag("my-module", "pinned", true);
+Hooks.on("getChatMessageContextOptions", (app, entries) => {
+  entries.push({
+    label: "MY_MODULE.ContextMenu.pinMessage",
+    icon: "fa-solid fa-thumbtack",
+    onClick: (event, li) => {
+      const message = game.messages.get(li.closest("[data-message-id]").dataset.messageId);
+      return message.setFlag("my-module", "pinned", true);
     }
   });
 });
 ```
 
-### Item sidebar context menu
+### Placeable context menus (v14)
+
+Placeables on the canvas get their own menus. The Document name goes in the hook name — `getTokenPlaceableContextOptions`, `getWallPlaceableContextOptions`, and so on. A literal `getPlaceableContextOptions` never fires; that name is only the template used in the API docs.
 
 ```js
-Hooks.on("getItemContextOptions", (entry, options) => {
-  options.push({
-    name: "MY_MODULE.ContextMenu.duplicateToActor",
-    icon: '<i class="fa-solid fa-copy"></i>',
-    condition: () => game.user.isGM,
-    callback: async () => {
-      const item = entry.document ?? entry;
-      // Duplicate the item to the selected actor
-      const actor = canvas.tokens.controlled[0]?.actor;
-      if (actor) await actor.createEmbeddedDocuments("Item", [item.toObject()]);
-    }
+Hooks.on("getTokenPlaceableContextOptions", (app, entries) => {
+  entries.push({
+    label: "MY_MODULE.ContextMenu.markTarget",
+    icon: "fa-solid fa-crosshairs",
+    visible: () => game.user.isGM,
+    onClick: () => canvas.tokens.controlled.forEach(t => t.setTarget(true, { releaseOthers: false }))
   });
 });
 ```
 
-### v12 → v13 migration
+### Building a menu yourself
 
-| v12 Hook | v13 Hook |
+```js
+const menu = new foundry.applications.ux.ContextMenu.implementation(containerElement, ".entry", entries, {
+  fixed: true,
+  jQuery: false
+});
+```
+
+Inside an `ApplicationV2`, call `this._createContextMenu(handler, selector, {hookName})` instead — it collects entries from your handler, fires the hook for every class in the inheritance chain, and returns the menu.
+
+`ContextMenu.activateListeners(document)` wires the global close-on-click handler; the old `ContextMenu.eventListeners()` is deprecated until v16. `ContextMenu.create()` throws for ApplicationV2 instances — it only ever supported appv1. `foundry.applications.ux.FilterMenu` is a ContextMenu subclass for filter dropdowns: it opens on `click`, stays open when an entry is picked, and rebuilds its entries on every open from the `menuItems` callback you pass.
+
+### Hook name migration
+
+| v12 hook | v14 hook |
 |---|---|
 | `getChatLogEntryContext` | `getChatMessageContextOptions` |
 | `getSidebarTabEntryContext` (Actors) | `getActorContextOptions` |
@@ -237,7 +331,21 @@ Hooks.on("getItemContextOptions", (entry, options) => {
 | `getSidebarTabEntryContext` (Journals) | `getJournalEntryContextOptions` |
 | `getSidebarTabEntryContext` (Scenes) | `getSceneContextOptions` |
 
----
+### Autocomplete menus
+
+`foundry.applications.ux.Autocomplete` renders a drop-down of completions next to any element — the chat input uses it for `@` references.
+
+```js
+const ac = new foundry.applications.ux.Autocomplete({
+  onSelect: (identifier, label, { prefix }) => console.log(identifier, label, prefix)
+});
+ac.activate(inputElement, [{ identifier: "Actor.abc", label: "Bandit" }], { prefix: "@" });
+ac.select(1);      // move the highlight down
+ac.commit();       // fire onSelect for the highlighted entry
+ac.dismiss();      // close without selecting
+```
+
+Entries are `{identifier, label, disabled}`. The menu renders into the target element's own document, so it works inside detached windows.
 
 ## 5. TextEditor.enrichHTML
 
@@ -246,13 +354,15 @@ Foundry's rich text processing converts document references and inline rolls int
 ### Basic usage
 
 ```js
-// Enrich HTML with document link resolution
+const TextEditor = foundry.applications.ux.TextEditor.implementation;
+
 const enriched = await TextEditor.enrichHTML(actor.system.biography, {
   relativeTo: actor,                          // resolves @UUID relative to this document
-  rollData: actor.getRollData(),              // makes @abilities.str etc. available
-  async: true                                 // required for inline roll evaluation
+  rollData: actor.getRollData()               // makes @abilities.str etc. available
 });
 ```
+
+`EnrichmentOptions` are `secrets`, `documents`, `links`, `rolls`, `embeds`, `custom`, `rollData` and `relativeTo`. The `async` option is gone — `enrichHTML` is always async. The bare `TextEditor` global is a shim for `foundry.applications.ux.TextEditor.implementation`, removal in v15.
 
 ### Content link syntax
 
@@ -264,7 +374,7 @@ const enriched = await TextEditor.enrichHTML(actor.system.biography, {
 @Check[strength]{Strength Save}            → system-dependent (requires system support)
 ```
 
-### Custom enrichers (v13)
+### Custom enrichers
 
 Register custom inline patterns via `CONFIG.TextEditor.enrichers`:
 
@@ -298,12 +408,28 @@ Hooks.once("init", () => {
 
 Now `@Check[strength]{Strength Save}` in any enriched HTML becomes a clickable roll link.
 
+### Document embed handlers (v14)
+
+`CONFIG.<DocumentName>.embedHandlers` is an array of callbacks that post-process every `@Embed[...]` result for that document type. Each handler gets `(doc, content, config, options)` and returns the element to use, or `null` to block the embed:
+
+```js
+Hooks.once("init", () => {
+  CONFIG.JournalEntryPage.embedHandlers.push((page, content, config) => {
+    if ( !content || !page.getFlag("my-module", "spoiler") ) return content;
+    content.classList.add("my-module-spoiler");
+    return content;
+  });
+});
+```
+
+Handlers run in registration order, each receiving the previous handler's output. `Document#toEmbed` wraps the final result as an inline span or a `<figure>` unless the handler already returned an `HTMLDocumentEmbedElement`.
+
 ### {{editor}} Handlebars helper
 
 Use in sheet templates for rich text editing fields:
 
 ```hbs
-{{! In your sheet template — v13 uses prose-mirror element }}
+{{! In your sheet template }}
 {{#if isEditable}}
   <prose-mirror name="system.biography" button="true" editable="{{isEditable}}" toggled="false" value="{{system.biography}}">
     {{{enrichedBiography}}}
@@ -318,11 +444,10 @@ The `enrichedBiography` context variable must be pre-enriched in `_prepareContex
 ```js
 async _prepareContext(options) {
   return {
-    enrichedBiography: await TextEditor.enrichHTML(this.document.system.biography, {
-      relativeTo: this.document,
-      rollData: this.document.getRollData(),
-      async: true
-    }),
+    enrichedBiography: await foundry.applications.ux.TextEditor.implementation.enrichHTML(
+      this.document.system.biography,
+      { relativeTo: this.document, rollData: this.document.getRollData() }
+    ),
     isEditable: this.isEditable
   };
 }
@@ -335,25 +460,25 @@ async _prepareContext(options) {
 ### Programmatic FilePicker
 
 ```js
+const FilePicker = foundry.applications.apps.FilePicker.implementation;
+
 // Open a file picker for images
 new FilePicker({
   type: "image",
   current: actor.img,
-  callback: (path) => {
-    actor.update({ img: path });
-  }
-}).render(true);
+  callback: path => actor.update({ img: path })
+}).render({ force: true });
 
 // Audio picker
 new FilePicker({
   type: "audio",
-  callback: (path) => {
-    game.settings.set("my-module", "ambientSound", path);
-  }
-}).render(true);
+  callback: path => game.settings.set("my-module", "ambientSound", path)
+}).render({ force: true });
 ```
 
-Available types: `"image"`, `"audio"`, `"video"`, `"imagevideo"`, `"font"`, `"folder"`, `"any"`.
+`FilePicker` is an `ApplicationV2`, so it takes `render({force: true})`. `FilePicker.FILE_TYPES` lists the accepted `type` values: `"any"`, `"audio"`, `"folder"`, `"font"`, `"graphics"`, `"image"`, `"imagevideo"`, `"text"`, `"texture"`, `"video"`.
+
+`"texture"` (v14) is images plus video plus `.basis` and `.ktx2` — use it for anything that ends up on the canvas as a PIXI texture. `"graphics"` covers 3D model formats (`fbx`, `glb`, `gltf`, `mtl`, `obj`, `stl`, `usdz`).
 
 ### Auto-wired pickers in templates
 
@@ -372,6 +497,8 @@ In `DocumentSheetV2` templates, add `data-edit` to any `<img>` element to make i
 ### Programmatic browsing
 
 ```js
+const FilePicker = foundry.applications.apps.FilePicker.implementation;
+
 // List files in a directory (no user interaction)
 const result = await FilePicker.browse("data", "modules/my-module/assets");
 console.log(result.files);   // array of file paths
@@ -379,6 +506,15 @@ console.log(result.dirs);    // array of subdirectory paths
 
 // Browse S3 or other storage backends
 const s3result = await FilePicker.browse("s3", "my-bucket/images");
+```
+
+### Fetching a file as a Blob
+
+`foundry.utils.fetchResource(src, {bustCache})` fetches a URL and returns a `Blob`, retrying once with a cache-busting query parameter when CORS fails. It replaces `TextureLoader.fetchResource`, which is deprecated until v16.
+
+```js
+const blob = await foundry.utils.fetchResource("modules/my-module/data/table.json");
+const data = JSON.parse(await blob.text());
 ```
 
 ---
@@ -390,25 +526,28 @@ const s3result = await FilePicker.browse("s3", "my-bucket/images");
 Foundry uses four permission tiers for document access:
 
 ```js
-CONST.ENTITY_PERMISSIONS.NONE;      // 0 — no access
-CONST.ENTITY_PERMISSIONS.LIMITED;   // 1 — see name/icon only
-CONST.ENTITY_PERMISSIONS.OBSERVER;  // 2 — read-only full access
-CONST.ENTITY_PERMISSIONS.OWNER;     // 3 — full read/write
+CONST.DOCUMENT_OWNERSHIP_LEVELS.INHERIT;   // -1 — inherit from the parent Folder
+CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;      //  0 — no access
+CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;   //  1 — see name/icon only
+CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;  //  2 — read-only full access
+CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;     //  3 — full read/write
 ```
+
+`CONST.ENTITY_PERMISSIONS` no longer exists. `CONST.DOCUMENT_META_OWNERSHIP_LEVELS` adds two UI-only values that are never stored: `DEFAULT` (-20) and `NOCHANGE` (-10).
 
 ### Setting permissions programmatically
 
 ```js
-// Set default permission for all users, with specific override for one user
+// Set default ownership for all users, with a specific override for one user
 await actor.update({
-  permission: {
-    default: CONST.ENTITY_PERMISSIONS.OBSERVER,
-    [someUserId]: CONST.ENTITY_PERMISSIONS.OWNER
+  ownership: {
+    default: CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,
+    [someUserId]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER
   }
 });
 ```
 
-The `permission` object maps user IDs to levels. The `default` key sets the fallback for users without an explicit entry.
+The field is `ownership` (a `DocumentOwnershipField`). It maps user IDs to levels; the `default` key sets the fallback for users without an explicit entry.
 
 ### Editability in ApplicationV2
 
@@ -488,9 +627,9 @@ const canEdit = actor.isOwner;
 
 ---
 
-## 8. ProseMirror Editor (v13)
+## 8. ProseMirror Editor
 
-v13 replaces the `{{editor}}` Handlebars helper with the `<prose-mirror>` custom element.
+ProseMirror is the only bundled rich-text editor. TinyMCE is gone from v14: nothing loads it, `CONFIG.TextEditor.engines` is empty by default, and code that assumed a TinyMCE instance breaks. Use the `<prose-mirror>` custom element instead of the `{{editor}}` helper.
 
 ### Template pattern
 
@@ -526,10 +665,10 @@ The `{{#if editable}}` wrapper with a plain HTML fallback is **mandatory** — t
 ```js
 async _prepareContext(options) {
   return {
-    enrichedBiography: await TextEditor.enrichHTML(this.document.system.biography, {
-      relativeTo: this.document,
-      rollData: this.document.getRollData()
-    }),
+    enrichedBiography: await foundry.applications.ux.TextEditor.implementation.enrichHTML(
+      this.document.system.biography,
+      { relativeTo: this.document, rollData: this.document.getRollData() }
+    ),
     editable: this.isEditable
   };
 }
@@ -574,20 +713,51 @@ async function enrichWithCustom(text) {
   };
 
   CONFIG.TextEditor.enrichers.push(config);
-  const enriched = await TextEditor.enrichHTML(text);
+  const enriched = await foundry.applications.ux.TextEditor.implementation.enrichHTML(text);
   CONFIG.TextEditor.enrichers = CONFIG.TextEditor.enrichers.filter(c => c !== config);
   return enriched;
 }
 ```
 
-### v12 → v13 migration
+### Building an editor in code
 
-| v12 | v13 |
-|---|---|
-| `{{editor content target="field" editable=editable}}` | `<prose-mirror name="field" editable="{{editable}}">{{{content}}}</prose-mirror>` |
-| `target` attribute | `name` attribute |
-| `engine="prosemirror"` param | ProseMirror is the only engine |
-| Single helper call | Must wrap in `{{#if editable}}` with fallback |
+```js
+const editor = await foundry.applications.ux.ProseMirrorEditor.create(targetElement, content, {
+  document: this.document,
+  fieldName: "system.biography",
+  collaborate: true,
+  relativeLinks: true,
+  plugins: { myPlugin }        // merged over ProseMirrorEditor.buildDefaultPlugins()
+});
+```
+
+`ProseMirrorEditor.buildDefaultPlugins()` returns the standard plugin record — input rules, key maps, menu, dirty tracking, click handler, paste transformer, base key map, drop cursor, gap cursor, plus a reserved `chatInput` slot. Call it, edit the record, and hand it back through `plugins`.
+
+**Changed in v14:** the constructor is `new ProseMirrorEditor(uuid, view, options)`. The old `(uuid, view, isDirtyPlugin, collaborate, options)` form still works with a warning — removal in v16. Pass `collaborate` inside `options`.
+
+### Custom editor engines
+
+`CONFIG.TextEditor.engines` maps an engine name to `{create, render}`. `create({options, initialContent})` builds the instance; `render({editable, ...})` returns the markup used by `createEditorInput` and the `{{editor}}` helper. Registering an engine is the only supported route back to a non-ProseMirror editor.
+
+### ProseMirror inserts
+
+`CONFIG.TextEditor.inserts` adds entries to the editor's insert menu. Each is `{action, title, inline, html, children}`; `<selection></selection>` inside `html` marks where the current selection goes.
+
+```js
+Hooks.once("init", () => {
+  CONFIG.TextEditor.inserts.push({
+    action: "readaloud",
+    title: "MY_MODULE.Inserts.readaloud",
+    html: `<div class="readaloud"><selection><blockquote>Read this aloud.</blockquote></selection></div>`
+  });
+});
+```
+
+Group several inserts under one menu entry by giving a parent entry a `children` array.
+
+### Migrating off `{{editor}}`
+
+`{{editor content target="field" editable=editable}}` becomes `<prose-mirror name="field" editable="{{editable}}">{{{content}}}</prose-mirror>`, wrapped in `{{#if editable}}` with a plain-HTML fallback. `target` is now `name`, and `engine="tinymce"` has nowhere to go.
 
 ---
 
@@ -596,17 +766,24 @@ async function enrichWithCustom(text) {
 In-game toast notifications for user feedback. Never use browser `alert()` or `console.warn()` for user-facing messages.
 
 ```js
-// Informational (blue)
 ui.notifications.info("Item created successfully.");
-
-// Warning (yellow)
+ui.notifications.success("Saved.");                                  // green
 ui.notifications.warn("You don't have enough gold for this purchase.");
+ui.notifications.error("Failed to save actor data.", { permanent: true });
 
-// Error (red)
-ui.notifications.error("Failed to save actor data.");
+// Localize the key rather than localizing it yourself
+ui.notifications.info("MY_MODULE.Notifications.saved", { localize: true });
 
-// With localization
-ui.notifications.info(game.i18n.localize("MY_MODULE.Notifications.saved"));
+// Fill {placeholders} from the format object — values are HTML-escaped
+ui.notifications.warn("MY_MODULE.Notifications.lowHealth", { format: { name: actor.name } });
+```
+
+Options: `localize`, `format`, `permanent`, `progress`, `console`, `escape`, `clean`. Passing `format` implies localization, so `localize` is unnecessary alongside it. A progress notification returns a handle you update as work proceeds:
+
+```js
+const progress = ui.notifications.info("MY_MODULE.Import.running", { localize: true, progress: true });
+progress.update({ pct: 0.5, message: "MY_MODULE.Import.half", localize: true });
+progress.update({ pct: 1 });
 ```
 
 ### Tooltips

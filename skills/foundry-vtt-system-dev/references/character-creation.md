@@ -1,12 +1,14 @@
 # Character Creation
 
-Deep reference for Foundry VTT v13's character creation workflows.
+Deep reference for Foundry VTT v14's character creation workflows.
 
 ---
 
 ## 1. _preCreate() for Default Items
 
-Override `_preCreate()` on your `TypeDataModel` to inject default items when an Actor is created. This runs before the document is persisted, so you can modify creation data safely.
+Override `_preCreate()` on your `TypeDataModel` to inject default items when an Actor is created. `ClientDocument#_preCreate` forwards to `this.system._preCreate(data, options, user)`, so it runs before the document is persisted and you can still change the creation data.
+
+Inside a `TypeDataModel`, `this` is the **system** model. `this.updateSource()` writes into `actor.system`. Anything outside `system` — `items`, `effects`, `prototypeToken`, `img` — goes through `this.parent.updateSource()`, where `this.parent` is the Actor. Return `false` to cancel the creation.
 
 ```js
 class HeroData extends foundry.abstract.TypeDataModel {
@@ -23,6 +25,7 @@ class HeroData extends foundry.abstract.TypeDataModel {
    * @param {object} data    - The initial creation data for this actor.
    * @param {object} options - Creation options.
    * @param {User}   user    - The user creating the document.
+   * @returns {Promise<boolean|void>} Return false to cancel the creation.
    */
   async _preCreate(data, options, user) {
     await super._preCreate(data, options, user);
@@ -30,48 +33,69 @@ class HeroData extends foundry.abstract.TypeDataModel {
     // Build default items array
     const defaultItems = [
       {
-        name: game.i18n.localize("MY_SYSTEM.UnarmedStrike"),
+        name: _loc("MY_SYSTEM.UnarmedStrike"),
         type: "weapon",
         img: "icons/weapons/fist/fist-human.webp",
-        system: {
-          damage: "1",
-          damageType: "bludgeoning",
-          equipped: true
-        }
+        system: { damage: "1", damageType: "bludgeoning", equipped: true }
       },
       {
-        name: game.i18n.localize("MY_SYSTEM.DefaultArmor"),
+        name: _loc("MY_SYSTEM.DefaultArmor"),
         type: "armor",
         img: "icons/equipment/chest/shirt-collared-white.webp",
-        system: {
-          armorType: "clothing",
-          armorValue: 10,
-          equipped: true
-        }
-      },
-      {
-        name: game.i18n.localize("MY_SYSTEM.BasicFeature"),
-        type: "feature",
-        img: "icons/skills/trades/mining-pickaxe-yellow.webp",
-        system: {
-          description: game.i18n.localize("MY_SYSTEM.BasicFeatureDesc")
-        }
+        system: { armorType: "clothing", armorValue: 10, equipped: true }
       }
     ];
 
-    // Inject items into creation data
-    this.updateSource({ items: defaultItems });
+    // Inject items into creation data — `items` lives on the Actor, not on system
+    this.parent.updateSource({ items: defaultItems });
   }
 }
 ```
 
-`updateSource()` merges the provided data into the pending creation data. The `items` key adds embedded documents to the actor.
+`updateSource()` merges into the pending creation data. `items` adds embedded documents to the actor.
+
+### Operators in updateSource
+
+Changed in v14: the `-=key` and `==key` syntaxes are deprecated (removed in v16). Use the operator globals: `_del` deletes a key, `_replace(value)` assigns without merging.
+
+```js
+async _preCreate(data, options, user) {
+  await super._preCreate(data, options, user);
+
+  // Replace outright instead of deep-merging into whatever was copied in
+  this.updateSource({ abilities: _replace({ str: { value: 10 }, dex: { value: 10 } }) });
+
+  // Drop a marker flag carried over from the template actor
+  this.parent.updateSource({ "flags.my-system.isTemplate": _del });
+}
+```
+
+### Active Effects on creation
+
+Changed in v14: an effect's changes live at `effect.system.changes`, and each change is `{key, type, value, phase, priority}` with a string `type`. Numeric `mode` is deprecated.
+
+```js
+this.parent.updateSource({
+  effects: [{
+    name: _loc("MY_SYSTEM.WellRested"),
+    img: "icons/magic/life/heart-glowing-red.webp",
+    system: {
+      changes: [
+        { key: "system.hp.max", type: "add", value: 2, phase: "initial", priority: 20 }
+      ]
+    },
+    duration: { value: 8, units: "hours" }
+  }]
+});
+```
+
+`type` is a key of `CONST.ACTIVE_EFFECT_CHANGE_TYPES` (`custom, multiply, add, subtract, downgrade, upgrade, override`) or a custom id in `CONFIG.ActiveEffect.changeTypes`. `phase` is `"initial"` or `"final"`. `duration.units` is a value in `CONST.ACTIVE_EFFECT_DURATION_UNITS` (`years, months, days, hours, minutes, seconds, rounds, turns`). Full model: `foundry-vtt-module-dev/references/active-effects-v2.md`.
 
 ---
 
 ## 2. preCreateActor Hook
 
-The global `preCreateActor` hook fires for all Actor creation, regardless of type. Use it when you need to set defaults that apply across all actor types or when you cannot modify the TypeDataModel.
+The global `preCreateActor` hook fires for every Actor creation. Use it for defaults that apply across all types, or when you cannot change the TypeDataModel.
 
 ```js
 Hooks.on("preCreateActor", (document, data, options, userId) => {
@@ -81,15 +105,11 @@ Hooks.on("preCreateActor", (document, data, options, userId) => {
   // Set default token configuration
   document.updateSource({
     "prototypeToken.name": document.name,
-    "prototypeToken.texture.src": "icons/svg/mystery-man.svg",
     "prototypeToken.displayName": CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER,
-    "prototypeToken.displayBars": CONST.TOKEN_DISPLAY_MODES.OWNER,
     "prototypeToken.disposition": CONST.TOKEN_DISPOSITIONS.FRIENDLY,
     "prototypeToken.actorLink": true,
     "prototypeToken.sight.enabled": true,
-    "prototypeToken.sight.range": 60,
-    "prototypeToken.light.dim": 10,
-    "prototypeToken.bar1.attribute": "hp",
+    "prototypeToken.bar1.attribute": "hp"
   });
 });
 ```
@@ -100,7 +120,9 @@ The first argument is the pending Actor document instance. Use `document.updateS
 
 ## 3. Prototype Token Defaults
 
-Configure default token settings in `_preCreate()` so every new actor has sensible token behavior out of the box.
+Configure default token settings in `_preCreate()` so every new actor has sensible token behavior out of the box. `prototypeToken` is an Actor-level field, so write it through `this.parent`.
+
+`PrototypeToken` carries a subset of the Token schema (`common/data/data.mjs`): `name, displayName, actorLink, width, height, depth, texture, lockRotation, rotation, alpha, disposition, displayBars, bar1, bar2, light, sight, detectionModes, occludable, ring, turnMarker, movementAction, flags`, plus `randomImg`, `appendNumber`, `prependAdjective`. Changed in v14: `depth` was added, and `detectionModes` is an object keyed by mode id rather than an array. Scene-scoped Token fields — `x`, `y`, `elevation`, `shape`, `level` — are **not** on the prototype.
 
 ```js
 class HeroData extends foundry.abstract.TypeDataModel {
@@ -110,39 +132,25 @@ class HeroData extends foundry.abstract.TypeDataModel {
     await super._preCreate(data, options, user);
 
     // Default token configuration for hero actors
-    this.updateSource({
+    this.parent.updateSource({
       prototypeToken: {
         name: data.name,
         displayName: CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER,
         displayBars: CONST.TOKEN_DISPLAY_MODES.OWNER,
         disposition: CONST.TOKEN_DISPOSITIONS.FRIENDLY,
         actorLink: true,       // linked actors share HP, effects, inventory
+        depth: 1,              // v14: vertical extent in grid units
         sight: {
           enabled: true,
           range: 60,           // vision range in scene units
-          visionMode: "basicVision"
+          visionMode: "basic"   // a key of CONFIG.Canvas.visionModes
         },
-        light: {
-          bright: 0,
-          dim: 10,             // dim light radius
-          color: "#ffeedd",
-          alpha: 0.5,
-          animation: {
-            type: "torch",
-            speed: 5,
-            intensity: 5
-          }
-        },
-        // Bar 1: HP, Bar 2: empty
+        light: { bright: 0, dim: 10, color: "#ffeedd", alpha: 0.5,
+          animation: { type: "torch", speed: 5, intensity: 5 } },
+        // Bar attribute paths are relative to `system`
         bar1: { attribute: "hp" },
         bar2: { attribute: null },
-        // Default texture
-        texture: {
-          src: "icons/svg/mystery-man.svg",
-          scaleX: 1,
-          scaleY: 1,
-          tint: null
-        }
+        texture: { src: "icons/svg/mystery-man.svg", scaleX: 1, scaleY: 1, tint: null }
       }
     });
   }
@@ -160,34 +168,22 @@ Define starter item sets per actor type. Store item data as plain objects and in
 ```js
 const STARTER_ITEMS = {
   hero: [
-    {
-      name: "Longsword",
-      type: "weapon",
-      img: "icons/weapons/swords/sword-guard-steel.webp",
-      system: { damage: "1d8", equipped: true, proficient: true }
-    },
-    {
-      name: "Chain Mail",
-      type: "armor",
-      img: "icons/equipment/chest/chainmail-hauberk-silver.webp",
-      system: { armorType: "heavy", armorValue: 16, equipped: true }
-    }
+    { name: "Longsword", type: "weapon", img: "icons/weapons/swords/sword-guard-steel.webp",
+      system: { damage: "1d8", equipped: true, proficient: true } },
+    { name: "Chain Mail", type: "armor", img: "icons/equipment/chest/chainmail-hauberk-silver.webp",
+      system: { armorType: "heavy", armorValue: 16, equipped: true } }
   ],
   npc: [
-    {
-      name: "Natural Weapon",
-      type: "weapon",
-      img: "icons/weapons/fist/fist-human.webp",
-      system: { damage: "1d6", equipped: true, proficient: true }
-    }
+    { name: "Natural Weapon", type: "weapon", img: "icons/weapons/fist/fist-human.webp",
+      system: { damage: "1d6", equipped: true, proficient: true } }
   ]
 };
 
-// Apply in _preCreate
+// Apply in _preCreate on the type's TypeDataModel
 async _preCreate(data, options, user) {
   await super._preCreate(data, options, user);
-  const items = STARTER_ITEMS[data.type] ?? [];
-  if (items.length) this.updateSource({ items });
+  const items = STARTER_ITEMS[this.parent.type] ?? [];
+  if (items.length) this.parent.updateSource({ items });
 }
 ```
 
@@ -195,49 +191,28 @@ async _preCreate(data, options, user) {
 
 ## 5. Character Creation Dialog
 
-Build a custom creation workflow using `DialogV2` for interactive character setup.
+Build a custom creation workflow using `DialogV2`. Changed in v14: `DialogV2.wait` accepts `renderOptions`, forwarded to the render call. `DialogV2.input` is the shortcut when you only need the form data back — it wraps `prompt` with a callback that returns `new FormDataExtended(button.form).object`.
 
 ```js
 async function showCharacterCreationDialog() {
-  const races = ["human", "elf", "dwarf"];
-  const classes = ["warrior", "mage", "rogue"];
-
-  const raceOpts = races.map((r) => `<option value="${r}">${game.i18n.localize(`MY_SYSTEM.Race.${r}`)}</option>`).join("");
-  const classOpts = classes.map((c) => `<option value="${c}">${game.i18n.localize(`MY_SYSTEM.Class.${c}`)}</option>`).join("");
+  const opts = (list, prefix) => list
+    .map(v => `<option value="${v}">${_loc(`${prefix}.${v}`)}</option>`).join("");
 
   const content = `
-    <form>
-      <div class="form-group">
-        <label>${game.i18n.localize("MY_SYSTEM.CharName")}</label>
-        <input type="text" name="name" required />
-      </div>
-      <div class="form-group">
-        <label>${game.i18n.localize("MY_SYSTEM.CharRace")}</label>
-        <select name="race">${raceOpts}</select>
-      </div>
-      <div class="form-group">
-        <label>${game.i18n.localize("MY_SYSTEM.CharClass")}</label>
-        <select name="charClass">${classOpts}</select>
-      </div>
-    </form>
+    <div class="form-group"><label>${_loc("MY_SYSTEM.CharName")}</label>
+      <input type="text" name="name" required /></div>
+    <div class="form-group"><label>${_loc("MY_SYSTEM.CharRace")}</label>
+      <select name="race">${opts(["human", "elf", "dwarf"], "MY_SYSTEM.Race")}</select></div>
+    <div class="form-group"><label>${_loc("MY_SYSTEM.CharClass")}</label>
+      <select name="charClass">${opts(["warrior", "mage", "rogue"], "MY_SYSTEM.Class")}</select></div>
   `;
 
-  return foundry.applications.api.DialogV2.wait({
-    window: { title: game.i18n.localize("MY_SYSTEM.CreateCharacter") },
-    content,
+  // DialogV2.input returns the form object, or null when dismissed
+  return foundry.applications.api.DialogV2.input({
+    window: { title: _loc("MY_SYSTEM.CreateCharacter") },
     position: { width: 400 },
-    rejectClose: false,
-    ok: {
-      label: game.i18n.localize("MY_SYSTEM.Create"),
-      callback: (event, button) => {
-        const form = button.form;
-        return {
-          name: form.elements.name.value,
-          race: form.elements.race.value,
-          charClass: form.elements.charClass.value
-        };
-      }
-    }
+    content,
+    ok: { label: _loc("MY_SYSTEM.Create") }
   });
 }
 ```
@@ -247,11 +222,10 @@ async function showCharacterCreationDialog() {
 ```js
 // Roll 4d6 drop lowest for each ability
 async function rollAbilityScores() {
-  const abilities = ["str", "dex", "con", "int", "wis", "cha"];
   const scores = {};
-  for (const ability of abilities) {
+  for (const ability of ["str", "dex", "con", "int", "wis", "cha"]) {
     const roll = new Roll("4d6kh3");
-    await roll.evaluate();  // v13: evaluate() is async
+    await roll.evaluate();  // evaluate() is async
     scores[ability] = roll.total;
   }
   return scores;
@@ -293,32 +267,41 @@ Load character templates, race packages, or class features from compendium packs
 async function applyRaceItems(actor, raceId) {
   const pack = game.packs.get("my-system.races");
   if (!pack) return;
-
-  // Get all documents in the pack
   const documents = await pack.getDocuments();
-
-  // Find the matching race document
-  const raceDoc = documents.find((d) => d.flags["my-system"]?.raceId === raceId);
+  const raceDoc = documents.find(d => d.flags["my-system"]?.raceId === raceId);
   if (!raceDoc) return;
-
-  // Clone the race document's items and add them to the actor
-  const raceItems = raceDoc.items.map((item) => item.toObject());
-  await actor.createEmbeddedDocuments("Item", raceItems);
+  await actor.createEmbeddedDocuments("Item", raceDoc.items.map(i => i.toObject()));
 }
 ```
 
 ### Importing an Actor from a Compendium
 
+Use the world collection rather than `Actor.create(doc.toObject())`. `WorldCollection#importFromCompendium(pack, id, updateData, options)` runs `fromCompendium`, which clears folder, sort, ownership and state, and records `_stats.compendiumSource` so you can find the origin later.
+
 ```js
-async function importFromCompendium(packId) {
+async function importActor(packId, docId) {
   const pack = game.packs.get(packId);
   if (!pack) return;
+  return game.actors.importFromCompendium(pack, docId, { name: "Copy of Goblin" }, { keepId: false });
+}
+```
 
-  const documents = await pack.getDocuments();
-  const template = documents.find((d) => d.documentName === "Actor");
-  if (!template) return;
+### Import prompt
 
-  return Actor.create(template.toObject());
+Let the user pick and confirm before you write. `DialogV2.input` returns the form object, or `null` if the dialog is dismissed.
+
+```js
+async function promptImport(packId) {
+  const pack = game.packs.get(packId);
+  const index = await pack.getIndex();
+  const opts = index.map(e =>
+    `<option value="${e._id}">${foundry.utils.escapeHTML(e.name)}</option>`).join("");
+  const picked = await foundry.applications.api.DialogV2.input({
+    window: { title: _loc("MY_SYSTEM.ImportCharacter") },
+    content: `<div class="form-group"><select name="docId">${opts}</select></div>`,
+    ok: { label: _loc("MY_SYSTEM.Import") }
+  });
+  return picked ? game.actors.importFromCompendium(pack, picked.docId) : undefined;
 }
 ```
 
@@ -329,3 +312,16 @@ async function importFromCompendium(packId) {
 const doc = await fromUuid("Compendium.my-system.races.Actor.abc123");
 const data = doc?.toObject();
 ```
+
+---
+
+## 7. Starting Conditions with toggleStatusEffect
+
+`Actor#toggleStatusEffect(statusId, {active, overlay})` creates or removes the ActiveEffect for a configured status. `statusId` must be a key of `CONFIG.statusEffects`; anything else throws. It resolves to the created `ActiveEffect`, `true` if one already existed, `false` if one was removed, or `undefined` if nothing changed.
+
+```js
+// After creating a character, apply its starting condition
+await actor.toggleStatusEffect("blind", { active: true, overlay: false });
+```
+
+Changed in v14: `CONFIG.statusEffects` is a Proxy over the array that also indexes by id. `CONFIG.statusEffects.blind` reads an entry, `CONFIG.statusEffects.myCondition = {id: "myCondition", name: "...", img: "..."}` adds one. A system may still assign a whole array to replace the list.

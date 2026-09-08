@@ -1,6 +1,8 @@
 # Vision & Lighting
 
-Deep reference for Foundry VTT v13's vision modes, lighting system, and detection modes.
+Deep reference for Foundry VTT v14's vision modes, lighting system, detection modes, edges and fog.
+
+The big v14 change here is that vision is **level-aware**. Every source, polygon and detection test carries a Scene Level, and edges are collected per level. See `foundry-vtt-module-dev/references/scene-levels.md` for the Level document itself.
 
 ---
 
@@ -35,8 +37,6 @@ VisionMode.LIGHTING_LEVELS = {
 
 ### Lighting visibility
 
-Controls how lighting channels render for this vision mode:
-
 ```js
 VisionMode.LIGHTING_VISIBILITY = {
   DISABLED:  "disabled",   // layer not rendered
@@ -49,13 +49,13 @@ VisionMode.LIGHTING_VISIBILITY = {
 
 ```js
 Hooks.once("init", () => {
-  const myVision = new VisionMode({
+  CONFIG.Canvas.visionModes.myDarkvision = new foundry.canvas.perception.VisionMode({
     id: "myDarkvision",
     label: "MY_MODULE.VisionMode.darkvision",
     tokenConfig: true,
     animated: false,
     canvas: {
-      shader: ColorAdjustmentsSamplerShader,
+      shader: foundry.canvas.rendering.shaders.ColorAdjustmentsSamplerShader,
       uniforms: { contrast: 0, saturation: -1.0, brightness: 0 }
     },
     vision: {
@@ -63,43 +63,31 @@ Hooks.once("init", () => {
       defaults: { attenuation: 0, contrast: 0, saturation: -1.0, brightness: 0 }
     },
     lighting: {
-      visibility: VisionMode.LIGHTING_VISIBILITY.ENABLED
+      visibility: foundry.canvas.perception.VisionMode.LIGHTING_VISIBILITY.ENABLED
     }
   });
-
-  CONFIG.Canvas.visionModes["myDarkvision"] = myVision;
 });
 ```
+
+**Changed in v14:** `CONFIG.Canvas.visionModes` and `CONFIG.Canvas.detectionModes` are lazy self-replacing getters — they build their defaults on first read to avoid a cyclic import. Reading or assigning keys works exactly as before; do not replace the whole object before the canvas first initialises.
 
 ### Lifecycle methods
 
 ```js
-class MyVisionMode extends VisionMode {
-  // Called when a token using this vision becomes the POV
-  _activate(source) {
-    // source is a PointVisionSource
-  }
-
-  // Called when the POV switches away
-  _deactivate(source) {
-  }
-
-  // Runs every frame while active (PIXI ticker)
-  animate(dt) {
-    // dt = deltaTime in ms
-  }
+class MyVisionMode extends foundry.canvas.perception.VisionMode {
+  _activate(source) {}     // token using this vision becomes the POV
+  _deactivate(source) {}   // POV switches away
+  animate(dt) {}           // every frame while active (PIXI ticker)
 }
 ```
 
-### PointVisionSource
-
-Each token's vision creates a `PointVisionSource`. The active vision mode receives this source in `activate`/`deactivate`. The source manages the token's sight polygon, range, and attenuation.
+Each token's vision creates a `PointVisionSource`, which the active vision mode receives in `_activate`/`_deactivate`.
 
 ---
 
 ## 2. Detection Modes
 
-Detection modes define *what* a token can perceive (beyond basic sight). They work with vision modes.
+Detection modes define *what* a token can perceive beyond basic sight.
 
 ### Built-in detection modes
 
@@ -109,106 +97,234 @@ Detection modes define *what* a token can perceive (beyond basic sight). They wo
 | `DetectionModeDarkvision` | See in darkness |
 | `DetectionModeLightPerception` | Detect light sources |
 | `DetectionModeInvisibility` | See invisible creatures |
-| `DetectionModeTremor` | Tremorsense (feel through ground) |
+| `DetectionModeTremor` | Tremorsense |
 | `DetectionModeAll` | Detect everything |
 
 ### Register a custom detection mode
 
 ```js
 Hooks.once("init", () => {
-  CONFIG.Canvas.detectionModes["myModule.truesight"] = new DetectionMode({
-    id: "myModule.truesight",
-    label: "MY_MODULE.DetectionMode.truesight",
-    type: "sight",
-    walls: true,          // respects walls
-    angle: false          // not limited by vision angle
-  });
+  CONFIG.Canvas.detectionModes["myModule.truesight"] =
+    new foundry.canvas.perception.DetectionMode({
+      id: "myModule.truesight",
+      label: "MY_MODULE.DetectionMode.truesight",
+      type: "sight",
+      walls: true,      // respects edges
+      angle: false      // not limited by vision angle
+    });
 });
 ```
 
-Detection modes are referenced by ID in token vision configuration. The `type` field determines which visual channel it uses: `"sight"`, `"light"`, `"sound"`, or `"move"`.
+`type` is `"sight"`, `"light"`, `"sound"` or `"move"`.
+
+### Level-aware detection
+
+**Changed in v14:** the detection API takes a Level.
+
+```js
+class TrueSight extends foundry.canvas.perception.DetectionMode {
+  /** @param {Level} level  The level the test is performed in */
+  _canDetect(visionSource, target, level) {
+    if ( !super._canDetect(visionSource, target, level) ) return false;
+    return target?.document?.level === level.id;
+  }
+}
+```
+
+`DetectionMode#testVisibility(visionSource, mode, {object, level, tests})` passes the level through to `_canDetect`. `DetectionMode._testCollision(visionSource, test, configOrLos)` is now static.
+
+`CanvasVisibility#testVisibility(points, options)` accepts a single point or an array of points, with `{tolerance = 2, object}`:
+
+```js
+const visible = canvas.visibility.testVisibility(
+  [{ x: 500, y: 300 }, { x: 520, y: 320 }],
+  { tolerance: 2, object: token }
+);
+```
+
+### Token detection mode configuration
+
+**Changed in v14:** `TokenDocument#detectionModes` is a `TypedObjectField` keyed by mode id, not an array of `{id, enabled, range}`.
+
+```js
+// v13
+await token.document.update({ detectionModes: [{ id: "feelTremor", enabled: true, range: 30 }] });
+
+// v14
+await token.document.update({ "detectionModes.feelTremor": { enabled: true, range: 30 } });
+```
 
 ---
 
-## 3. Lighting System
+## 3. Edges (formerly Walls)
+
+**Changed in v14:** the wall constants were renamed to edge constants. The old names are deprecated until v16.
+
+| v13 | v14 |
+|---|---|
+| `CONST.WALL_SENSE_TYPES` | `CONST.EDGE_SENSE_TYPES` |
+| `CONST.WALL_DIRECTIONS` | `CONST.EDGE_DIRECTIONS` |
+| `PointSourcePolygon.WALL_DIRECTION_MODES` | `CONST.EDGE_DIRECTION_MODES` |
+| `ClockwiseSweepPolygon#wallDirectionMode` | `#edgeDirectionMode` |
+
+```js
+CONST.EDGE_RESTRICTION_TYPES;  // ["light", "darkness", "sight", "sound", "move"]
+
+CONST.EDGE_SENSE_TYPES = {
+  NONE: 0, LIMITED: 10, NORMAL: 20, PROXIMITY: 30, DISTANCE: 40
+};
+
+CONST.EDGE_DIRECTIONS = { BOTH: 0, LEFT: 1, RIGHT: 2 };
+```
+
+`CONST.WALL_RESTRICTION_TYPES` still exists and is still `["light", "sight", "sound", "move"]`. `CONST.EDGE_RESTRICTION_TYPES` is the wider list that adds `"darkness"`, and the `Edge` constructor takes a matching `darkness` option alongside `light`, `sight`, `sound` and `move`.
+
+### Per-level edge collections
+
+**Changed in v14:** `CanvasEdges` is constructed per Level (`new CanvasEdges(level)`), and `canvas.edges` returns the collection for the current level.
+
+```js
+canvas.edges;                          // CanvasEdges for canvas.level
+canvas.edges.level;                    // the Level document
+canvas.edges.getEdges(rect, { collisionTestBounds: true });
+canvas.edges.identifyIntersections();
+
+canvas.scene.initializeEdges();        // rebuild all levels' edges
+```
+
+`CanvasEdges#initialize` is deprecated in favour of `Scene#initializeEdges`; `CanvasEdges#refresh` is deprecated because `getEdges` computes intersections lazily. The `refreshEdges` perception flag is obsolete.
+
+### WallDocument
+
+Edge construction moved from the `Wall` placeable to the document.
+
+```js
+wallDoc.edge;                      // the Edge instance
+wallDoc.initializeEdge();          // rebuild it (call after out-of-band changes)
+wallDoc.isDoor;
+wallDoc.isOpen;
+wallDoc.getWallCategory();
+```
+
+`WallDocument#_onEdgeChange(level, newEdge, priorEdge, changedTypes)` is the protected hook that fires when a wall's edge enters, leaves, or changes within a level. The `Wall` placeable's `A`, `B`, `vertices`, `roof`, `hasActiveRoof`, `orientPoint`, `applyThreshold` and `identifyInteriorState` are gone — read `wall.document.edge` instead.
+
+### Walls also carry levels
+
+`WallDocument#levels` is a `SceneLevelsSetField`, so a wall can exist on some levels and not others.
+
+---
+
+## 4. Polygons and collision testing
+
+```js
+const collides = foundry.canvas.geometry.ClockwiseSweepPolygon.testCollision(
+  origin, destination,
+  { type: "move", mode: "any", tMin: 0, tMax: 1 }
+);
+```
+
+**Changed in v14:** `PointSourcePolygon.testCollision(origin, destination, {mode, tMin, tMax, ...config})` accepts `tMin` and `tMax` to restrict the test to a fraction of the ray.
+
+Polygon configuration changes:
+
+| Deprecated | Replacement |
+|---|---|
+| `type: "universal"` | `{ edgeTypes: { wall: false } }` |
+| `config.edgeTypes.light` / `.darkness` | `config.edgeTypes.source` |
+| `config.edgeOptions` | `config.edgeTypes` |
+| `config.useInnerBounds` / `includeDarkness` | `config.edgeTypes` entries |
+| `wallDirectionMode` | `edgeDirectionMode` |
+
+`PointSourcePolygon#level` and `#scene` expose the level and scene a polygon was computed for.
+
+---
+
+## 5. Lighting System
 
 ### Canvas layers
 
-The lighting and vision system spans several canvas layers (bottom to top):
-
 ```
 LightingLayer      ← AmbientLight documents, darkness sources
-SightLayer         ← Vision polygons, fog of war
-EffectsLayer       ← Visual effects, weather
+CanvasVisibility   ← vision polygons, fog of war (canvas.visibility)
+EffectsCanvasGroup ← visual effects, weather (canvas.effects)
 ```
 
 ### Hooks
 
 ```js
-// Fires after lighting refresh
-Hooks.on("lightingRefresh", (lighting) => {
-  // Custom logic after lights update
-});
-
-// Fires after sight/vision refresh
-Hooks.on("sightRefresh", (sight) => {
-  // Custom logic after vision update
-});
+Hooks.on("lightingRefresh", lighting => {});
+Hooks.on("sightRefresh", visibility => {});
+Hooks.on("initializeEdges", scene => {});   // v14 signature: takes the Scene
 ```
-
-### Wall restriction types
-
-```js
-CONST.WALL_RESTRICTION_TYPES = ["light", "sight", "sound", "move"];
-```
-
-Walls can restrict each of these independently. When creating custom vision modes or detection modes, the `walls: true` setting determines whether walls block the detection.
 
 ### AmbientLight documents
 
-AmbientLight is an embedded document on Scene. Key config fields:
-
 ```js
-// Create a light source on the scene
-await scene.createEmbeddedDocuments("AmbientLight", [{
+await canvas.scene.createEmbeddedDocuments("AmbientLight", [{
   x: 500, y: 300,
+  name: "Brazier",              // new in v14
+  levels: [canvas.level.id],    // new in v14
   config: {
-    bright: 20,        // bright light radius (grid units)
-    dim: 40,           // dim light radius
+    bright: 20,
+    dim: 40,
     color: "#ffaa00",
     alpha: 0.5,
-    animation: {
-      type: "torch",   // "torch", "pulse", "chromatic", "wave", "fog", "sunburst", "dome"
-      speed: 3,
-      intensity: 3
-    },
-    darkness: { min: 0, max: 1 }   // only active in this darkness range
+    animation: { type: "torch", speed: 3, intensity: 3 },
+    darkness: { min: 0, max: 1 }
   }
 }]);
 ```
 
+**Changed in v14:** AmbientLight and AmbientSound gained `name`, `levels` and `locked`. The control icon was replaced by a tooltip (`_getTooltipText`, `_refreshTooltip`); the `refreshElevation` render flag is deprecated in favour of `refreshTooltip`. `AmbientLight#updateSource` and `#source` are gone — use `initializeLightSource()` and `lightSource`.
+
+### Effect sources carry a level
+
+`BaseEffectSource#level` returns the Level document the source lives in. Source data now includes a `level` id, which defaults to `canvas.level.id` and throws if the level does not exist.
+
 ### Darkness level
 
-The scene's darkness level controls light behavior. Programmatically adjust it:
-
 ```js
-await canvas.scene.update({ darkness: 0.7 });   // 0 = bright, 1 = total darkness
+await canvas.scene.update({ "environment.darknessLevel": 0.7 });  // 0 = bright, 1 = dark
 ```
 
 Lights with `darkness.min`/`darkness.max` only activate within their configured range.
 
----
+### Regions can block light and sight
 
-## 4. Fog of War
-
-`FogManager` handles fog of war exploration state. It lives on `canvas.fog`.
+**New in v14:** a Region with a `defineSurface` behavior acts as a floor or ceiling that blocks `light`, `move`, `sight`, `sound`, `occlusion`, `exposure` or `culling`. A Region with `restriction.enabled` blocks one `EDGE_RESTRICTION_TYPES` value directly.
 
 ```js
-// Reset fog for the current scene
-canvas.fog.reset();
-
-// Check if a point has been explored
-const explored = canvas.fog.getExplorationState();
+const surfaces = canvas.scene.getSurfaces({ type: "sight", level: canvas.level.id });
+const blocked = canvas.scene.testSurfaceCollision(origin, destination, { type: "sight" });
 ```
 
-Fog of war is managed automatically by Foundry when `scene.fog.exploration` is enabled. Modules rarely need to interact with it directly.
+See `foundry-vtt-module-dev/references/regions-and-grid.md`.
+
+---
+
+## 6. Fog of War
+
+`FogManager` lives on `canvas.fog`.
+
+**Changed in v14:** the boolean `scene.fog.exploration` became `scene.fog.mode`.
+
+```js
+CONST.FOG_EXPLORATION_MODES = {
+  DISABLED:   0,
+  INDIVIDUAL: 1,   // each user has their own fog
+  SHARED:     2    // fog is shared across all users
+};
+
+await canvas.scene.update({ "fog.mode": CONST.FOG_EXPLORATION_MODES.SHARED });
+```
+
+```js
+canvas.fog.sharedExploration;        // is this scene using shared fog?
+await canvas.fog.save({ share: true });
+await canvas.fog.load({ preserve: true });
+canvas.fog.reset();
+```
+
+`FogExploration` documents now carry a `level` id, so exploration is tracked per Scene Level. The fog texture source moved to `Level#fog.src`; `scene.fog.overlay` was removed.
+
+`CanvasVisibility#explorationRect` sets the rectangle the exploration texture covers, which matters when a level's background does not fill the scene rect.

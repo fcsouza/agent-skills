@@ -1,6 +1,6 @@
 # Data Migration
 
-Deep reference for Foundry VTT v13's system data migration patterns.
+Deep reference for Foundry VTT v14's system data migration patterns.
 
 ---
 
@@ -33,9 +33,9 @@ System `system.json` declares document types. Foundry automatically uses the reg
 
 ## 2. migrateData() on TypeDataModel
 
-The static `migrateData()` method receives a raw data object (before it becomes a document instance) and returns the modified data. Foundry calls this automatically on every document load for types registered in `CONFIG.Actor.dataModels` or `CONFIG.Item.dataModels`.
+The static `migrateData(source, options)` method receives a raw data object (before it becomes a document instance) and returns the modified data. Foundry calls it through `DataModel.migrateDataSafe` on every document load for types registered in `CONFIG.<Doc>.dataModels`. A thrown error is caught and logged; the unmigrated source is used.
 
-Always call `super.migrateData()` first to ensure parent migrations run.
+Changed in v14: `migrateData` **must return the data**. An implementation that returns `undefined` logs a deprecation warning (`since: 14, until: 16`) from `TypeDataField#_migrate` and the pre-migration value is used instead. Finish every override with `return super.migrateData(source, options);`.
 
 ```js
 class HeroData extends foundry.abstract.TypeDataModel {
@@ -60,71 +60,88 @@ class HeroData extends foundry.abstract.TypeDataModel {
   /**
    * Migrate source data before it is validated against the schema.
    * Runs automatically on document load.
-   * @param {object} data   - The raw source data for this document.
+   * @param {object} source  - The raw source data for this document.
    * @param {object} options - Additional migration options.
-   * @returns {object}       - The migrated source data.
+   * @returns {object}       - The migrated source data. Returning nothing is deprecated.
    */
-  static migrateData(data) {
+  static migrateData(source, options) {
     // Example: rename "bio" → "biography"
-    if (data.bio !== undefined && data.biography === undefined) {
-      data.biography = data.bio;
-      delete data.bio;
+    if (source.bio !== undefined && source.biography === undefined) {
+      source.biography = source.bio;
+      delete source.bio;
     }
 
     // Example: inject default mod if missing
-    if (data.abilities?.str?.value !== undefined && data.abilities?.str?.mod === undefined) {
-      data.abilities.str.mod = Math.floor((data.abilities.str.value - 10) / 2);
+    if (source.abilities?.str?.value !== undefined && source.abilities?.str?.mod === undefined) {
+      source.abilities.str.mod = Math.floor((source.abilities.str.value - 10) / 2);
     }
 
-    // Always conclude with return super.migrateData(data)
-    return super.migrateData(data);
+    // Always return the data
+    return super.migrateData(source, options);
   }
 }
 ```
 
 `migrateData()` operates on raw plain objects, not document instances. Do not call `this.update()` or access document methods inside it.
 
----
+### Field-level migration
 
-## 3. Document._addDataFieldMigration
-
-For moving data from old field paths to new ones, use the static `_addDataFieldMigration` helper. This is Foundry's built-in mechanism for path-level field migrations and runs before `migrateData()`.
+A custom `DataField` subclass migrates its own candidate value. Changed in v14: `DataField#migrateSource` is replaced by `_migrate(value, options, _state)`. Defining `migrateSource` still works but logs a deprecation warning (`since: 14, until: 16`) from the `DataField` constructor.
 
 ```js
-class HeroData extends foundry.abstract.TypeDataModel {
-  static defineSchema() {
-    const fields = foundry.data.fields;
-    return {
-      hp: new fields.SchemaField({
-        value: new fields.NumberField({ required: true, integer: true, initial: 10 }),
-        max: new fields.NumberField({ required: true, integer: true, initial: 10 }),
-        temp: new fields.NumberField({ required: true, integer: true, initial: 0 })
-      }),
-      attributes: new fields.SchemaField({
-        ac: new fields.SchemaField({
-          value: new fields.NumberField({ required: true, integer: true, initial: 10 })
-        })
-      })
-    };
-  }
-
+class DamageField extends foundry.data.fields.StringField {
   /** @override */
-  static _addDataFieldMigrations() {
-    super._addDataFieldMigrations();
-
-    // Move old "health" field to new "hp" path
-    this._addDataFieldMigration("health", "hp");
-
-    // Move old nested path to new location
-    this._addDataFieldMigration("data.health", "system.hp");
-
-    // Rename a single nested field
-    this._addDataFieldMigration("attributes.armorClass", "attributes.ac");
+  _migrate(value, options, _state) {
+    if (typeof value === "number") return `${value}`;   // old numeric damage
+    return value;
   }
 }
 ```
 
-`_addDataFieldMigration(oldPath, newPath)` copies the value from `oldPath` to `newPath` in the source data and deletes the old key. It handles nested dot-notation paths automatically.
+`_migrate` runs as a step of `DataField#clean`. The whole cleaning pipeline changed shape in v14: `DataModel.cleanData(data, options, _state)` takes `DataModelCleaningOptions` (`addTypes, copy, fields, expand, migrate, model, partial, prune, persisted, sanitize`) as the second argument and carries recursion state in a third `_state` argument. Passing `{source}` inside the options object is deprecated — pass it as `_state.source`.
+
+---
+
+## 3. Field-Path Migrations
+
+`Document._addDataFieldMigration(data, oldKey, newKey, apply)` moves a value from one path to another inside raw source data and deletes the old key. It is a static, `@internal` helper on `foundry.abstract.Document` — **not** on `DataModel` or `TypeDataModel`, and there is no `_addDataFieldMigrations()` registration hook. Core uses it inside `static migrateData`, for example `ActiveEffect` moving root `changes` to `system.changes`.
+
+Call it from a Document subclass:
+
+```js
+class MyActor extends Actor {
+  /** @inheritDoc */
+  static migrateData(source, options) {
+    // Move a root-level key that used to live outside `system`
+    this._addDataFieldMigration(source, "health", "system.hp");
+
+    // The fourth argument transforms the value
+    this._addDataFieldMigration(source, "system.armorClass", "system.attributes.ac.value",
+      d => Number(d.system.armorClass) || 10);
+
+    return super.migrateData(source, options);
+  }
+}
+```
+
+It returns `true` when it applied a migration, `false` when `newKey` already exists, `oldKey` is absent, or the old property is not writable. Pair it with `Document._logDataFieldMigration(oldKey, newKey, options)` when you want the console warning core emits.
+
+A `TypeDataModel` has no access to that helper, so move paths by hand:
+
+```js
+class HeroData extends foundry.abstract.TypeDataModel {
+  static migrateData(source, options) {
+    const u = foundry.utils;
+    if (u.hasProperty(source, "health") && !u.hasProperty(source, "hp")) {
+      u.setProperty(source, "hp", u.getProperty(source, "health"));
+      delete source.health;
+    }
+    return super.migrateData(source, options);
+  }
+}
+```
+
+Paths inside a `TypeDataModel` are relative to `system`: `"hp"` here is `actor.system.hp`.
 
 ---
 
@@ -155,38 +172,16 @@ Hooks.once("init", () => {
 const SYSTEM_SCHEMA_VERSION = 3;
 ```
 
-### Version Comparison
-
-```js
-Hooks.once("ready", async () => {
-  if (!game.user.isGM) return;
-
-  const current = game.settings.get("my-system", "schemaVersion") ?? 0;
-  const target = SYSTEM_SCHEMA_VERSION;
-
-  if (current >= target) return;
-
-  console.log(
-    `[my-system] Schema version ${current} detected, target is ${target}. Running migrations.`
-  );
-
-  // ... run migrations ...
-
-  await game.settings.set("my-system", "schemaVersion", target);
-});
-```
-
 ---
 
 ## 5. Migration Registry
 
-Define migrations as an ordered array of `{version, fn}` objects. Each function is idempotent — safe to run multiple times without side effects.
+Define migrations as an ordered array of `{version, fn}` objects. Each function is idempotent — safe to run multiple times without side effects. `_del` below is the global `ForcedDeletion` operator that replaced the `-=key` update syntax in v14 (see §7).
 
 ```js
 const MIGRATIONS = [
   { version: 1, fn: migrateV1 },
-  { version: 2, fn: migrateV2 },
-  { version: 3, fn: migrateV3 }
+  { version: 2, fn: migrateV2 }
 ];
 
 async function migrateV1() {
@@ -198,7 +193,7 @@ async function migrateV1() {
 
     await actor.update({
       "system.biography": bio,
-      "-=system.bio": null     // Foundry syntax to delete a field
+      "system.bio": _del       // v14: ForcedDeletion operator, was "-=system.bio": null
     });
   }
 }
@@ -210,22 +205,6 @@ async function migrateV2() {
 
     await actor.update({
       "system.hp.temp": 0
-    });
-  }
-}
-
-async function migrateV3() {
-  // v3: Restructure item data — move weapon.damage into a schema field
-  for (const item of game.items) {
-    if (item.type !== "weapon") continue;
-    if (item.system.damageDie !== undefined) continue;
-
-    const oldDamage = item.system.damage;
-    if (typeof oldDamage !== "string") continue;
-
-    await item.update({
-      "system.damageDie": oldDamage,
-      "-=system.damage": null
     });
   }
 }
@@ -302,25 +281,6 @@ function buildActorUpdate(actor) {
 }
 ```
 
-### Bulk Item Migration
-
-```js
-async function migrateItemData() {
-  const updates = game.items.contents
-    .filter((i) => i.type === "weapon" && i.system.damageDie === undefined)
-    .map((i) => ({
-      _id: i.id,
-      "system.damageDie": i.system.damage ?? "1d6",
-      "-=system.damage": null
-    }));
-
-  if (updates.length) {
-    await Item.updateDocuments(updates);
-    ui.notifications.info(`my-system | Migrated ${updates.length} items.`);
-  }
-}
-```
-
 ### Compendium Content Migration
 
 ```js
@@ -343,134 +303,122 @@ async function migrateCompendiumPacks() {
 
 ---
 
-## 7. v12 to v13 Breaking Changes
+## 7. v13 to v14 Migration
 
-Key deprecations relevant to system developers migrating from v12 to v13.
+The changes below all affect stored data or the code that writes it. Every one of them is a deprecation with a removal version, so a v14 system keeps working while you migrate. The full module-side list is in `foundry-vtt-module-dev/references/v14-migration.md`.
 
-### jQuery Removal
+### Deletion and replacement operators
 
-v13 removes jQuery. All UI methods now pass native `HTMLElement`.
-
-```js
-// v12
-activateListeners(html) {
-  html.find(".my-button").click(this._onClick.bind(this));
-  html.find(".my-input").val();
-}
-
-// v13 — ApplicationV2 uses _onRender
-_onRender(context, options) {
-  const html = this.element;
-  html.querySelector(".my-button")?.addEventListener("click", this._onClick.bind(this));
-  html.querySelector(".my-input")?.value;
-}
-```
-
-### {{editor}} to <prose-mirror>
-
-The `{{editor}}` Handlebars helper is replaced by `<prose-mirror>` custom elements in v13.
-
-```html
-<!-- v12 -->
-{{editor content=system.biography target="system.biography" button=true owner=owner editable=editable}}
-
-<!-- v13 -->
-{{#if editable}}
-  <prose-mirror name="system.biography" button="true" editable="{{editable}}" toggled="false" value="{{system.biography}}">
-    {{{enrichedBiography}}}
-  </prose-mirror>
-{{else}}
-  {{{enrichedBiography}}}
-{{/if}}
-```
-
-### actor.effects to allApplicableEffects()
-
-`actor.effects` no longer returns inherited effects. Use `allApplicableEffects()` to get all active effects including those from items and ancestry.
+`{"-=key": null}` and `{"==key": value}` are deprecated (`since: 14, until: 16`). They still work and log a warning. Use the operator globals instead — `_del` is a singleton `foundry.data.operators.ForcedDeletion`, `_replace(value)` builds a `ForcedReplacement`:
 
 ```js
-// v12
-const effects = actor.effects;
+// Delete a key
+await actor.update({ "system.legacy": _del });
 
+// Replace an object outright instead of merging into it
+await actor.update({ ownership: _replace({ default: 0, [game.user.id]: 3 }) });
+
+// Same operators work in updateSource
+actor.updateSource({ "system.old": _del });
+```
+
+`mergeObject(original, other, {performDeletions})` is renamed to `{applyOperators}` (`since: 14, until: 16`), and `foundry.utils.applySpecialKeys` is renamed to `applyDataOperators`. `foundry.utils.objectsEqual` is renamed to `equals`.
+
+```js
+foundry.utils.mergeObject(base, { flags: _del }, { applyOperators: true });
+```
+
+### migrateData must return data
+
+Covered in §2. Audit every `static migrateData` in your system: an implementation that ends without a `return` now logs a deprecation and its work is discarded.
+
+### DataField#migrateSource → _migrate
+
+Covered in §2. Rename the method and take the wider `(value, options, _state)` signature.
+
+### Bulk writes with modifyBatch
+
+`foundry.documents.modifyBatch(operations)` sends several document operations as one request with no network gap between them. A cancellation or a thrown error rolls back the whole batch, and no operation can read the result of an earlier one. Use it when a migration must touch several document types together:
+
+```js
+await foundry.documents.modifyBatch([
+  { action: "update", documentName: "Actor", updates: actorUpdates },
+  { action: "update", documentName: "Item",  updates: itemUpdates }
+]);
+```
+
+`Document._onCreateOperation(documents, operation, user)` and `_onUpdateOperation` are the batch-wise hooks that run after the per-document `_onCreate`/`_onUpdate`. Put cross-document follow-up work there rather than in per-document handlers, so one batch produces one follow-up write.
+
+### ActiveEffect data
+
+`changes` moved out of the base ActiveEffect schema into `system.changes`, and numeric `mode` became a string `type`. Core migrates stored effects for you (`BaseActiveEffect.migrateData` calls `_addDataFieldMigration(source, "changes", "system.changes")` and maps `mode` numbers to type strings), but **your code** has to change:
+
+```js
 // v13
-const effects = actor.allApplicableEffects();
-```
+effect.changes.push({ key: "system.hp.max", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "2" });
 
-### measureDistance to measurePath
-
-The `measureDistance()` utility is replaced by `measurePath()` in v13, which returns a full path object.
-
-```js
-// v12
-const distance = canvas.grid.measureDistance(origin, target);
-
-// v13
-const path = canvas.grid.measurePath(origin, target);
-const distance = path.distance;
-```
-
-### Array to Object Scene Controls
-
-Scene controls are now defined as an object of objects (not array of objects).
-
-```js
-// v12 — array-based
-controls.push({
-  name: "my-tools",
-  title: "My Tools",
-  icon: "fas fa-hammer",
-  tools: [
-    { name: "tool1", title: "Tool 1", icon: "fas fa-star", onClick: () => {} }
+// v14
+await effect.update({
+  "system.changes": [
+    ...effect.system.changes,
+    { key: "system.hp.max", type: "add", value: 2, phase: "initial", priority: 20 }
   ]
 });
-
-// v13 — object-based
-controls["my-tools"] = {
-  name: "my-tools",
-  title: "My Tools",
-  icon: "fas fa-hammer",
-  tools: {
-    tool1: { name: "tool1", title: "Tool 1", icon: "fas fa-star", onClick: () => {} }
-  }
-};
 ```
 
-### Application Framework Rewrite
+`duration.startTime/startRound/startTurn/combat` moved to `start.time/round/turn/combat`. `duration.seconds/rounds/turns` became `duration.value` plus `duration.units`. `origin` is a `DocumentUUIDField({relative: true})`. If your migration writes effect data directly, write the new paths. The full model is in `foundry-vtt-module-dev/references/active-effects-v2.md`.
 
-`FormApplication`, `ActorSheet`, and `ItemSheet` are replaced by `ApplicationV2`-based classes.
+### MeasuredTemplate content becomes Regions
+
+The `MeasuredTemplate` document is gone as a real document (deprecated, removed in v16), and `Scene#templates` with it. Stored templates in your compendium scenes must become Regions with shapes:
 
 ```js
-// v12
-class MyActorSheet extends ActorSheet {
-  static get defaultOptions() {
-    return mergeObject(super.defaultOptions, { template: "...", width: 600 });
-  }
-  getData() { return { actor: this.actor }; }
-  activateListeners(html) { html.find(".btn").click(() => {}); }
-}
-
-// v13
-const { HandlebarsApplicationMixin } = foundry.applications.api;
-class MyActorSheet extends HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
-  static DEFAULT_OPTIONS = {
-    position: { width: 600 },
-    actions: { myAction: MyActorSheet.#onMyAction },
-  };
-  static PARTS = {
-    header: { template: "my-system/templates/actor/header.hbs" },
-    body:   { template: "my-system/templates/actor/body.hbs" }
-  };
-  async _prepareContext() { return { actor: this.document }; }
-  static #onMyAction(event, target) { /* handle click */ }
-}
-
-// Registration unchanged
-Actors.registerSheet("my-system", MyActorSheet, { makeDefault: true });
+// v13 template data → v14 region data
+const region = await RegionDocument.create({
+  name: "Fireball",
+  shapes: [{ type: "circle", x: t.x, y: t.y, radius: t.distance * scene.grid.size / scene.grid.distance }]
+}, { parent: scene });
 ```
 
-Key changes:
-- `getData()` becomes async `_prepareContext()`
-- `activateListeners(html)` becomes `_onRender(context, options)` with `this.element`
-- `static get defaultOptions()` becomes `static DEFAULT_OPTIONS`
-- Templates split into `static PARTS`
-- `_updateObject(event, formData)` becomes `form.handler` in DEFAULT_OPTIONS
+Shape types are `circle, cone, ellipse, emanation, grid, line, polygon, rectangle, ring, token`. For a template that follows a token, use `RegionDocument.createTokenEmanation(token, range, regionData, {excludeToken, gridBased, createOptions})`, which attaches the Region to the token via `attachment.token`. `RegionDocument#spawnTokens` and `#teleportTokens` replace hand-rolled placement helpers. The rewrite is in `foundry-vtt-module-dev/references/measured-templates.md`.
+
+### Scene background moves to Levels
+
+`Scene#background`, `#foreground`, `#foregroundElevation` and `#backgroundColor` are deprecated. A Scene now owns an embedded `Level` collection (`scene.levels`), and the image lives on the level: `Level#background.src`, `Level#background.color`, `Level#foreground.src`, `Level#elevation.top`. `canvas.level` is the level in view. Migration code that patched `scene.background.src` on packed scenes must write into the scene's levels instead. Details in `foundry-vtt-module-dev/references/scene-levels.md`.
+
+### template.json to TypeDataModel
+
+`template.json` is deprecated since v14, removed in v16. The steps are in `system-manifest.md` §5. From a migration standpoint: once a `TypeDataModel` is registered, the template defaults are no longer consulted, so any document whose stored data relied on a template default and never had the value written now falls back to the field's `initial`. Set `initial` on each field to the old template default before you delete the file, and add a `migrateData` for keys the new schema does not define.
+
+### Re-importing from compendiums
+
+`_stats.compendiumSource` holds the UUID a document was imported from (the old `flags.core.sourceId`, which core migrates into it). Use it to find world documents that came from a pack you have since updated:
+
+```js
+const stale = game.actors.filter(a => a._stats.compendiumSource?.startsWith("Compendium.my-system.monsters."));
+for (const actor of stale) {
+  const source = await fromUuid(actor._stats.compendiumSource);
+  if (source) await actor.update({ system: _replace(source.toObject().system) });
+}
+```
+
+---
+
+## 8. v12 to v13 Breaking Changes
+
+Two generations back. Kept as a lookup table for old code you still meet.
+
+| v12 | v13 and later |
+|-----|---------------|
+| `activateListeners(html)` with jQuery | `_onRender(context, options)` with `this.element` (native `HTMLElement`) |
+| `{{editor}}` helper | `<prose-mirror name="..." value="...">` custom element |
+| `actor.effects` for all effects | `actor.allApplicableEffects()` |
+| `canvas.grid.measureDistance(a, b)` | `canvas.grid.measurePath([a, b]).distance` |
+| Scene controls as an array | Scene controls as an object keyed by control name, `tools` keyed by tool name |
+| `FormApplication`, `ActorSheet`, `ItemSheet` | `ApplicationV2` + `HandlebarsApplicationMixin`, `foundry.applications.sheets.ActorSheetV2` |
+| `static get defaultOptions()` | `static DEFAULT_OPTIONS` |
+| `getData()` | `async _prepareContext()` |
+| one `template` | `static PARTS` |
+| `_updateObject(event, formData)` | `form.handler` in `DEFAULT_OPTIONS` |
+
+The appv1 classes still ship in v14 under `foundry.appv1` and are deprecated until v16. Bare `foundry.utils` globals (`mergeObject`, `getProperty`, `duplicate`, ...) and the dice-term globals (`Die`, `RollTerm`, ...) were removed in v14 — use `foundry.utils.*` and `foundry.dice.terms.*`.
