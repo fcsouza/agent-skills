@@ -153,7 +153,6 @@ Declare them in `system.json` `documentTypes` (`ServerSanitizationFields`; paths
       "weapon": {
         "htmlFields": ["description"],
         "filePathFields": {
-          "img": ["IMAGE"],
           "activities.*.img": ["IMAGE"]
         }
       }
@@ -168,6 +167,8 @@ What this enables:
 - **GM-only fields** rejected when a non-GM user tries to update them
 - **Asset migration** — pack tooling can rewrite file paths inside declared fields when relocating assets
 - **Wildcard support** — `activities.*.img` matches any sub-key
+
+The server prefixes every declared path with `system.`, so only fields your `TypeDataModel` defines can be declared here; a document-level field like `img` cannot.
 
 Without these declarations, the data still saves and loads, but the server cannot reason about it. Every shipping system declares them.
 

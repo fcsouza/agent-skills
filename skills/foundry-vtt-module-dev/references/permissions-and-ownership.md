@@ -171,7 +171,12 @@ CONST.USER_PERMISSIONS.ACTOR_CREATE = {
 
 `v13 disableGM: false` maps to `requiredRoles: [ASSISTANT, GAMEMASTER]`; `disableGM: true` maps to `requiredRoles: []` (the GM can turn it off for everyone, including themselves — `SHOW_CURSOR`, `PING_CANVAS`, `MANUAL_ROLLS`, the broadcast permissions). `defaultRole` is the lowest role that gets the permission before a GM configures anything.
 
-`hasPermission` resolves in three steps: a banned user (`role === NONE`) is always false; then `requiredRoles` includes the user's role → true; then that User document's own `permissions` object (a per-user override) → its value; otherwise the world's `core.permissions` map for that permission, falling back to `defaultRole`.
+`hasPermission` resolves in this order:
+
+1. A banned user (`role === NONE`) is always false.
+2. If `requiredRoles` includes the user's role, true.
+3. If that User document's own `permissions` object holds the permission, use its value. This is the per-user override.
+4. Otherwise read the world's `core.permissions` map for that permission, falling back to `defaultRole`.
 
 Check granular permissions:
 

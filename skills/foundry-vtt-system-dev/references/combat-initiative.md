@@ -18,7 +18,7 @@ Hooks.once("init", () => {
 });
 ```
 
-`decimals` defaults to `2`, so fractional initiative works out of the box for tie-breaking. Set it to `0` for integer initiative. `formula` defaults to `null`, in which case `Combatant#_getInitiativeFormula` falls back to `CONFIG.Combat.initiative.formula` or the core default.
+`decimals` defaults to `2`, so fractional initiative works out of the box for tie-breaking. Set it to `0` for integer initiative. `formula` defaults to `null`, and there is no core default behind it: `Combatant#_getInitiativeFormula` returns `String(CONFIG.Combat.initiative.formula || game.system.initiative)`. `game.system.initiative` is the `initiative` string in `system.json`. Leave both unset and there is nothing to roll — `Roll.create` throws. Set one of them.
 
 The formula can reference any field on the actor's roll data object. Nested paths like `@skills.initiative.total` work if the actor's `getRollData()` returns that structure.
 

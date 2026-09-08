@@ -238,7 +238,7 @@ Hooks.on("renderChatMessageHTML", (message, html, context) => {
 });
 ```
 
-`html` is a native `HTMLElement`. The third argument is the rendering context, and it is only passed when the core message template rendered the message. `renderChatMessage` (jQuery) still fires but is deprecated — removal in v16.
+`html` is a native `HTMLElement`. The third argument is the rendering context, and it is only passed when the core message template rendered the message. `renderChatMessage` (jQuery) still fires but is deprecated — removal in v15.
 
 ---
 
@@ -376,14 +376,15 @@ const enriched = await TextEditor.enrichHTML(actor.system.biography, {
 
 ### Custom enrichers
 
-Register custom inline patterns via `CONFIG.TextEditor.enrichers`:
+Register custom inline patterns via `CONFIG.TextEditor.enrichers`. Each entry is a `TextEditorEnricherConfig`: `pattern` (a global RegExp), `enricher` (async, returns an element or `null`), and the optional `replaceParent`, `id` and `onRender`. `replaceParent: false` keeps the replacement inside its containing element; `true` hoists it out when it replaces the whole element. `onRender` only fires if you also set `id`.
 
 ```js
 Hooks.once("init", () => {
   CONFIG.TextEditor.enrichers.push({
     // Pattern: @Check[ability]{label} — e.g. @Check[strength]{Strength Save}
     pattern: /@Check\[([^\]]+)\](?:\{([^}]+)\})?/g,
-    enricher: (match, options) => {
+    replaceParent: false,
+    enricher: async (match, options) => {
       const [full, ability, label] = match;
       const anchor = document.createElement("a");
       anchor.classList.add("check-link");
@@ -674,28 +675,9 @@ async _prepareContext(options) {
 }
 ```
 
-### Custom enrichers
+### Enricher rules and one-shot enrichment
 
-Register inline text patterns via `CONFIG.TextEditor.enrichers`:
-
-```js
-Hooks.once("init", () => {
-  CONFIG.TextEditor.enrichers.push({
-    pattern: /@MyRef\[([^\]]+)\](?:\{([^}]+)\})?/g,
-    enricher: async (match, options) => {
-      const [full, key, label] = match;
-      const anchor = document.createElement("a");
-      anchor.classList.add("my-ref-link");
-      anchor.dataset.key = key;
-      anchor.textContent = label ?? key;
-      return anchor;
-    },
-    replaceParent: false
-  });
-});
-```
-
-Rules:
+Registration is covered in §5. Rules:
 - Enrichers run **after** default enrichers (`@UUID`, `[[/roll]]`, etc.)
 - They only have access to text nodes within the HTML
 - To override a default enricher, disable it first and provide a replacement

@@ -2,7 +2,7 @@
 
 Deep reference for Foundry VTT v14's document and data model system.
 
-**Changed in v14:** new cleaning pipeline (§3b), data operators replace `-=`/`==` keys (§8), `template.json` deprecated (§3), ActiveEffect rewritten (§8b), `Level` and `CombatantGroup` added, `MeasuredTemplate` removed (§13). Full list: `foundry-vtt-module-dev/references/v14-migration.md`.
+**Changed in v14:** new cleaning pipeline (§3b), data operators replace `-=`/`==` keys (§8), `template.json` deprecated (§3), ActiveEffect rewritten (§8b), `Level` added, `MeasuredTemplate` removed (§13). `CombatantGroup` shipped in v13, not v14. Full list: `foundry-vtt-module-dev/references/v14-migration.md`.
 
 ---
 
@@ -692,7 +692,7 @@ Three core sheets are registered for `text` pages (`foundry.applications.sheets.
 
 ### Page categories
 
-`JournalEntryCategory` (new in v14) is an embedded document of `JournalEntry` (`journal.categories`, schema `{_id, name, sort, flags}`). A page points at one through `page.category` (a `DocumentIdField`). The sheet for editing them is `foundry.applications.sheets.journal.JournalEntryCategoryConfig`.
+`JournalEntryCategory` is an embedded document of `JournalEntry` (`journal.categories`, schema `{_id, name, sort, flags, _stats}`). It shipped in v13, not v14. A page points at one through `page.category` (a `DocumentIdField`). The sheet for editing them is `foundry.applications.sheets.journal.JournalEntryCategoryConfig`.
 
 ```js
 const [cat] = await journal.createEmbeddedDocuments("JournalEntryCategory", [{ name: "Locations" }]);

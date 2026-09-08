@@ -143,7 +143,7 @@ Foundry's CSS variables already meet WCAG AA contrast in both Light and Dark the
 @layer my-module {
   .my-panel {
     color: var(--color-text-primary);     /* 4.5:1 against bg */
-    background: var(--color-bg-primary);
+    background: var(--background);
     border: 1px solid var(--color-border);
   }
 }

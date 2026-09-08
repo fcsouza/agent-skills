@@ -7,12 +7,11 @@
  *
  * Type declarations: `documentTypes` in system.json plus the TypeDataModel
  * classes in data/ are the source of truth. template.json is deprecated since
- * v14 and support ends in v16; a new system ships without it. The copy here
- * lists type names only, for legacy tooling. Note the cost of keeping it: the
- * server rebuilds `documentTypes[Doc][subtype]` from template.json's
- * document-level block, so htmlFields and filePathFields declared per subtype
- * in system.json are dropped unless template.json repeats them. Delete the file
- * and that stops. Never put field defaults in it.
+ * v14 and removed in v16, so this boilerplate ships without it. Shipping one
+ * costs you data: the server resets `documentTypes[Doc][subtype]` for every
+ * type the file lists and refills it from template.json's document-level block
+ * alone, wiping the per-subtype htmlFields and filePathFields declared in
+ * system.json. Keep those declarations in system.json and add no template.json.
  *
  * See references/production-patterns.md for the full rationale.
  */
@@ -71,11 +70,19 @@ Hooks.once("init", () => {
   };
 
   // Sheet Registration. Core registers no default Actor or Item sheet in v14,
-  // so there is nothing to unregister; register the system sheets directly.
+  // so there is nothing to unregister; register one for every declared type.
+  // DocumentSheetConfig keys each entry on `${namespace}.${class.name}`, so a
+  // class registers once, listing every type it serves. A sheet shared across
+  // types may only read `systemFields` entries common to all of them.
   foundry.documents.collections.Actors.registerSheet(SYSTEM_ID, sheets.CharacterSheet, {
-    types: ["character"],
+    types: ["character", "npc"],
     makeDefault: true,
-    label: "MY_SYSTEM.SheetLabels.character",
+    label: "MY_SYSTEM.SheetLabels.actor",
+  });
+  foundry.documents.collections.Items.registerSheet(SYSTEM_ID, sheets.ItemSheet, {
+    types: ["weapon", "spell"],
+    makeDefault: true,
+    label: "MY_SYSTEM.SheetLabels.item",
   });
 
   registerSystemSettings(SYSTEM_ID);
@@ -100,11 +107,24 @@ Hooks.once("setup", () => {
 });
 
 // --- hotbarDrop: create a roll macro when an owned Item is dropped on the hotbar ---
-Hooks.on("hotbarDrop", (hotbar, data, slot) => {
-  if (data.type !== "Item") return true;
-  createItemMacro(data, slot);
-  return false; // handled
-});
+// Registered from ready, so game.macros and game.user are populated. Hooks.call
+// is synchronous: returning a Promise is not `false`, so core would go on to
+// build its own sheet-toggle macro and you would get two. Decide synchronously
+// from the parsed uuid, then fire the async work off and report failures.
+function registerHotbarDrop() {
+  Hooks.on("hotbarDrop", (hotbar, data, slot) => {
+    if (data.type !== "Item") return true;
+    // parseUuid returns null for a missing or relative uuid; a non-empty
+    // `embedded` array means the Item is owned by an Actor.
+    const parsed = foundry.utils.parseUuid(data.uuid);
+    if (!parsed?.embedded.length) return true; // world Item: let core handle it
+    createItemMacro(data, slot).catch((err) => {
+      ui.notifications.error(`Could not create item macro: ${err.message}`);
+      console.error(err);
+    });
+    return false; // handled
+  });
+}
 
 async function createItemMacro(data, slot) {
   const item = await fromUuid(data.uuid);
@@ -126,11 +146,21 @@ Hooks.once("ready", async () => {
   console.log(`${SYSTEM_ID} | ready`);
   game.mySystem = globalThis.mySystem;
 
+  registerHotbarDrop();
+
   if (!game.user.isGM) return;
 
   const target = game.system.flags?.[SYSTEM_ID]?.needsMigrationVersion;
   const compatible = game.system.flags?.[SYSTEM_ID]?.compatibleMigrationVersion;
   const current = game.settings.get(SYSTEM_ID, "schemaVersion") ?? "0";
+
+  // First run: the setting still holds its "0" default, so there is nothing to
+  // migrate. Stamp the baseline and return. Without this every new world fails
+  // the check below, because isNewerVersion("0.5.0", "0") is true.
+  if (!current || current === "0") {
+    await game.settings.set(SYSTEM_ID, "schemaVersion", target ?? game.system.version);
+    return;
+  }
 
   if (compatible && foundry.utils.isNewerVersion(compatible, current)) {
     ui.notifications.error(
@@ -151,6 +181,7 @@ Hooks.once("ready", async () => {
 async function preloadHandlebarsTemplates() {
   const paths = [
     "systems/my-system/templates/actor/character-sheet.hbs",
+    "systems/my-system/templates/item/item-sheet.hbs",
   ];
   return foundry.applications.handlebars.loadTemplates(paths);
 }

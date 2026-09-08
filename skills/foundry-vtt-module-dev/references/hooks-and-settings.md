@@ -2,7 +2,17 @@
 
 Deep reference for Foundry VTT v14's hook system and settings API.
 
-**Changed in v14:** every render now fires a `preRender<Class>` hook first; detached windows fire `openDetachedWindow` / `closeDetachedWindow`; placeables get `get<Document>PlaceableContextOptions`; token movement fires `planToken`; `canvasTearDown`, `drawLayer` and `tearDownLayer` gained an options argument; hook registration logs are gated behind `CONFIG.debug.hooks`; token movement keys split away from canvas panning keys. See `foundry-vtt-module-dev/references/v14-migration.md`.
+**Changed in v14:**
+
+- Every render fires a `preRender<Class>` hook first.
+- Detached windows fire `openDetachedWindow` and `closeDetachedWindow`.
+- Placeables get `get<Document>PlaceableContextOptions`.
+- Token movement fires `planToken`.
+- `canvasTearDown`, `drawLayer` and `tearDownLayer` gained an options argument.
+- Hook registration logs sit behind `CONFIG.debug.hooks`.
+- Token movement keys split away from canvas panning keys.
+
+See `foundry-vtt-module-dev/references/v14-migration.md`.
 
 ---
 

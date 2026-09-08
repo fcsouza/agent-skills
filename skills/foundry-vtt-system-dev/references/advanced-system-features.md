@@ -66,17 +66,9 @@ A status entry is `{id, order?, hud?}` merged with partial `ActiveEffectData`. `
 
 ### Active Effect Change Types
 
-**Changed in v14:** numeric `mode` is deprecated in favour of a string `type`. `CONST.ACTIVE_EFFECT_CHANGE_TYPES` maps each type to its default priority.
+**Changed in v14:** numeric `mode` is deprecated in favour of a string `type`, and `"subtract"` is a type of its own. `CONST.ACTIVE_EFFECT_CHANGE_TYPES` maps each type to its default priority.
 
-| `type` | Default priority | Behavior |
-|--------|-----------------|----------|
-| `"custom"` | 0 | Handled by a `handler` in `CONFIG.ActiveEffect.changeTypes`, or ignored |
-| `"multiply"` | 10 | Multiply the current numeric value |
-| `"add"` | 20 | Add numbers, concatenate strings, push onto Arrays, add to Sets |
-| `"subtract"` | 20 | Subtract from the current value |
-| `"downgrade"` | 30 | Take the lower of current and effect value |
-| `"upgrade"` | 40 | Take the higher of current and effect value |
-| `"override"` | 50 | Replace the current value |
+For the full change-type list and the default priorities, read `foundry-vtt-module-dev/references/active-effects-v2.md`.
 
 `value` is an `AnyField`, so a number stays a number. Strings may contain `@` references resolved against the target's roll data. Each change also carries `phase` (`"initial"` or `"final"`, or a phase you registered) and an optional `priority` that overrides the default.
 

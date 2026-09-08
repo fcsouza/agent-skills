@@ -221,6 +221,13 @@ Weather effects in `CONFIG.weatherEffects` use a declarative `particles: [{textu
 
 The document is gone. `RegionDocument.create({shapes: [{type: "cone", ...}]})`, `canvas.regions.placeRegion(data, options)`, `RegionDocument.createTokenEmanation(token, range, regionData, options)`. See `measured-templates.md`.
 
+### Default sheet registration
+
+Core registers no default Actor or Item sheet in v14. `_registerDefaultSheets` in `client/applications/sheets/_module.mjs` lists Folder, JournalEntry, Macro, Playlist, RollTable, Scene, User and the embedded documents — Actor and Item are absent. Two consequences:
+
+- `Actors.unregisterSheet("core", ActorSheet)` is no longer needed. There is nothing to unregister.
+- Every Actor or Item type needs a registered sheet. A module that adds a subtype must register one for it, or the document opens with a null sheet.
+
 ---
 
 ## 6. Manifest changes

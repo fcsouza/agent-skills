@@ -76,7 +76,7 @@
 - [ ] No hardcoded English strings in `.hbs` templates
 
 ## Status Effects & Conditions
-- [ ] `CONFIG.statusEffects` is replaced with system-specific conditions in `init`
+- [ ] System-specific conditions are added to `CONFIG.statusEffects` by id in `init` (whole-array assignment is deprecated since v14 and wipes other packages' entries)
 - [ ] Each status has a unique namespaced `id` (e.g. `"my-system.prone"`)
 - [ ] Status entries use `img` / `name`, not the deprecated `icon` / `label`
 - [ ] `CONFIG.specialStatusEffects.DEFEATED` points to the system's "dead" status
@@ -109,7 +109,7 @@
 - [ ] `system.json` `download` URL points to a versioned release archive
 - [ ] All paths in the manifest are relative to the system root
 - [ ] No absolute file paths in any configuration file
-- [ ] Pack `.db` files are included in the distribution archive
+- [ ] Pack directories (LevelDB) are included in the distribution archive
 - [ ] System loads cleanly in a fresh Foundry world with no console errors
 - [ ] Build and release tooling runs on Node 24 (`>=24.13.1 <25`), the runtime Foundry v14 ships with
 - [ ] No `.html` file is linked for direct browsing — since 14.361 static HTML is served as `text/plain` (Handlebars templates are unaffected)

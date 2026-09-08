@@ -53,7 +53,7 @@ Every module needs a valid `module.json`. The critical v14 fields:
   "documentTypes": { "Actor": { "hero": {} } },
   "authors": [{ "name": "Your Name", "url": "https://github.com/you" }],
   "esmodules": ["scripts/main.mjs"],
-  "styles": [{ "src": "styles/my-module.css", "layer": "my-module" }],
+  "styles": [{ "src": "styles/my-module.css", "layer": "modules" }],
   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }],
   "socket": true,
   "relationships": {
@@ -108,7 +108,11 @@ Register `CONFIG` additions (`CONFIG.statusEffects`, `CONFIG.ActiveEffect.change
 
 ### Styling (CSS Cascade Layers)
 
-Foundry uses CSS Cascade Layers (`@layer`). Put your module CSS in a layer to avoid specificity conflicts and support Foundry's Light/Dark themes. Set `layer` in the manifest (`styles: [{ "src": "...", "layer": "my-module" }]`) and Foundry imports the file with `@import url layer(my-module)`. Without it, wrap the file yourself:
+Foundry uses CSS Cascade Layers (`@layer`). Put your module CSS in a layer to avoid specificity conflicts and support Foundry's Light/Dark themes. Core declares its layers in this order: `reset, variables, elements, blocks, applications, compatibility, layouts, system, modules, exceptions`. Name `modules` in the manifest — `styles: [{ "src": "...", "layer": "modules" }]` — and your rules land after core's own and before `exceptions`.
+
+Do not invent a layer name. A name core never declares sorts after `exceptions` and overrides all core CSS.
+
+An inner `@layer` inside a stylesheet loaded under `modules` nests within it, so `@layer my-module { ... }` becomes `modules.my-module` and keeps the same position in the order. Use it to group your own rules, not to replace the manifest field:
 
 ```css
 @layer my-module {
@@ -147,8 +151,8 @@ Key variable categories (all present in `public/css/foundry2.css`):
 
 | Category | Variables |
 |---|---|
-| Text | `--color-text-primary`, `--color-text-secondary`, `--color-text-emphatic`, `--color-text-subtle`, `--color-text-dark`, `--color-text-hyperlink`, `--color-text-selection` |
-| Borders | `--color-border`, `--color-border-light`, `--color-border-dark` |
+| Text | `--color-text-primary`, `--color-text-secondary`, `--color-text-emphatic`, `--color-text-subtle`, `--color-text-dark-primary`, `--color-text-dark-secondary`, `--color-text-hyperlink`, `--color-text-selection` |
+| Borders | `--color-border`, `--color-border-dark`, `--color-border-light-1`, `--color-border-light-2` |
 | Warm accents | `--color-warm-1`, `--color-warm-2`, `--color-warm-3` |
 | Cool accents | `--color-cool-3`, `--color-cool-4`, `--color-cool-5` |
 | Greys | `--color-dark-1` … `--color-dark-6`, `--color-light-1` … `--color-light-6` |
@@ -189,7 +193,6 @@ Since v13 nearly every core API lives in the `foundry.*` namespace. The legacy g
 | (no legacy alias) | `foundry.applications.ux.*` — `Tabs`, `ContextMenu`, `DragDrop`, `Draggable`, `FormDataExtended`, `HTMLSecret`, `ProseMirrorEditor`, `SearchFilter`, `TextEditor` |
 | `mergeObject`, `duplicate`, `debounce`, `isNewerVersion` | `foundry.utils.*` (bare globals removed in v14 — `mergeObject`, `deepClone`, `expandObject`, `flattenObject`, `getProperty`, `setProperty`, `hasProperty`, `diffObject`, `equals` (replaces `objectsEqual`), `getType`, `isEmpty`, `isNewerVersion`, `randomID`, `debounce`, `throttle`, `benchmark`, `parseUuid`, `buildUuid`, `buildRelativeUuid`, `escapeHTML`, `formatFileSize`, etc.) |
 | (no legacy alias) | `foundry.data.operators.*` — `ForcedDeletion`, `ForcedReplacement` (globals `_del`, `_replace`) replace the `-=` / `==` update keys |
-| `game.i18n.localize` | `_loc` global alias (v14); `localize(id, data)` now formats too |
 
 **Why bother updating?** The remaining shims are scheduled for removal in v15 (v16 for appv1). Code written against the namespaced paths is forward-compatible; code written against legacy globals is on borrowed time.
 
@@ -421,6 +424,8 @@ await game.actors.importFromCompendium(pack, "some-id");
 game.i18n.localize("MY_MODULE.greeting");              // "Hello, {name}!"
 game.i18n.format("MY_MODULE.greeting", { name: "GM" }); // "Hello, GM!"
 ```
+
+v14 adds a `_loc` global bound to `game.i18n.localize`, and `localize(id, data)` now formats placeholders too. `game.i18n.localize` is not deprecated — `_loc` is a shorthand.
 
 For full socket patterns, custom DiceTerm, Roll.RESOLVERS, compendium querying, `fromUuid()`, and localization setup, read `references/sockets-rolls-packs.md`.
 
@@ -881,7 +886,7 @@ Copy these as starting points for new modules:
 12. **Patching core methods without libWrapper** — Direct monkey-patching breaks when multiple modules modify the same method. Use `libWrapper` for safe, conflict-free patching of core Foundry functions.
 13. **Missing `getRollData()` on custom Actor types** — Without implementing `getRollData()`, roll formulas like `@abilities.str` won't resolve. Return the system data your rolls need.
 14. **Using jQuery** — jQuery is still bundled for appv1 and the legacy `renderChatMessage` hook, but hooks and `_onRender` pass native `HTMLElement`. Use `querySelector`, `addEventListener`, `classList` instead of `$()`.
-15. **CSS without `@layer`** — Foundry uses CSS Cascade Layers. Name a layer in the manifest (`styles: [{ "src": "...", "layer": "my-module" }]`) or wrap the file in `@layer my-module { ... }` to avoid specificity wars and support Foundry's Light/Dark themes via CSS variables.
+15. **CSS without `@layer`, or in a made-up layer** — Foundry uses CSS Cascade Layers. Name `modules` in the manifest: `styles: [{ "src": "...", "layer": "modules" }]`. A layer name core never declares sorts after `exceptions` and overrides all core CSS.
 16. **Passing `rollMode` (v14)** — `rollMode` is deprecated on `toMessage`, `ChatMessage.create`, `RollTable#draw`, and `rollInitiative`. Pass `messageMode` (`public | gm | blind | self | ic`), or pass nothing: `toMessage` falls back to the `core.messageMode` setting on its own.
 17. **Numeric ActiveEffect change modes (v14)** — `CONST.ACTIVE_EFFECT_MODES` and the root `changes` array are deprecated. Write `system.changes` with string `type` values (`add`, `subtract`, `multiply`, `override`, `upgrade`, `downgrade`, `custom`).
 18. **`-=` and `==` update keys (v14)** — deprecated until v16. Use `_del` and `_replace(value)` from `foundry.data.operators`, or `mergeObject(..., { applyOperators: true })`.

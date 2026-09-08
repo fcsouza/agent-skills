@@ -58,169 +58,24 @@ Hooks.once("ready", async () => {
 
 ## v13 → v14 Breaking Changes
 
-The full list (every deprecation with its replacement and removal version, plus a checklist) is in `foundry-vtt-module-dev/references/v14-migration.md`. The twelve items below break the most module code. Unless noted, the old form still works with a deprecation warning until v16.
+`foundry-vtt-module-dev/references/v14-migration.md` is the canonical list. It carries every deprecation with its replacement and removal version, the breaking data changes, the manifest changes, and a before/after checklist. The table below is the headline set — the twelve changes that break the most module code. Unless noted, the old form still works with a deprecation warning until v16.
 
-### 1. ActiveEffect changes moved to `system.changes`, `mode` → `type`
+| Area | v13 | v14 |
+|---|---|---|
+| ActiveEffect changes | `changes` at the document root, numeric `mode` | `system.changes`, string `type`, plus a `phase` |
+| Roll and message modes | `rollMode`, `CONFIG.Dice.rollModes` | `messageMode`, `CONFIG.ChatMessage.modes` |
+| Update keys | `"-=key": null`, `"==key": value` | `key: _del`, `key: _replace(value)` |
+| Templates | `MeasuredTemplateDocument` | `RegionDocument` and `canvas.regions.placeRegion` |
+| Scene textures | `Scene#background`, `#foregroundElevation` | `Level#background`, `Level#elevation.top` |
+| Canvas layer override | `CONFIG.<Doc>.layerClass` | `CONFIG.Canvas.layers.<name>.layerClass` |
+| DataModel migration | `migrateSource`, `migrateData` returning nothing | `_migrate(value, options, _state)`, `migrateData` returns the data |
+| Wall constants | `CONST.WALL_SENSE_TYPES`, `CONST.WALL_DIRECTIONS` | `CONST.EDGE_SENSE_TYPES`, `CONST.EDGE_DIRECTIONS` |
+| Context menu entries | `{name, condition, callback}` | `{label, visible, onClick(event, target)}` |
+| Particles | `ParticleEffect`, `effectClass` | `ParticleGenerator`, `particles` config |
+| v12 shims | bare `mergeObject`, `Die`, `Math.clamped`, `CONST.DOCUMENT_TYPES` | removed outright — no warning, just errors |
+| Manifest and runtime | `template.json`, Node `>=20.18.0 <23`, unvalidated pack names | `documentTypes`, Node `>=24.13.1 <25`, validated pack names |
 
-**Before (v13):**
-```javascript
-await actor.createEmbeddedDocuments("ActiveEffect", [{
-  name: "Blessed",
-  changes: [{ key: "system.str", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: 2 }],
-  duration: { rounds: 10 },
-}]);
-```
-
-**After (v14):**
-```javascript
-await actor.createEmbeddedDocuments("ActiveEffect", [{
-  name: "Blessed",
-  system: { changes: [{ key: "system.str", type: "add", value: 2, phase: "initial" }] },
-  duration: { value: 10, units: "rounds" },
-}]);
-```
-
-`CONST.ACTIVE_EFFECT_MODES` is a deprecation proxy over `CONST.ACTIVE_EFFECT_CHANGE_TYPES`. Custom handling registers under `CONFIG.ActiveEffect.changeTypes`; instance overrides of `_applyAdd` etc. became static `_applyChangeAdd` etc. `Actor#applyActiveEffects()` needs a phase (`"initial"`, then `"final"`). Details: `foundry-vtt-module-dev/references/active-effects-v2.md`.
-
-### 2. `rollMode` → `messageMode`
-
-**Before (v13):**
-```javascript
-await roll.toMessage({ speaker }, { rollMode: game.settings.get("core", "rollMode") });
-for (const [k, label] of Object.entries(CONFIG.Dice.rollModes)) { /* ... */ }
-```
-
-**After (v14):**
-```javascript
-await roll.toMessage({ speaker }, { messageMode: game.settings.get("core", "messageMode") });
-for (const [k, { label, icon }] of Object.entries(CONFIG.ChatMessage.modes)) { /* public gm blind self ic */ }
-```
-
-Same rename on `ChatMessage.create`, `RollTable#draw/drawMany`, `Combat#rollInitiative`. Old values convert with `Roll._mapLegacyRollMode(rollMode)`. `ChatMessage#applyRollMode` → `applyMode`.
-
-### 3. `-=` / `==` update keys → data operators
-
-**Before (v13):**
-```javascript
-await actor.update({ "system.-=oldName": null, "system.==tags": ["a"] });
-foundry.utils.mergeObject(a, b, { performDeletions: true });
-foundry.utils.objectsEqual(a, b);
-```
-
-**After (v14):**
-```javascript
-await actor.update({ "system.oldName": _del, "system.tags": _replace(["a"]) });
-foundry.utils.mergeObject(a, b, { applyOperators: true });
-foundry.utils.equals(a, b);
-```
-
-`_del` is a shared `foundry.data.operators.ForcedDeletion`; `_replace(v)` is `ForcedReplacement.create(v)`. `applySpecialKeys` → `applyDataOperators`.
-
-### 4. MeasuredTemplate → Region
-
-**Before (v13):**
-```javascript
-await MeasuredTemplateDocument.create({ t: "cone", x, y, distance: 15, angle: 53, direction: 0 }, { parent: canvas.scene });
-```
-
-**After (v14):**
-```javascript
-await canvas.regions.placeRegion({
-  shapes: [{ type: "cone", x, y, radius: 15 * canvas.dimensions.distancePixels, angle: 53, rotation: 0 }],
-}); // interactive placement; { create: false } returns the data instead
-```
-
-`MeasuredTemplateDocument`, `Scene#templates`, `TemplateLayer`, `CONST.MEASURED_TEMPLATE_TYPES` and the `TEMPLATE_CREATE` permission are shims until v16; `REGION_CREATE` replaces the permission. Shape types: circle, cone, ellipse, emanation, grid, line, polygon, rectangle, ring, token. See `foundry-vtt-module-dev/references/measured-templates.md`.
-
-### 5. Scene textures live on `Level`
-
-**Before (v13):**
-```javascript
-const src = canvas.scene.background.src;
-await scene.update({ "background.src": "maps/cave.webp", foregroundElevation: 20 });
-```
-
-**After (v14):**
-```javascript
-const src = canvas.level.background.src;                 // the viewed Level
-const level = scene.initialLevel;                        // or scene.levels.get(id)
-await level.update({ "background.src": "maps/cave.webp", "elevation.top": 20 });
-```
-
-`Scene#background/foreground/foregroundElevation/backgroundColor` are shims until v16. Placeables carry a `levels` set; Token has `level` and `depth`. See `foundry-vtt-module-dev/references/scene-levels.md`.
-
-### 6. `CONFIG.<Doc>.layerClass` → `CONFIG.Canvas.layers`
-
-**Before (v13):** `CONFIG.Token.layerClass = MyTokenLayer;`
-**After (v14):** `CONFIG.Canvas.layers.tokens.layerClass = MyTokenLayer;`
-
-Layer keys: `lighting, sounds, drawings, notes, regions, tiles, tokens, walls` (`templates` is deprecated).
-
-### 7. DataModel cleaning: `_migrate`, `migrateData` returns
-
-**Before (v13):**
-```javascript
-class MyField extends foundry.data.fields.NumberField {
-  migrateSource(sourceData, fieldData) { /* mutate in place */ }
-}
-static migrateData(source) { source.hp ??= 10; }   // returned nothing
-```
-
-**After (v14):**
-```javascript
-class MyField extends foundry.data.fields.NumberField {
-  _migrate(value, options, _state) { return super._migrate(value, options, _state); }
-}
-static migrateData(source, options) { source.hp ??= 10; return super.migrateData(source, options); }
-```
-
-`cleanData(data, options, _state)` — `options.source` moved to `_state.source`. See `document-model.md` §3b.
-
-### 8. Walls → Edges constants
-
-**Before (v13):** `CONST.WALL_SENSE_TYPES.NORMAL`, `CONST.WALL_DIRECTIONS.LEFT`
-**After (v14):** `CONST.EDGE_SENSE_TYPES.NORMAL`, `CONST.EDGE_DIRECTIONS.LEFT`
-
-`ClockwiseSweepPolygon` config `edgeTypes.light/darkness` → `edgeTypes.source`; `wallDirectionMode` → `edgeDirectionMode`. New `CONST.EDGE_RESTRICTION_TYPES` (`light, darkness, sight, sound, move`).
-
-### 9. ContextMenuEntry keys
-
-**Before (v13):**
-```javascript
-{ name: "MY.Delete", icon: '<i class="fas fa-trash"></i>', condition: li => canDelete(li), callback: li => del(li) }
-```
-
-**After (v14):**
-```javascript
-{ label: "MY.Delete", icon: '<i class="fas fa-trash"></i>', visible: li => canDelete(li), onClick: li => del(li) }
-```
-
-Header controls (`window.controls`) use the same shape. `ContextMenu.eventListeners` → `ContextMenu.activateListeners(document)`.
-
-### 10. Particles: `ParticleEffect` → `ParticleGenerator`
-
-`foundry.canvas.containers.ParticleEffect` and `foundry.canvas.primary.PrimaryParticleEffect` are deprecated until v16. Use `foundry.canvas.animation.ParticleGenerator` (`new ParticleGenerator(config)`); `CONFIG.weatherEffects` entries take a `particles` config instead of `effectClass`.
-
-### 11. v12 shims removed (no warning, just errors)
-
-| Gone | Use |
-|---|---|
-| bare `mergeObject`, `getProperty`, `deepClone`, `randomID`, ... | `foundry.utils.*` |
-| `Die`, `DiceTerm`, `NumericTerm`, `PoolTerm`, ... globals | `foundry.dice.terms.*` |
-| `game.template`, `game.system.template` | `game.model`, `game.system.documentTypes` |
-| `CONST.DOCUMENT_TYPES` | `CONST.WORLD_DOCUMENT_TYPES` / `COMPENDIUM_DOCUMENT_TYPES` |
-| `Math.clamped` | `Math.clamp` |
-| `{{select}}`, `{{colorPicker}}` helpers | `{{selectOptions}}`, `<color-picker>` |
-| `_onCreateDocuments` / `_onUpdateDocuments` / `_onDeleteDocuments` | `_onCreateOperation` / `_onUpdateOperation` / `_onDeleteOperation` |
-| `CONFIG.TinyMCE`, `JournalTextTinyMCESheet` | ProseMirror; `CONFIG.TextEditor.engines` |
-| `CONFIG.ActiveEffect.legacyTransferral` | removed, no replacement |
-
-### 12. Manifest and runtime
-
-- `template.json` is deprecated (since 14, until 16). Declare types under `documentTypes` in the manifest and back each with a `TypeDataModel`.
-- Pack `name` must match `[A-Za-z0-9_-]`; duplicate pack names or paths throw at load.
-- Server: Node `>=24.13.1 <25`, Express 5. Static `.html` files are served as `text/plain` since 14.361 — Handlebars templates still work, direct links to `.html` do not.
-- Short-fuse deprecation: `Combat#getCombatantByToken/ByActor` → `getCombatantsByToken/ByActor` (until **v15**).
+Two removals land earlier than v16: the `renderChatMessage` hook and `Combat#getCombatantByToken` / `#getCombatantByActor` go in v15.
 
 ---
 
@@ -233,7 +88,7 @@ Still relevant when you maintain code written for older versions. Everything her
 - **jQuery is out of the UI framework.** `_onRender` and V2 hooks pass `HTMLElement`. `html.find(sel)` → `this.element.querySelector(sel)`; `.click(fn)` → `addEventListener("click", fn)`; `.val()` → `.value`; `.addClass` → `classList.add`. jQuery is still bundled and `renderChatMessage` still fires with a jQuery arg (deprecated until v15) — prefer `renderChatMessageHTML`.
 - **ApplicationV2.** `Application`/`FormApplication`/`Dialog` (`foundry.appv1.*`) are deprecated until v16. `static DEFAULT_OPTIONS`, `static PARTS`, `_prepareContext`, `_onRender`, `form.handler`. Sheets: `foundry.applications.sheets.ActorSheetV2` / `ItemSheetV2`; registration through `foundry.documents.collections.Actors.registerSheet(...)`.
 - **DialogV2.** `foundry.applications.api.DialogV2.confirm/prompt/wait` return values directly instead of resolve callbacks. v14 adds `wait({ renderOptions })`.
-- **CSS `@layer` and themes.** Wrap module CSS in a layer (`styles: [{ src, layer }]` in the manifest, or `@layer my-module { ... }`) and use `--color-*` custom properties; `body.theme-light|dark` unchanged in v14.
+- **CSS `@layer` and themes.** Put module CSS in a layer through the manifest (`styles: [{ src, layer: "modules" }]`) and use `--color-*` custom properties; `body.theme-light|dark` unchanged in v14.
 - **Namespaces (`foundry.*`).** v13 moved every class under `foundry.<package>` (`foundry.applications`, `foundry.canvas`, `foundry.documents`, `foundry.dice`, `foundry.utils`, ...). The bare globals (`Actors`, `TextEditor`, `DocumentSheetConfig`, ...) are shims scheduled for removal in v15; v12-era ones were removed in v14.
 - **Rolls.** `await new Roll("2d6").evaluate()`; synchronous `.roll()` is gone.
 - **Data access.** `actor.system.*`, never `actor.data.data`.

@@ -27,7 +27,7 @@
   "styles": [
     {
       "src": "styles/my-module.css",
-      "layer": "my-module"
+      "layer": "modules"
     }
   ],
   "languages": [

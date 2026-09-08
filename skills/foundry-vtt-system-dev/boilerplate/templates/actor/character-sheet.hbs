@@ -1,16 +1,28 @@
-{{!-- Character sheet (v14). Removed helpers: {{select}} and {{colorPicker}}.
-     Use {{formInput}} for schema-backed fields and {{selectOptions}} inside a <select>.
+{{!-- Actor sheet (v14), shared by the character and npc types. Removed helpers:
+     {{select}} and {{colorPicker}}. Use {{formInput}} for schema-backed fields
+     and {{selectOptions}} inside a <select>.
      Rows carrying data-item-id or data-effect-id need the `draggable` class:
-     ActorSheetV2 binds its built-in DragDrop to the `.draggable` selector. --}}
+     ActorSheetV2 binds its built-in DragDrop to the `.draggable` selector.
+     One sheet class serving several types must guard every `systemFields.X`:
+     {{formInput}} logs a console error when the field is undefined, and only
+     the character has `level` while only the npc has `cr`. --}}
 
 {{!-- Identity --}}
 <section class="identity">
   <img class="profile-img" src="{{actor.img}}" data-action="editImage" data-edit="img" alt="{{actor.name}}" />
   <input class="charname" name="name" type="text" value="{{actor.name}}" placeholder="{{localize 'MY_SYSTEM.CharacterName'}}" />
-  <label class="level-badge">
-    {{localize 'MY_SYSTEM.Level'}}
-    {{formInput systemFields.level value=system.level}}
-  </label>
+  {{#if systemFields.level}}
+    <label class="level-badge">
+      {{localize 'MY_SYSTEM.Level'}}
+      {{formInput systemFields.level value=system.level}}
+    </label>
+  {{/if}}
+  {{#if systemFields.cr}}
+    <label class="level-badge">
+      {{localize 'MY_SYSTEM.CR'}}
+      {{formInput systemFields.cr value=system.cr}}
+    </label>
+  {{/if}}
 </section>
 
 {{!-- Attributes --}}

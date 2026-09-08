@@ -123,7 +123,12 @@ await scene.updateEmbeddedDocuments("Level", [
 
 `inferLevelFromElevation` only returns visible Levels, prefers a Level whose interior contains the elevation over one that merely touches it at a boundary, and falls back to the viewed Level. `AmbientLight` and `AmbientSound` use it to decide which Level a placeable belongs to at a given elevation.
 
-`Canvas._determineInitialLevel` resolves in this order: the `SceneManager#_determineInitialLevel()` override, then the last Level the user viewed on that Scene (`scene._viewPosition.level`) if still available, then `scene.initialLevel` for a GM, then — for a player without access to the initial Level — the available Level whose `index` is closest to it.
+`Canvas._determineInitialLevel` resolves in this order:
+
+1. The `SceneManager#_determineInitialLevel()` override.
+2. The last Level the user viewed on that Scene (`scene._viewPosition.level`), if it is still available.
+3. `scene.initialLevel`, for a GM.
+4. For a player without access to the initial Level, the available Level whose `index` is closest to it.
 
 ```js
 class TowerManager extends foundry.canvas.SceneManager {

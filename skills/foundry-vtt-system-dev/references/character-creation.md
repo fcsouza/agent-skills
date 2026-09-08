@@ -324,4 +324,4 @@ const data = doc?.toObject();
 await actor.toggleStatusEffect("blind", { active: true, overlay: false });
 ```
 
-Changed in v14: `CONFIG.statusEffects` is a Proxy over the array that also indexes by id. `CONFIG.statusEffects.blind` reads an entry, `CONFIG.statusEffects.myCondition = {id: "myCondition", name: "...", img: "..."}` adds one. A system may still assign a whole array to replace the list.
+Changed in v14: `CONFIG.statusEffects` is a Proxy over the array that also indexes by id. `CONFIG.statusEffects.blind` reads an entry, `CONFIG.statusEffects.myCondition = {id: "myCondition", name: "...", img: "..."}` adds one, and `delete CONFIG.statusEffects.blind` removes one. Assigning a whole array is deprecated since v14: the setter empties the list first, so it wipes conditions other packages added earlier in `init`.
