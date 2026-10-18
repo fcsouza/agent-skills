@@ -28,7 +28,7 @@ const BAR_WIDTH = 8;
 // How long a finished row stays before it leaves the band.
 export const LINGER_MS = 8_000;
 // Rows drawn at most; the rest are counted on one line.
-export const MAX_ROWS = 5;
+export const MAX_ROWS = 8;
 
 /** `claude-haiku-4-5-20251001` → `Haiku 4.5`; anything else as it came. */
 export function modelLabel(model: string): string {
