@@ -9,7 +9,7 @@ Mods are Claude Code plugins built on function hooks. They run inside Claude Cod
 | [bun-only](bun-only/) | Rewrites `npm`, `npx`, `yarn` and `pnpm` to `bun` and `bunx`. Sends `bunx biome` to `bun run format` or `bun run lint:biome`. |
 | [done-gate](done-gate/) | Shows the files a turn edited and which checks (format, lint, typecheck, test) have not run since. Reads the checks from `package.json` scripts. |
 | [worktrees](worktrees/) | Shows the repo's git worktrees, their branches, uncommitted changes, and the count against a limit of 10. Hidden when there is only one. |
-| [usage-rings](usage-rings/) | Shows context, 5h and 7d usage. Each ring turns green, yellow, orange or red by level, and shows the time left until the limit resets. Compact runs `/compact`; Code review runs `/code-review high --fix`. |
+| [usage-rings](usage-rings/) | Shows context, 5h and 7d usage. Each ring turns green, yellow, orange or red by level, and shows the time left until the limit resets. Compact runs `/compact`; Code review runs `/code-review high --fix`. Each running subagent gets a row with its model, time and tool count. |
 
 ## Install
 
