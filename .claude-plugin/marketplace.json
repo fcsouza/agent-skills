@@ -222,7 +222,7 @@
       "name": "usage-rings",
       "source": "./mods/usage-rings",
       "description": "Context, 5h and 7d usage above the prompt, each ring coloured by level: green, yellow, orange, red.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "keywords": [
         "claude-code-mod",
         "mod"
