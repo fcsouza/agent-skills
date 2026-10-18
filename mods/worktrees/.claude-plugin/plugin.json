@@ -1,0 +1,9 @@
+{
+  "name": "worktrees",
+  "version": "0.1.0",
+  "description": "A band above the prompt with the git worktrees of the current repo: branch, uncommitted changes, and the count against a limit of 10.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "bun-only",
+  "version": "0.1.0",
+  "description": "Rewrites npm, npx, yarn and pnpm commands to bun and bunx before they run, and bunx biome to bun run lint:biome.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}
