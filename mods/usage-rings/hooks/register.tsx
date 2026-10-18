@@ -1,6 +1,19 @@
 import type { EngineInterface, Register, Timer } from 'claude-code';
 
-import { type AgentRun, elapsed, isRunning, LINGER_MS, MAX_ROWS, modelLabel, visible } from './agents';
+import {
+  type AgentRun,
+  applyProgress,
+  elapsed,
+  isRunning,
+  LINGER_MS,
+  MAX_ROWS,
+  modelLabel,
+  PROGRESS_BRIEF,
+  type ProgressInput,
+  progressBar,
+  sweepBar,
+  visible,
+} from './agents';
 import { colorOf, type Meter, metersOf, ringOf } from './meters';
 
 const REFRESH_MS = 30_000;
@@ -9,6 +22,7 @@ let meters: Meter[] = [];
 let timer: Timer | undefined;
 // The action a button started and that has not finished yet; its buttons hide meanwhile.
 let running: 'compact' | 'review' | null = null;
+const PROGRESS_TOOL = 'mcp__usage-rings__progress';
 // Subagents this session started, newest last.
 let agents: AgentRun[] = [];
 // Redraws once a second while a subagent runs, so its clock moves.
@@ -25,6 +39,15 @@ function keepTicking($: EngineInterface): void {
     });
   }
 }
+
+// Done fills the bar; a reported plan fills it by steps; no plan sweeps while running.
+function barOf(run: AgentRun, now: number): string {
+  if (run.status === 'done') return progressBar(1, 1);
+  if (run.stepTotal !== undefined) return progressBar(run.stepDone ?? 0, run.stepTotal);
+  return run.status === 'running' ? sweepBar(now - run.startedAt) : progressBar(0, 1);
+}
+
+const STATUS_COLOR = { running: '#38bdf8', done: '#22c55e', failed: '#ef4444' } as const;
 
 // `redraw: false` leaves the redraw to the ticker, which runs while any subagent does.
 function updateAgent($: EngineInterface, agentId: string, change: (run: AgentRun) => AgentRun, redraw = true): void {
@@ -64,6 +87,26 @@ async function refresh($: EngineInterface): Promise<void> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e);
+    await $.tool
+      .register({
+        name: 'progress',
+        description:
+          'For subagents: report progress on your own task to the bar above the prompt. ' +
+          'Right after reading your task, call it with `total` (your plan in 3-8 steps) and `done: 0`; ' +
+          'call it again as each step finishes. Cheap and silent: it only draws a bar.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            done: { type: 'integer', minimum: 0, description: 'Steps finished so far.' },
+            total: { type: 'integer', minimum: 1, description: 'Steps planned; may change if the plan changes.' },
+            note: { type: 'string', description: 'The step in progress, a few words.' },
+          },
+          required: ['done'],
+        },
+        // In every agent's tool list, not behind ToolSearch: subagents do not go looking for it.
+        isDeferred: false,
+      })
+      .catch(() => undefined);
     await refresh($).catch(() => undefined);
     timer?.cancel();
     timer = $.clock.every(REFRESH_MS, () => {
@@ -86,7 +129,7 @@ export const register: Register = on => {
   });
 
   on('agent.spawn', async ($, e, next) => {
-    const started = await next(e);
+    const started = await next(e.prompt.includes(PROGRESS_BRIEF) ? e : { ...e, prompt: e.prompt + PROGRESS_BRIEF });
     if (started.deny !== undefined || started.agentId === undefined) {
       return started;
     }
@@ -105,10 +148,20 @@ export const register: Register = on => {
     return started;
   }).catch(($, e, next) => next(e));
 
+  // Answers the progress tool itself: nothing runs, the report only moves the subagent's bar.
+  on('tool.call', { tool: PROGRESS_TOOL }, async ($, e) => {
+    const agentId = e.agentId;
+    if (agentId === undefined || !agents.some(run => run.agentId === agentId)) {
+      return { result: 'ignored: only subagents report progress' };
+    }
+    updateAgent($, agentId, run => applyProgress(run, e as ProgressInput));
+    return { result: 'ok' };
+  }).catch(() => ({ result: 'ignored: the progress bar failed' }));
+
   // Counts each subagent's tool calls: the closest a plain subagent comes to saying how far along it is.
   on('tool.call', async ($, e, next) => {
     const agentId = e.agentId;
-    if (agentId !== undefined && agents.some(run => run.agentId === agentId)) {
+    if (agentId !== undefined && e.tool !== PROGRESS_TOOL && agents.some(run => run.agentId === agentId)) {
       updateAgent($, agentId, run => ({ ...run, tools: run.tools + 1 }), false);
     }
     return next(e);
@@ -147,12 +200,12 @@ export const register: Register = on => {
         </Box>
         {shown.slice(-MAX_ROWS).map(run => (
           <Box gap={1}>
-            <Text color={run.status === 'running' ? '#38bdf8' : run.status === 'done' ? '#22c55e' : '#ef4444'}>
-              {run.status === 'running' ? '●' : run.status === 'done' ? '✓' : '✗'}
-            </Text>
+            <Text color={STATUS_COLOR[run.status]}>{run.status === 'running' ? '●' : run.status === 'done' ? '✓' : '✗'}</Text>
             <Text wrap="truncate-end">{run.description}</Text>
-            <Text dimColor>
-              {`· ${modelLabel(run.model)} · ${elapsed((run.endedAt ?? now) - run.startedAt)} · ${run.tools} tool${run.tools === 1 ? '' : 's'}`}
+            <Text color={STATUS_COLOR[run.status]}>{barOf(run, now)}</Text>
+            {run.stepTotal !== undefined ? <Text>{`${run.stepDone ?? 0}/${run.stepTotal}`}</Text> : null}
+            <Text dimColor wrap="truncate-end">
+              {`${run.stepNote !== undefined && run.status === 'running' ? `${run.stepNote} · ` : ''}${modelLabel(run.model)} · ${elapsed((run.endedAt ?? now) - run.startedAt)} · ${run.tools} tool${run.tools === 1 ? '' : 's'}`}
             </Text>
           </Box>
         ))}
