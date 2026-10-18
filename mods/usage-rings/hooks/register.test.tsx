@@ -33,4 +33,25 @@ describe('register', () => {
 
     expect(ran).toEqual(['code-review high --fix', 'compact']);
   });
+
+  test('a spawned subagent gets a row with its model, and its tool calls are counted', async ($, on) => {
+    const clock = mock.clock(on);
+    on('session.start', ($, e) => ({ cwd: e.cwd }));
+    on('session.usage', () => ({ value: usage }));
+    on('agent.spawn', () => ({ model: 'claude-haiku-4-5-20251001', agentId: 'sub-1' }));
+    on('tool.call', () => ({ result: 'ok' }));
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box } = $.ui.resolve(e);
+      return <Box />;
+    });
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' });
+    await $.agent.spawn({ tool_use_id: 't1', prompt: 'p', description: 'Test subagent', subagentType: 'Explore', parentModel: 'claude-opus-5-5' } as never);
+    await $.tool.call({ tool: 'Read', file_path: '/work/a', agentId: 'sub-1' } as never);
+    await clock.settle();
+    const tree = await $.ui.render({ component: 'AbovePrompt', requestId: 'above-prompt', surface: 'terminal', props: {} as never });
+    const drawn = JSON.stringify(tree);
+    expect(drawn).toContain('Test subagent');
+    expect(drawn).toContain('Haiku 4.5');
+    expect(drawn).toContain('1 tool');
+  });
 });
