@@ -1,0 +1,9 @@
+{
+  "name": "prod-guard",
+  "version": "0.1.0",
+  "description": "Holds every write call to the Dokploy MCP server (deploy, save, update, delete, stop...) until you press Proceed. Reads pass through.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}

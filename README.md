@@ -12,6 +12,19 @@ Plugins are complete workflow bundles — skills + agents + hooks working togeth
 |--------|-------------|----------|
 | [game-dev](plugins/game-dev/) | **26 skills, 7 commands, 3 agents, 5 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
 
+## Claude Code Mods
+
+Mods are plugins built on function hooks: they run inside Claude Code, guard tool calls and draw above the prompt. See [mods/](mods/) for install steps.
+
+| Mod | Description |
+|-----|-------------|
+| [commit-guard](mods/commit-guard/) | Blocks commits with machine paths, `git add -A`, and pushes to `main` |
+| [prod-guard](mods/prod-guard/) | Holds Dokploy MCP writes until you press Proceed |
+| [bun-only](mods/bun-only/) | Rewrites npm, npx, yarn and pnpm to bun |
+| [done-gate](mods/done-gate/) | Shows edited files and the checks still owed |
+| [worktrees](mods/worktrees/) | Shows git worktrees, their changes, and the count |
+| [usage-rings](mods/usage-rings/) | Context and plan usage, coloured by level |
+
 ## Available Skills
 
 Skills are individual, cherry-pickable modules. Install only what you need.

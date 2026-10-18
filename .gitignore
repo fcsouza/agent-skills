@@ -22,3 +22,7 @@ node_modules/
 
 # Skill eval workspaces (scratch data from skill-creator runs)
 *-workspace/
+
+# Claude Code mods: types the engine writes beside each loaded mod (they list local MCP tools)
+mods/*/.claude-plugin/types/
+mods/*/tsconfig.json

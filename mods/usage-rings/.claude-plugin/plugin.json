@@ -1,0 +1,9 @@
+{
+  "name": "usage-rings",
+  "version": "0.1.0",
+  "description": "Context, 5h and 7d usage above the prompt, each ring coloured by level: green, yellow, orange, red.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}
