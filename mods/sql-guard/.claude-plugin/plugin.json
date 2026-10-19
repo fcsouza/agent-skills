@@ -1,0 +1,9 @@
+{
+  "name": "sql-guard",
+  "version": "0.1.0",
+  "description": "Holds psql commands that write (INSERT, UPDATE, DELETE, DROP, TRUNCATE, ALTER...) or run a SQL file, and drizzle-kit push/migrate, until you press Proceed, unless the database is local.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}

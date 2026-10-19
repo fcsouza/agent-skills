@@ -14,7 +14,7 @@ import {
   sweepBar,
   visible,
 } from './agents';
-import { colorOf, type Meter, metersOf, ringOf } from './meters';
+import { colorOf, isNarrow, type Meter, metersOf, ringOf } from './meters';
 
 const REFRESH_MS = 30_000;
 
@@ -176,9 +176,17 @@ export const register: Register = on => {
     const canAct = !e.props.isWorking && running === null;
     const now = await $.clock.now();
     const shown = visible(agents, now);
+    // Narrow: no reset countdowns, buttons on their own line, shorter agent rows.
+    const narrow = isNarrow(e.viewport?.columns);
+    const buttons = canAct ? (
+      <Box gap={1}>
+        <Button key="compact" label="Compact" onPress={() => runCommand($, 'compact', 'compact')} />
+        <Button key="review" label={narrow ? 'Review' : 'Code review'} onPress={() => runCommand($, 'review', 'code-review', 'high --fix', true)} />
+      </Box>
+    ) : null;
     return (
       <Box flexDirection="column">
-        <Box gap={3} justifyContent="center">
+        <Box gap={narrow ? 2 : 3} justifyContent="center" flexWrap="wrap">
           {meters.map(meter => (
             <Box gap={1}>
               <Text color={colorOf(meter.percent)}>{ringOf(meter.percent)}</Text>
@@ -187,17 +195,13 @@ export const register: Register = on => {
               </Text>
               <Text dimColor>
                 {meter.label}
-                {meter.resets === undefined ? '' : ` · ${meter.resets}`}
+                {meter.resets === undefined || narrow ? '' : ` · ${meter.resets}`}
               </Text>
             </Box>
           ))}
-          {canAct ? (
-            <Box gap={1}>
-              <Button key="compact" label="Compact" onPress={() => runCommand($, 'compact', 'compact')} />
-              <Button key="review" label="Code review" onPress={() => runCommand($, 'review', 'code-review', 'high --fix', true)} />
-            </Box>
-          ) : null}
+          {narrow ? null : buttons}
         </Box>
+        {narrow && buttons !== null ? <Box justifyContent="center">{buttons}</Box> : null}
         {shown.slice(-MAX_ROWS).map(run => (
           <Box gap={1}>
             <Text color={STATUS_COLOR[run.status]}>{run.status === 'running' ? '●' : run.status === 'done' ? '✓' : '✗'}</Text>
@@ -205,7 +209,9 @@ export const register: Register = on => {
             <Text color={STATUS_COLOR[run.status]}>{barOf(run, now)}</Text>
             {run.stepTotal !== undefined ? <Text>{`${run.stepDone ?? 0}/${run.stepTotal}`}</Text> : null}
             <Text dimColor wrap="truncate-end">
-              {`${run.stepNote !== undefined && run.status === 'running' ? `${run.stepNote} · ` : ''}${modelLabel(run.model)} · ${elapsed((run.endedAt ?? now) - run.startedAt)} · ${run.tools} tool${run.tools === 1 ? '' : 's'}`}
+              {narrow
+                ? `${modelLabel(run.model)} · ${elapsed((run.endedAt ?? now) - run.startedAt)}`
+                : `${run.stepNote !== undefined && run.status === 'running' ? `${run.stepNote} · ` : ''}${modelLabel(run.model)} · ${elapsed((run.endedAt ?? now) - run.startedAt)} · ${run.tools} tool${run.tools === 1 ? '' : 's'}`}
             </Text>
           </Box>
         ))}

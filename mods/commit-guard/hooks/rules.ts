@@ -162,3 +162,12 @@ export function pushTargets(args: readonly string[], currentBranch: string): str
     return name === 'HEAD' ? currentBranch : name;
   });
 }
+
+// `.env`, `.env.local`, `.env.production`, `foo/.env`... but not the templates meant to be shared.
+const ENV_FILE = /(^|\/)\.env(\.[\w.-]+)?$/;
+const ENV_TEMPLATE = /\.(example|sample|template|dist)$/;
+
+export const isEnvFile = (path: string): boolean => ENV_FILE.test(path) && !ENV_TEMPLATE.test(path);
+
+/** The .env files among `git diff --name-only` output, or among `git add` paths. */
+export const envFilesIn = (paths: readonly string[]): string[] => paths.map(path => path.trim()).filter(path => path !== '' && isEnvFile(path));

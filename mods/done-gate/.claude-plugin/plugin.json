@@ -1,6 +1,6 @@
 {
   "name": "done-gate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A band above the prompt listing the files this turn edited and the checks still owed: format, lint, typecheck, tests.",
   "author": {
     "name": "fcsouza"

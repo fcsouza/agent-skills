@@ -45,4 +45,23 @@ describe('register', () => {
     const fromBranch = await $.tool.call({ tool: 'Bash', command: 'git push -u origin feat/x' });
     expect(fromBranch.deny).toBeUndefined();
   });
+
+  test('git add .env and a commit with a staged .env are both denied', async ($, on) => {
+    on('session.cwd', () => ({ value: '/work' }));
+    on('process.run', ($, e) => ({
+      value: {
+        exitCode: 0,
+        stdout: e.argv.includes('--name-only') ? 'src/a.ts\n.env.local\n' : '',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    }));
+
+    const add = await $.tool.call({ tool: 'Bash', command: 'git add src/a.ts .env' });
+    expect(add.deny).toContain('.env');
+
+    const commit = await $.tool.call({ tool: 'Bash', command: 'git commit -m "x"' });
+    expect(commit.deny).toContain('.env.local');
+  });
 });

@@ -52,3 +52,9 @@ export function countdown(ms: number): string | undefined {
   const hours = Math.floor(minutes / 60);
   return hours > 0 ? `${hours}h${String(minutes % 60).padStart(2, '0')}` : `${minutes}m`;
 }
+
+// Below this many columns the band switches to its compact form.
+export const NARROW_COLUMNS = 80;
+
+/** Narrow when the surface measured a width under NARROW_COLUMNS; wide when it measured none. */
+export const isNarrow = (columns: number | undefined): boolean => columns !== undefined && columns < NARROW_COLUMNS;

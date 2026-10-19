@@ -1,0 +1,9 @@
+{
+  "name": "pr-status",
+  "version": "0.1.0",
+  "description": "A band above the prompt with the pull request of the current branch: CI checks passed, failed and running, and the review decision. Reads gh, refreshes every minute and after each turn.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}

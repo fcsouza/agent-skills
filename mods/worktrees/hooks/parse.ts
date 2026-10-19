@@ -18,3 +18,11 @@ export function parseWorktrees(porcelain: string): Omit<Worktree, 'changes'>[] {
 
 /** Lines of `git status --porcelain`: one per changed or untracked file. */
 export const countChanges = (porcelain: string): number => porcelain.split('\n').filter(line => line.trim() !== '').length;
+
+/** Shortens a long name in the middle so both ends stay readable: feature/rob…ch-319677 */
+export function shorten(name: string, max: number): string {
+  if (name.length <= max) return name;
+  const keep = max - 1;
+  const head = Math.ceil(keep / 2);
+  return `${name.slice(0, head)}…${name.slice(name.length - (keep - head))}`;
+}

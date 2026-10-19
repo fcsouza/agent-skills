@@ -10,6 +10,9 @@ let editedAt = 0;
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
+// Check names for a narrow band.
+const SHORT: Record<Check, string> = { format: 'fmt', lint: 'lint', typecheck: 'tsc', test: 'test' };
+
 async function loadOffered($: EngineInterface): Promise<void> {
   const cwd = await $.session.cwd();
   const file = await $.fs.read(`${cwd}/package.json`).catch(() => null);
@@ -67,16 +70,15 @@ export const register: Register = on => {
     }
 
     const { Box, Button, Text } = $.ui.resolve(e);
+    const narrow = (e.viewport?.columns ?? Number.POSITIVE_INFINITY) < 80;
     return (
       <Box flexDirection="column">
-        <Box gap={1}>
+        <Box gap={1} flexWrap="wrap">
           <Text color="#f59e0b">●</Text>
-          <Text>
-            {edited.size} file{edited.size === 1 ? '' : 's'} edited
-          </Text>
+          <Text>{narrow ? `${edited.size} edited` : `${edited.size} file${edited.size === 1 ? '' : 's'} edited`}</Text>
           {offered.map(check => (
             <Text color={owed.includes(check) ? '#ef4444' : '#22c55e'}>
-              {owed.includes(check) ? '✗' : '✓'} {check}
+              {owed.includes(check) ? '✗' : '✓'} {narrow ? SHORT[check] : check}
             </Text>
           ))}
           <Button
