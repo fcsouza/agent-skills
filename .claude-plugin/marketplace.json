@@ -167,7 +167,7 @@
       "name": "commit-guard",
       "source": "./mods/commit-guard",
       "description": "Blocks commits that carry absolute paths from this machine, git add -A / git add ., and pushes straight to main or master.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "keywords": [
         "claude-code-mod",
         "mod"
@@ -200,7 +200,7 @@
       "name": "done-gate",
       "source": "./mods/done-gate",
       "description": "A band above the prompt listing the files this turn edited and the checks still owed: format, lint, typecheck, tests.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "keywords": [
         "claude-code-mod",
         "mod"
@@ -211,7 +211,7 @@
       "name": "worktrees",
       "source": "./mods/worktrees",
       "description": "A band above the prompt with the git worktrees of the current repo: branch, uncommitted changes, and the count against a limit of 10.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "keywords": [
         "claude-code-mod",
         "mod"
@@ -222,7 +222,40 @@
       "name": "usage-rings",
       "source": "./mods/usage-rings",
       "description": "Context, 5h and 7d usage above the prompt, each ring coloured by level: green, yellow, orange, red.",
-      "version": "0.3.0",
+      "version": "0.5.0",
+      "keywords": [
+        "claude-code-mod",
+        "mod"
+      ],
+      "category": "productivity"
+    },
+    {
+      "name": "pino-guard",
+      "source": "./mods/pino-guard",
+      "description": "Blocks edits that add a pino transport (pino.transport() or a transport target) without a development-only guard: under bun build its worker thread cannot load inlined modules and every log stream dies silently.",
+      "version": "0.1.0",
+      "keywords": [
+        "claude-code-mod",
+        "mod"
+      ],
+      "category": "productivity"
+    },
+    {
+      "name": "sql-guard",
+      "source": "./mods/sql-guard",
+      "description": "Holds psql commands that write (INSERT, UPDATE, DELETE, DROP, TRUNCATE, ALTER...) or run a SQL file, and drizzle-kit push/migrate, until you press Proceed, unless the database is local.",
+      "version": "0.1.0",
+      "keywords": [
+        "claude-code-mod",
+        "mod"
+      ],
+      "category": "productivity"
+    },
+    {
+      "name": "pr-status",
+      "source": "./mods/pr-status",
+      "description": "A band above the prompt with the pull request of the current branch: CI checks passed, failed and running, and the review decision. Reads gh, refreshes every minute and after each turn.",
+      "version": "0.1.0",
       "keywords": [
         "claude-code-mod",
         "mod"

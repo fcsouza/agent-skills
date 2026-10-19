@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing';
 
-import { addsEverything, findLeaks, LEAK_PARTS, pushTargets, splitCommands, stagesTracked } from './rules';
+import { addsEverything, envFilesIn, findLeaks, LEAK_PARTS, pushTargets, splitCommands, stagesTracked } from './rules';
 
 const home = `${LEAK_PARTS[0]}someone/project`;
 
@@ -40,5 +40,13 @@ describe('rules', () => {
     expect(pushTargets(['origin', 'HEAD:refs/heads/master'], 'feat/x')).toEqual(['master']);
     expect(pushTargets(['origin', '+feat:main'], 'feat')).toEqual(['main']);
     expect(pushTargets(['--all', 'origin'], 'feat')).toContain('main');
+  });
+
+  test('isEnvFile catches env files and spares templates', () => {
+    expect(envFilesIn(['.env', 'apps/api/.env.local', '.env.production', 'src/env.ts', '.env.example', 'config/.env.sample', ''])).toEqual([
+      '.env',
+      'apps/api/.env.local',
+      '.env.production',
+    ]);
   });
 });

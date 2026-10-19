@@ -18,12 +18,15 @@ Mods are plugins built on function hooks: they run inside Claude Code, guard too
 
 | Mod | Description |
 |-----|-------------|
-| [commit-guard](mods/commit-guard/) | Blocks commits with machine paths, `git add -A`, and pushes to `main` |
+| [commit-guard](mods/commit-guard/) | Blocks commits with machine paths or `.env` files, `git add -A`, and pushes to `main` |
 | [prod-guard](mods/prod-guard/) | Holds Dokploy MCP writes until you press Proceed |
 | [bun-only](mods/bun-only/) | Rewrites npm, npx, yarn and pnpm to bun |
 | [done-gate](mods/done-gate/) | Shows edited files and the checks still owed |
 | [worktrees](mods/worktrees/) | Shows git worktrees, their changes, and the count |
 | [usage-rings](mods/usage-rings/) | Context and plan usage, coloured by level |
+| [pr-status](mods/pr-status/) | The current branch's PR: CI checks and review |
+| [sql-guard](mods/sql-guard/) | Holds writes to non-local databases until you press Proceed |
+| [pino-guard](mods/pino-guard/) | Blocks pino transports that break bundled logging |
 
 ## Available Skills
 

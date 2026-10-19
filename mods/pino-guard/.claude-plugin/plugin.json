@@ -1,0 +1,9 @@
+{
+  "name": "pino-guard",
+  "version": "0.1.0",
+  "description": "Blocks edits that add a pino transport (pino.transport() or a transport target) without a development-only guard: under bun build its worker thread cannot load inlined modules and every log stream dies silently.",
+  "author": {
+    "name": "fcsouza"
+  },
+  "license": "GPL-3.0"
+}

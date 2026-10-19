@@ -1,6 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code';
 
-import { addsEverything, findLeaks, pushTargets, resolveDir, splitCommands, stagesTracked } from './rules';
+import { addsEverything, envFilesIn, findLeaks, pushTargets, resolveDir, splitCommands, stagesTracked } from './rules';
 
 const PROTECTED_BRANCHES = new Set(['main', 'master']);
 
@@ -29,8 +29,23 @@ export const register: Register = on => {
         };
       }
 
+      if (verb === 'add') {
+        const env = envFilesIn(args.filter(arg => !arg.startsWith('-')));
+        if (env.length > 0) {
+          return { deny: `${$.plugin.name}: \`${env.join(' ')}\` holds secrets and never goes into git. Leave it out, and check it is in .gitignore.` };
+        }
+      }
+
       if (verb === 'commit') {
-        const diff = await git($, cwd, stagesTracked(args) ? ['diff', 'HEAD'] : ['diff', '--cached']);
+        const base = stagesTracked(args) ? ['diff', 'HEAD'] : ['diff', '--cached'];
+        const names = await git($, cwd, [...base, '--name-only']);
+        const env = envFilesIn(names.stdout.split('\n'));
+        if (env.length > 0) {
+          return {
+            deny: `${$.plugin.name}: the commit would include ${env.map(file => `\`${file}\``).join(', ')}, which hold secrets. Unstage with \`git restore --staged ${env.join(' ')}\` and add them to .gitignore.`,
+          };
+        }
+        const diff = await git($, cwd, base);
         const leaks = findLeaks(diff.stdout);
         if (leaks.length > 0) {
           const shown = leaks

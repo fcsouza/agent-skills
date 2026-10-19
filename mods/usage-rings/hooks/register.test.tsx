@@ -54,4 +54,36 @@ describe('register', () => {
     expect(drawn).toContain('Haiku 4.5');
     expect(drawn).toContain('1 tool');
   });
+
+  test('a subagent that reports its plan gets a real bar; the brief is added to its prompt', async ($, on) => {
+    const clock = mock.clock(on);
+    let prompt = '';
+    on('session.start', ($, e) => ({ cwd: e.cwd }));
+    on('session.usage', () => ({ value: usage }));
+    on('tool.register', () => ({ value: {} }) as never);
+    on('agent.spawn', ($, e) => {
+      prompt = e.prompt;
+      return { model: 'claude-opus-5-5', agentId: 'sub-2' };
+    });
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box } = $.ui.resolve(e);
+      return <Box />;
+    });
+    await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' });
+    await $.agent.spawn({
+      tool_use_id: 't2',
+      prompt: 'do it',
+      description: 'Planner',
+      subagentType: 'general-purpose',
+      parentModel: 'claude-opus-5-5',
+    } as never);
+    const call = await $.tool.call({ tool: 'mcp__usage-rings__progress', done: 2, total: 5, note: 'reading files', agentId: 'sub-2' } as never);
+    await clock.settle();
+    const drawn = JSON.stringify(await $.ui.render({ component: 'AbovePrompt', requestId: 'above-prompt', surface: 'terminal', props: {} as never }));
+    expect(prompt).toContain('progress');
+    expect(call.deny).toBeUndefined();
+    expect(drawn).toContain('2/5');
+    expect(drawn).toContain('reading files');
+    expect(drawn).toContain('0 tools');
+  });
 });

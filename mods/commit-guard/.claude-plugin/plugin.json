@@ -1,6 +1,6 @@
 {
   "name": "commit-guard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Blocks commits that carry absolute paths from this machine, git add -A / git add ., and pushes straight to main or master.",
   "author": {
     "name": "fcsouza"

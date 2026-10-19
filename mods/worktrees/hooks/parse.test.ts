@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing';
 
-import { countChanges, parseWorktrees } from './parse';
+import { countChanges, parseWorktrees, shorten } from './parse';
 
 describe('parse', () => {
   test('parseWorktrees reads branches and detached heads, skips bare', () => {
@@ -30,5 +30,15 @@ describe('parse', () => {
   test('countChanges counts non-empty lines', () => {
     expect(countChanges(' M a.ts\n?? b.ts\n')).toBe(2);
     expect(countChanges('')).toBe(0);
+  });
+});
+
+describe('shorten', () => {
+  test('keeps short names and cuts long ones in the middle', () => {
+    expect(shorten('main', 24)).toBe('main');
+    const cut = shorten('feature/roblox-game-creation-research-319677', 24);
+    expect(cut.length).toBe(24);
+    expect(cut.startsWith('feature/')).toBe(true);
+    expect(cut.endsWith('319677')).toBe(true);
   });
 });
