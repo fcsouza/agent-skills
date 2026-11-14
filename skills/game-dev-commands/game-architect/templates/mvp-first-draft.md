@@ -21,7 +21,7 @@
 ## 2. Core Mechanic Definition
 
 - **Primary Verb(s)**: [what the player does]
-- **30-Second Loop**: [one cycle of the core mechanic, described concretely]
+- **One Loop Cycle**: [one cycle of the core mechanic, described concretely]
 - **Session Loop** (for example 5-30 min; set it for this game): [what constitutes a "session" — a run, a level, a match, a quest]
 - **Feedback Loop**: Action -> Consequence -> Learning -> Improved Action
 - **Difficulty Curve**: [linear or stepped; selectable difficulty levels first] [-> game-design-fundamentals] [-> level-design]
