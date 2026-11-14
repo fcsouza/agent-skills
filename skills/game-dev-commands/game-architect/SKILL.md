@@ -1,14 +1,12 @@
 ---
 name: game-architect
-description: Comprehensive game MVP interviewer and planner. Interviews you in progressive groups, researches genre conventions and reference games, then produces an actionable MVP First Draft with starter project files. Use when starting a new game project from scratch.
+description: Interviews the user about a new game, researches reference games and genre conventions, then writes an MVP plan (`docs/mvp-first-draft.md`) and starter project files. Use when starting a game project from scratch and there is no plan yet.
 argument-hint: Optional brief game description or genre hint
 ---
 
-# Game Architect — MVP First Draft
+# Game Architect: MVP First Draft
 
-You are the **Game Architect** — an expert game designer, systems engineer, and producer with deep knowledge of game design theory, technical architecture, and narrative craft.
-
----
+You are the Game Architect: a game designer, systems engineer and producer. You interview the user, research, then write the plan and the starter files.
 
 ## Requires
 
@@ -24,6 +22,7 @@ You are the **Game Architect** — an expert game designer, systems engineer, an
 - `bullmq-game-queues`
 - `game-backend-architecture`
 - `game-state-sync`
+- `mmo-design`
 - `betterauth-integration`
 - `stripe-game-payments`
 - `elevenlabs-sound-music`
@@ -36,47 +35,22 @@ You are the **Game Architect** — an expert game designer, systems engineer, an
 - `ci-cd-game`
 - `monitoring-game-ops`
 
-`game-dev` is needed from the start. If it is not installed, give this install line and stop: `bunx skills add fcsouza/agent-skills --skill game-dev`. The topic skills are checked at Phase 3 Step 4, after the interview, where a missing one does not stop the run.
+`game-dev` is needed from the start. If it is not installed, give this install line and stop: `bunx skills add fcsouza/agent-skills --skill game-dev`. The topic skills are checked at Phase 3 Step 3, after the interview, where a missing one does not stop the run.
 
 ## Load the skills
 
-Apply the `game-dev` skill at the start. Apply a topic skill only when Phase 3 Step 4 selects it. Do this silently: do not tell the user and do not summarize the skills. Then begin the interview with Phase 2.
+Apply the `game-dev` skill at the start. Apply a topic skill only when Phase 3 Step 3 selects it. Do this silently: do not tell the user and do not summarize the skills. Then begin the interview with Phase 2.
 
-Input: `$ARGUMENTS`. If it is empty, take it from the user's message. If it holds a brief game description or genre hint, use it to pre-fill relevant Group 1 answers and skip those sub-questions in the interview.
-
----
-
-## Designer Philosophies
-
-Reference these when justifying design decisions. Cite the designer by name in your output.
-
-| Designer | Principle | Apply When |
-|----------|-----------|------------|
-| **Sid Meier** | "A game is a series of interesting decisions" | Core loop has branching choices |
-| **Will Wright** | Emergent behavior from simple rules | Systems interact to produce unexpected outcomes |
-| **Richard Garfield** | Elegant systems from minimal components | Card games, deckbuilders, combinatorial mechanics |
-| **Raph Koster** | Mastery creates fun; players will optimize the fun out of your game | Progression systems, skill curves, economy design |
-| **Fumito Ueda** | Restraint amplifies impact; what you remove matters | Minimalist games, atmospheric experiences |
-| **Jenova Chen** | Flow channel; emotional arc; UI should be invisible | Difficulty tuning, pacing, narrative games |
-| **Shigeru Miyamoto** | Feel-first; the level teaches the mechanic | Platformers, action games, onboarding |
-| **Hidetaka Miyazaki** | Environmental storytelling; players piece together the story | Worldbuilding-heavy games, lore delivery |
-| **Ken Levine** | World IS story; narrative emerges from systems | Immersive sims, narrative-driven games |
-| **Hideo Kojima** | Player IS protagonist; characters exist beyond player experience | Cinematic games, identity-focused narratives |
-| **Derek Yu** | Constrained randomness — the constraints are the design | Roguelikes, procedural content |
-| **Tarn Adams** | Simulate deeply, let stories emerge | Simulation games, emergent narrative |
-| **Jonathan Blow** | Mechanic honesty; every puzzle should feel like genuine insight | Puzzle games, thematic mechanics |
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. If it holds a brief game description or genre hint, use it to pre-fill Group 1 answers and skip those sub-questions.
 
 ---
 
-## Phase 2 — Architect Interview
+## Phase 2: Architect Interview
 
-Introduce yourself briefly:
+Introduce yourself in one or two sentences: you will ask a few groups of questions, then write an MVP plan.
 
-> "I'm the Game Architect. I'll walk you through a series of questions to understand your game idea, then produce a complete MVP First Draft Plan with everything you need to start building. Let's begin."
+Present questions one group at a time. Wait for the answer before the next group. After each group, say in one line what you learned. Use `AskUserQuestion` with multiple-choice options where the group lists options.
 
-Present questions **one group at a time**. Wait for the user's response before continuing. After each group, briefly acknowledge what you learned before moving on. Use `AskUserQuestion` with multiple-choice options where indicated.
-
----
 
 ### Group 1 — The Seed
 
@@ -100,6 +74,7 @@ Ask these together:
    - Visual Novel / Narrative
    - Other (describe)
 
+
 ---
 
 ### Group 2 — Game Identity
@@ -120,6 +95,7 @@ Ask these together:
    - Asynchronous (leaderboards, ghost data)
    - MMO / Persistent shared world
    - Local multiplayer
+
 
 ---
 
@@ -151,88 +127,12 @@ Ask these together:
     - Tense and stressful
     - Humorous / Satirical
 
+
 ---
 
-### Group 4 — Genre-Specific Deep Dive
+### Group 4: Genre-specific deep dive
 
-**CRITICAL: This group is entirely adaptive.** Based on the genre from Group 1, ask ONLY the questions relevant to that genre. Never ask all of them.
-
-#### If Card Game / Deckbuilder:
-- Starting deck size and composition?
-- Card acquisition method: draft, buy from shop, random reward, crafting?
-- Resolution: combat, puzzle, narrative, or hybrid?
-- Deck size limits or no cap?
-- Draw/discard mechanics (Dominion-style cycle, Slay the Spire-style exhaust, hand management)?
-- Run-based (roguelike structure) or persistent collection?
-- How many unique cards for MVP?
-
-#### If RPG / Action RPG:
-- Class/job system or freeform character build?
-- Combat: turn-based, real-time, ATB, hybrid?
-- Progression: level-based, skill-based, equipment-based, or combo?
-- Party: solo hero, fixed party, recruitable companions?
-- Loot: randomized drops, crafted items, quest rewards, or all three?
-- Estimated main story length for MVP (in hours)?
-- Skill/talent trees?
-
-#### If Puzzle / Logic:
-- Discrete levels or continuous/open?
-- Time pressure or relaxed?
-- Mechanic family: spatial, pattern-matching, logic deduction, physics, word, math?
-- Hint/undo system?
-- Level editor / user-generated content in scope?
-- How many levels/puzzles for MVP?
-
-#### If Idle / Incremental:
-- Active vs idle ratio (how much requires active play)?
-- Prestige/reset layers: how many for MVP?
-- Primary resource names and theme?
-- Automation unlock milestones?
-- Offline progress?
-- Number of upgrade trees for MVP?
-
-#### If Strategy / Tactics:
-- Real-time or turn-based?
-- Unit control: individual units, squads, or abstract (city-level)?
-- Map: procedural or hand-designed?
-- Resource types (single resource or multiple)?
-- AI opponent quality bar for MVP?
-- Campaign or skirmish mode (or both)?
-
-#### If Roguelike / Roguelite:
-- Permadeath: full reset or meta-progression between runs?
-- Target run length (minutes)?
-- Procedural generation scope: maps, enemies, items, abilities, all?
-- How many distinct items/abilities for MVP?
-- What makes each run feel different?
-
-#### If Platformer / Action:
-- Core movement mechanics (jump, dash, wall-jump, grapple, fly)?
-- Combat or pure traversal?
-- Lives, checkpoints, or respawn system?
-- Boss fights in MVP?
-- How many levels/worlds for MVP?
-- Collectibles or secrets?
-
-#### If Simulation / Tycoon:
-- What is being simulated?
-- Real-time or turn-based cycles?
-- Failure state or pure sandbox?
-- Complexity target: Factorio-depth or Game Dev Tycoon-light?
-- What are the primary resources the player manages?
-
-#### If Survival / Crafting:
-- Core survival mechanics (hunger, health, temperature, sanity)?
-- Crafting depth: simple recipes or tech trees?
-- Base building?
-- Procedural world or fixed map?
-- PvE, PvP, or both?
-
-#### If Other genre:
-- Describe the core mechanic loop in detail.
-- What is the win/lose condition?
-- What creates replayability?
-- What existing game is closest to your vision?
+Ask only the questions for the genre chosen in Group 1, never all of them. Read `references/genre-questions.md` when you reach this group; it has one block per genre, including MMO.
 
 ---
 
@@ -302,31 +202,24 @@ Ask these together:
 22. **Any hard constraints or must-haves** not covered above?
 23. **Anything explicitly OUT of scope** for the MVP?
 
-After Group 7, say:
-
-> "I have everything I need. Let me research your reference games and genre conventions, then I'll generate your MVP First Draft Plan."
+After Group 7, say you have what you need and that you will research the reference games and genre conventions before writing the plan.
 
 ---
 
-## Phase 3 — Research
+## Phase 3: Research
 
-After the interview, before generating the plan:
+### Step 1: Reference games
+For each reference game the user named (up to 3):
+- Search the web for the game's core loop, notable design decisions, and what made it succeed or divide players.
+- Extract 2-3 lessons to apply or avoid in this game.
+- If the user named none, skip this step.
 
-### Step 1: Research Reference Games
-For each reference game the user mentioned (up to 3):
-- Use web search to find the game's core loop, notable design decisions, and what made it successful or divisive
-- Extract 2-3 specific lessons to apply or avoid for THIS game
-- If the user mentioned no references, skip this step
+### Step 2: Genre conventions
+- Search for "[genre] game design best practices" and "[genre] common design mistakes".
+- Note the genre patterns that should shape the MVP plan.
 
-### Step 2: Research Genre Conventions
-- Search for "[genre] game design best practices" and "[genre] common design mistakes"
-- Identify genre-specific patterns that should inform the MVP plan
-
-### Step 3: Select Designer Lenses
-From the Designer Philosophies table, select the 2-3 designers whose principles are MOST relevant to THIS specific game. These will be cited throughout the output.
-
-### Step 4: Select Required Skills
-Use the Skill Selection Matrix below to choose the skills this game needs. Include only the relevant ones, not every skill.
+### Step 3: Select skills
+Use the Skill Selection Matrix below. Include only the skills this game needs.
 
 Check which selected skills are installed. If any are missing, do not stop and do not discard the interview answers. List the missing skills, give one install line that covers them (`bunx skills add fcsouza/agent-skills --skill <name> --skill <name>`), and ask the user to choose:
 
@@ -339,291 +232,58 @@ Apply the selected, installed skills now, then cross-reference the Step 2 findin
 
 ## Skill Selection Matrix
 
-### Always Include
+Always include:
+
 | Skill | Reason |
 |-------|--------|
-| `game-design-fundamentals` | Every game needs core design theory |
-| `postgres-game-schema` | Every persistent game needs data storage |
-| `ui-ux-game` | Every game needs interface design |
-| `ci-cd-game` | Every shippable game needs deployment |
+| `game-design-fundamentals` | Core loop, difficulty and reward rules |
+| `postgres-game-schema` | Persistent games need data storage |
+| `ui-ux-game` | Every game needs interface and onboarding design |
+| `ci-cd-game` | Shippable games need deployment |
 | `game-dev` | Project conventions and skill routing |
 
-### Include Conditionally
+Include by interview answer:
 
 | Interview Answer | Add These Skills |
 |-----------------|-----------------|
-| Multiplayer != "Single-player only" | `game-backend-architecture`, `redis-game-patterns` |
-| Multiplayer == "Competitive PvP" | + `matchmaking-system`, `game-state-sync`, `bullmq-game-queues` |
-| Multiplayer == "Co-op" with real-time >= Medium | + `game-state-sync` |
-| Multiplayer == "MMO" | + `matchmaking-system`, `game-state-sync`, `bullmq-game-queues`, `redis-game-patterns` |
-| Narrative importance >= 2 | `worldbuilding`, `quest-narrative-coherence` |
-| Narrative importance >= 3 | + `story-structure-game`, `quest-mission-design` |
-| Narrative importance >= 4 | + `character-design-narrative` |
+| Multiplayer is not "Single-player only" | `game-backend-architecture`, `redis-game-patterns` |
+| Multiplayer is "Competitive PvP" | + `matchmaking-system`, `game-state-sync`, `bullmq-game-queues` |
+| Multiplayer is "Co-op" with real-time Medium or higher | + `game-state-sync` |
+| Multiplayer is "MMO / Persistent shared world" (a persistent world with many players) | + `mmo-design`, `matchmaking-system`, `game-state-sync`, `bullmq-game-queues`, `redis-game-patterns` |
+| Narrative importance 2 or more | `worldbuilding`, `quest-narrative-coherence` |
+| Narrative importance 3 or more | + `story-structure-game`, `quest-mission-design` |
+| Narrative importance 4 or more | + `character-design-narrative` |
 | Genre has economy/currency | `game-economy-design` |
 | Genre has quests/missions | `quest-mission-design`, `quest-narrative-coherence` |
-| Genre is roguelike OR has procedural content | `procedural-gen` |
+| Genre is roguelike or has procedural content | `procedural-gen` |
 | Genre has levels/areas/maps | `level-design` |
-| Auth needed != "None" | `betterauth-integration` |
-| Payments needed != "No" | `stripe-game-payments` |
-| Audio != "None for MVP" | `elevenlabs-sound-music` |
-| Commercial == true | `gameplay-analytics`, `monitoring-game-ops` |
-| Real-time >= "Medium" | `game-state-sync`, `redis-game-patterns` |
-| Real-time == "High" | + `game-backend-architecture` (fixed timestep) |
+| Auth is not "None" | `betterauth-integration` |
+| Payments is not "No" | `stripe-game-payments` |
+| Audio is not "None for MVP" | `elevenlabs-sound-music` |
+| Commercial | `gameplay-analytics`, `monitoring-game-ops` |
+| Real-time Medium or higher | `game-state-sync`, `redis-game-patterns` |
+| Real-time High | + `game-backend-architecture` (fixed timestep) |
 
 ---
 
-## Phase 4 — Generate the MVP First Draft
+## Phase 4: Write the MVP First Draft
 
-Write the following document. Save it as `docs/mvp-first-draft.md` in the user's project directory.
+Copy `templates/mvp-first-draft.md` when you write the plan. Fill every section; delete a section only where the template says to skip it. Save the result as `docs/mvp-first-draft.md` in the user's project.
 
-Every design decision MUST cite:
-- The **skill** it comes from (e.g., `[-> game-economy-design]`)
-- The **designer lens** that justifies it (e.g., `[-> Sid Meier: interesting decisions]`)
-
-If you are uncertain about a decision, flag it with `> DECISION NEEDED:` rather than guessing.
+Each design decision names the skill it comes from, for example `[-> game-economy-design]`. Rules those skills own (quest coherence, economy, difficulty, onboarding, MMO decisions) are applied through the skill, not restated in the plan. If you are unsure of a decision, write `> DECISION NEEDED:` and the question, so the user decides.
 
 ---
 
-### Output Document Structure
+## Phase 5: Write the starter files
 
-```markdown
-# [Game Title / Working Title]
-
-> MVP First Draft Plan — Generated by game-architect skill
-> Genre: [genre] | Platform: [platform] | Timeline: [timeline] | Multiplayer: [mode]
-
----
-
-## 1. Concept Summary
-
-- **One-Sentence Pitch**: [from interview]
-- **Core Loop**: [Action] -> [Feedback] -> [Reward] -> [Decision] (diagram the cycle)
-- **Player Fantasy**: [the feeling/power the player experiences]
-- **Emotional Target**: [what the player should feel — tension, wonder, mastery, etc.]
-- **Reference Games**:
-  - [Game 1]: [what to learn from it — from research]
-  - [Game 2]: [what to learn from it]
-  - [Game 3]: [what to avoid from it]
-- **Designer Lenses Applied**:
-  - [Designer]: [principle] — applied to [specific aspect of this game]
-  - [Designer]: [principle] — applied to [specific aspect of this game]
-- **MDA Aesthetics**: [2-3 target aesthetics from the MDA framework]
-- **Primary Bartle Type**: [Achiever / Explorer / Socializer / Killer]
-
----
-
-## 2. Core Mechanic Definition
-
-- **Primary Verb(s)**: [what the player does]
-- **30-Second Loop**: [one cycle of the core mechanic, described concretely]
-- **Session Loop** (5-30 min): [what constitutes a "session" — a run, a level, a match, a quest]
-- **Feedback Loop**: Action -> Consequence -> Learning -> Improved Action
-- **Difficulty Curve**: [strategy — linear, stepped, adaptive] [-> level-design] [-> designer lens]
-- **MVP Mechanic Scope**: [exactly what mechanics are IN for v0.1]
-- **Deferred Mechanics**: [what will be added post-MVP]
-
----
-
-## 3. World & Narrative Seed
-
-> Include this section if narrative importance >= 2. Skip entirely if 1.
-
-- **Setting**: [from interview]
-- **Tone**: [from interview]
-- **Core Themes**: [2-3 themes that drive the world]
-- **World Rules**: [what is possible and impossible — magic system, tech level, physics]
-- **Lore Seed**: [2-3 sentences of foundational world truth]
-- **Key Locations (MVP)**: [3-5 locations with one-line descriptions]
-- **Key Characters (MVP)**: [3-5 characters with role and motivation — if applicable]
-- **Lore Delivery Method**: [environmental / dialogue / codex / items / none]
-  [-> cite Miyazaki/Levine/Kojima lens as applicable]
-
----
-
-## 4. Technical Architecture
-
-### Selected Skills for This Game
-
-| Skill | Why Needed | Priority |
-|-------|-----------|----------|
-| [skill-name] | [specific reason for THIS game] | Must-have |
-| [skill-name] | [specific reason for THIS game] | Must-have |
-| [skill-name] | [specific reason for THIS game] | Nice-to-have |
-
-### Stack Decisions
-
-| Layer | Choice | Notes |
-|-------|--------|-------|
-| Runtime | Bun | Standard |
-| Language | TypeScript (strict) | Standard |
-| Backend | Elysia | [+ WebSocket if real-time] |
-| ORM | Drizzle | Standard |
-| Database | PostgreSQL (Neon) | [list key tables needed] |
-| Cache | Redis | [needed? what for?] |
-| Jobs | BullMQ | [needed? what queues?] |
-| Auth | BetterAuth | [providers needed] |
-| Payments | Stripe | [product types needed] |
-| Audio | ElevenLabs / Lyria | [what audio needed] |
-| Deploy | Fly.io | Standard |
-| Lint | ultracite (wraps Biome) | Standard |
-
-> Remove rows for technologies not needed by this game.
-
-### State Authority
-- [Server-authoritative / Client-only / Hybrid]
-- [Justification based on multiplayer mode and real-time requirements]
-
-### Database Schema (MVP)
-[List only the tables needed for THIS game's MVP — derived from postgres-game-schema patterns]
-
-| Table | Purpose | Key JSONB Fields |
-|-------|---------|-----------------|
-| players | Player accounts and stats | [game-specific stats] |
-| ... | ... | ... |
-
----
-
-## 5. Quest/Mission MVP
-
-> Include only if game has quests/missions. Skip otherwise.
-
-- **MVP Quest Count**: [number]
-- **Quest Types Used**: [from quest-mission-design taxonomy]
-- **First Quest** (fully specced):
-  - Name: [quest name]
-  - Type: [main/side/discovery/etc.]
-  - Objective: [what the player must do]
-  - Reward: [what they get]
-  - Lore tie-in: [how it connects to world]
-  - Completion paths: [at least 2 ways to complete, if significant quest]
-- **Quest Arc for MVP**: [brief narrative arc across all MVP quests]
-- Coherence check: [validated against quest-narrative-coherence 5-step process]
-
----
-
-## 6. Economy MVP
-
-> Include only if game has economy/currency. Skip otherwise.
-
-- **Currencies**:
-  - Soft: [name] — earned by [method], spent on [items]
-  - Hard: [name] — earned by [method or purchased], spent on [items]
-- **Primary Faucets**: [how player earns — list sources]
-- **Primary Sinks**: [how player spends — list destinations]
-- **Growth Model**: [linear income / exponential costs — or other]
-- **Session Earn Target**: [how much soft currency per session]
-- **Monetization Touch Points**: [where real money enters, if commercial]
-- **Anti-Inflation**: [mechanisms to prevent currency devaluation]
-  [-> game-economy-design] [-> Raph Koster: players optimize]
-
----
-
-## 7. UI/UX MVP
-
-- **Core Screens**:
-  | Screen | Purpose | Priority |
-  |--------|---------|----------|
-  | [screen] | [purpose] | Must-have |
-  | ... | ... | ... |
-- **HUD Elements**: [what's always visible during gameplay]
-- **Onboarding Flow**: [how the first 60 seconds teach the game]
-  [-> Miyamoto: level teaches mechanic]
-- **Accessibility Baseline**:
-  - [ ] Colorblind-safe palette
-  - [ ] Scalable text
-  - [ ] Remappable controls (if applicable)
-  - [ ] Screen reader support for menus (if text-heavy)
-  [-> ui-ux-game]
-
----
-
-## 8. File & Folder Structure
-
-[Generate the actual recommended structure for THIS game]
-
-```
-project-root/
-├── src/
-│   ├── routes/              # Elysia API routes
-│   ├── db/
-│   │   ├── schema/          # Drizzle table definitions
-│   │   └── migrations/      # Generated migrations
-│   ├── game/                # Core game logic (server-side)
-│   │   ├── [domain]/        # Genre-specific modules
-│   │   └── engine/          # Shared engine code
-│   ├── jobs/                # BullMQ workers (if needed)
-│   ├── lib/                 # Shared utilities
-│   └── tests/
-├── docs/
-│   ├── mvp-first-draft.md   # This document
-│   ├── world-lore.md        # World state (if narrative)
-│   └── quest-registry.md    # Quest tracking (if quests)
-├── CLAUDE.md                # Project config for Claude Code
-├── drizzle.config.ts
-├── tsconfig.json
-└── package.json
-```
-
-> Adjust structure based on actual needs — remove unused directories.
-
----
-
-## 9. MVP Build Sequence
-
-Ordered by dependency. Each task references the skill to read before implementing.
-
-| # | Task | Skill Reference | Depends On | Size |
-|---|------|----------------|------------|------|
-| 1 | Project scaffold + CLAUDE.md | game-dev | — | S |
-| 2 | Database schema + migrations | postgres-game-schema | #1 | M |
-| 3 | [next task based on THIS game] | [skill] | [deps] | S/M/L |
-| ... | | | | |
-
-> Size: S = hours, M = 1-3 days, L = 3-7 days
-
----
-
-## 10. Out of Scope for MVP
-
-Features explicitly excluded from the MVP. Prevents scope creep.
-
-| Feature | Reason Deferred | When to Add |
-|---------|----------------|-------------|
-| [feature] | [why not now] | [post-MVP milestone] |
-| ... | ... | ... |
-
----
-
-## 11. Open Questions
-
-Decisions that need resolution before or during implementation:
-
-1. [Question about ambiguous requirement]
-2. [Question about technical choice]
-3. [Question about content scope]
-
----
-
-## 12. Risk & Mitigation
-
-| Risk | Impact | Mitigation |
-|------|--------|-----------|
-| [risk description] | [what goes wrong] | [how to prevent/reduce] |
-| ... | ... | ... |
-```
-
----
-
-## Phase 5 — Generate Starter Files
-
-After writing the MVP First Draft, generate these files in the user's project directory:
+After the plan, write these files in the user's project.
 
 ### 1. `CLAUDE.md`
 
 Start from the CLAUDE.md template in the `game-dev` skill (file: templates/game-project-claude.md). Fill in these parts:
 - **Title** (`# [Game Name]`): the game title from the interview
 - **Tech Stack**: keep only the rows for technologies this game uses
-- **Skills**: below the existing sentence, list the skills selected in Phase 3 Step 4
+- **Skills**: below the existing sentence, list the skills selected in Phase 3 Step 3
 - **Game-Specific Context**: core loop (the 30-second loop), genre, target platforms, multiplayer mode
 - **Common Commands**: keep the commands that match the `package.json` scripts in #4 below
 
@@ -631,75 +291,51 @@ Keep **Package Manager**, **Mandatory Rules**, **When Compacting** and **Project
 
 ### 2. `docs/world-lore.md`
 
-**Only generate if narrative importance >= 2.**
-
-Create with this structure:
-```markdown
-# World Lore — [Game Title]
-
-## World Overview
-[Setting, tone, themes from interview Group 3]
-
-## Factions
-<!-- Populated via game-lore skill -->
-
-## Locations
-<!-- Populated via game-lore skill -->
-
-## Characters / Notable NPCs
-<!-- Populated via game-lore skill -->
-
-## History / Timeline
-<!-- Populated via game-lore skill -->
-
-## Active Conflicts
-<!-- Populated via game-lore skill -->
-
-## Rules and Constraints
-<!-- Populated via game-lore skill -->
-```
-
-Fill in World Overview from interview Group 3. Leave detailed sections as guided placeholders.
+Write it only if narrative importance is 2 or more. Copy the world-lore template from the `quest-narrative-coherence` skill (its `world-lore.md` file in that skill's `templates` folder). That skill owns the section list. Fill World Overview from interview Group 3. Leave the other sections as the template has them.
 
 ### 3. `docs/quest-registry.md`
 
-**Only generate if the game has quests/missions.**
-
-Create it from the registry template of the `quest-narrative-coherence` skill (templates/quest-registry.md in that skill). Keep its headers. If Section 5 has a starter quest, add it as a row in the table under the `## Active Quests` heading.
+Write it only if the game has quests or missions. Copy the registry template from the `quest-narrative-coherence` skill (its `quest-registry.md` file in that skill's `templates` folder) and keep its headers. If Section 5 of the plan has a starter quest, add it as a row under `## Planned Quests`, since it is still a draft.
 
 ### 4. `package.json`
-Minimal package.json with:
-- `name`: kebab-case from game title
-- Standard scripts: `dev`, `build`, `typecheck`, `test`, `db:generate`, `db:migrate`
-- Code quality scripts, which the CLAUDE.md template runs: `"format": "ultracite fix"` and `"lint:biome": "ultracite check"`. Run `bunx ultracite init --yes --linter biome --pm bun` to install the packages they need; it also writes the linter config.
-- Dependencies: only install packages needed based on selected skills
+
+Minimal `package.json` with:
+- `name`: kebab-case from the game title.
+- Scripts `dev`, `build`, `typecheck`, `test`, `db:generate`, `db:migrate`.
+- Code quality scripts, which the CLAUDE.md template runs: `"format": "ultracite fix"` and `"lint:biome": "ultracite check"`. Run `bunx ultracite init --yes --linter biome --pm bun` to install the packages they need. It also writes the linter config.
+- Dependencies: only the packages the selected skills need.
+
+### 5. `tsconfig.json`
+
+Copy `templates/tsconfig.json` when you write the project's `tsconfig.json`. It targets TypeScript 7: it sets no `baseUrl`, uses `moduleResolution: bundler` and lists `types`, because TypeScript 7 removed `baseUrl` and defaults `types` to an empty list. Add `typescript` and `@types/bun` to the dev dependencies.
+
+Read `references/sources.md` when you need the source behind a TypeScript 7 or ultracite choice above.
 
 ---
 
-## Phase 6 — Summary & Next Steps
+## Phase 6: Summary and next steps
 
-After generating all files, present:
+After writing all files, present:
 
-1. **Recap** the game concept in 2-3 sentences
-2. **List all files created** with one-line descriptions
-3. **First 3 things to do next** (ordered), each referencing the specific skill to read:
-   - e.g., "1. Implement database schema — apply the `postgres-game-schema` skill then copy its boilerplate"
-   - e.g., "2. Set up Elysia server — apply the `game-backend-architecture` skill"
-   - e.g., "3. Build the core [mechanic] — apply the `game-design-fundamentals` skill for loop validation"
-4. **Ask**: "Want to adjust anything in the MVP plan before we start building?"
+1. A 2-3 sentence recap of the game concept.
+2. Every file created, with one line each.
+3. The first 3 things to do, in order, each naming the skill to apply:
+   - "1. Implement the database schema: apply the `postgres-game-schema` skill, then copy its boilerplate."
+   - "2. Set up the Elysia server: apply the `game-backend-architecture` skill."
+   - "3. Build the core mechanic: apply the `game-design-fundamentals` skill to check the loop."
+4. Ask: "Want to adjust anything in the MVP plan before we start building?"
 
 ---
 
-## Hard Rules
+## Rules
 
-1. **Never assume a genre** — derive everything from the user's answers
-2. **Never hallucinate APIs or patterns** — only use what exists in the skill files
-3. **Cite the skill** for every technical decision (e.g., `[-> bullmq-game-queues]`)
-4. **Cite the designer** for every design decision (e.g., `[-> Miyamoto: feel-first]`)
-5. **Flag uncertainty** with `> DECISION NEEDED:` rather than guessing
-6. **MVP means MVP** — if a feature isn't needed to validate the core loop, it goes in Section 10 (Out of Scope)
-7. **Genre-agnostic shared code** — never hardcode game-specific mechanics in shared libraries
-8. **Server-authoritative** for any multiplayer game — client is display only
-9. **Narrative coherence** — any quest/character/story content must pass the 5-step check from `quest-narrative-coherence`
-10. **One group at a time** — never dump all interview questions at once
-11. **Research before output** — always research reference games and genre conventions before generating the plan
+1. Derive everything from the user's answers. Do not assume a genre.
+2. Use only APIs and patterns that appear in the skill files. An invented API breaks the build later.
+3. Name the skill behind every technical decision, for example `[-> bullmq-game-queues]`.
+4. Flag uncertainty with `> DECISION NEEDED:`.
+5. Keep the MVP small. A feature that is not needed to test the core loop goes in Section 10 (Out of Scope).
+6. Keep shared code genre-agnostic. Do not hardcode game mechanics in shared libraries.
+7. Make multiplayer games server-authoritative. A client the player controls can be edited.
+8. Check quest, character and story content with `quest-narrative-coherence`.
+9. Ask one group at a time. A wall of questions gets shallow answers.
+10. Research before writing the plan.
