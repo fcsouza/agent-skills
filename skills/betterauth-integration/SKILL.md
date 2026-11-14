@@ -24,8 +24,9 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
 
 1. Install the packages: `bun add better-auth @better-auth/drizzle-adapter`. Import the adapter with `import { drizzleAdapter } from '@better-auth/drizzle-adapter'`. If the project uses Drizzle Relations v2, import from `@better-auth/drizzle-adapter/relations-v2` instead.
 2. Add the admin plugin with the game roles from `templates/role-definitions.ts` (read when you set up roles or add a game permission): `admin({ ac, roles, defaultRole: 'player' })` on the server and `adminClient({ ac, roles })` on the client. Without `defaultRole: 'player'`, new users get the plugin's default role `user`, which the game matrix does not define, and every permission check fails.
-3. Do not add a `role` field through `additionalFields`. The admin plugin adds `role` (plus `banned`, `banReason`, `banExpires`) to the user table.
-4. Generate the auth schema, then migrate it with Drizzle Kit. Better Auth's `migrate` command works only with its built-in Kysely adapter.
+3. Pass `staffGuard` from `templates/staff-guard.ts` (read when you give moderators ban or session powers) as `hooks: { before: staffGuard }`. Better Auth takes one `before` hook; if the project has one already, call `guardStaffTargets(ctx)` inside it.
+4. Do not add a `role` field through `additionalFields`. The admin plugin adds `role` (plus `banned`, `banReason`, `banExpires`) to the user table.
+5. Generate the auth schema, then migrate it with Drizzle Kit. Better Auth's `migrate` command works only with its built-in Kysely adapter.
 
    ```bash
    bunx auth@latest generate
@@ -33,17 +34,18 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
    bunx drizzle-kit migrate
    ```
 
-5. Mount the Better Auth handler in the game server and guard routes. For Elysia, follow https://www.better-auth.com/docs/integrations/elysia, and use the `elysiajs` skill if it is installed for the Elysia version the project runs.
+6. Mount the Better Auth handler in the game server and guard routes. For Elysia, follow https://www.better-auth.com/docs/integrations/elysia, and use the `elysiajs` skill if it is installed for the Elysia version the project runs.
 
 ## Role matrix
 
 | Role | May do |
 |---|---|
 | player | join and create matches, send chat, file reports |
-| moderator | player actions; list and view users, ban and unban, list and revoke sessions, end matches, delete chat, read and resolve reports, read game config and analytics |
+| moderator | player actions; list and view users; ban, unban and revoke sessions of players only; end matches, delete chat, read and resolve reports, read game config and analytics |
 | admin | every admin-plugin action (including changing roles), every game action, update game config |
 
 - The admin plugin's endpoints check its own `user` and `session` resources. Unban checks `user: ['ban']`. Changing a role checks `user: ['set-role']`.
+- Moderators act on players only. The admin plugin's ban, unban and revoke-session endpoints check the caller's permission, not the target's role, so a moderator with `user: ['ban']` could ban an admin. `staffGuard` closes that: on `/admin/ban-user`, `/admin/unban-user`, `/admin/revoke-user-sessions` and `/admin/revoke-user-session` it loads the target user and returns 403 when the target is a moderator or admin and the caller is not an admin. Any new moderator power over users needs the same check.
 - `user.role` holds a comma-separated list when a user has several roles. The `can()` helper in the template splits it.
 - Check a permission with `can(session.user.role, { chat: ['delete'] })` when you already hold the session, or with `auth.api.userHasPermission({ body: { userId, permissions } })` when you only have the id.
 - Ownership is not a role. A player edits their own profile or inventory because the session user id equals the owner id. Check that separately (`isOwner` in the template).
@@ -72,6 +74,7 @@ A direct `auth.api` call skips Better Auth's origin checks, even with the browse
 - Reading the role from a token issued at login. Read it from the current session so a demotion or ban takes effect.
 - A single `isAdmin` boolean instead of roles.
 - Leaving rate limits at their defaults for a public game. Better Auth's built-in limiter applies only to client requests, not to `auth.api` calls made by the server.
+- Giving moderators admin-plugin permissions without `staffGuard`. They can then ban or log out admins and each other.
 - Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
 ## Related skills

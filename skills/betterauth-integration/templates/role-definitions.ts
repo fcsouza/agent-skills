@@ -32,6 +32,8 @@ export const player = ac.newRole({
 
 // Keeps matches and chat clean: bans and unbans players, ends matches,
 // deletes messages, works the report queue. Cannot change roles or game config.
+// The admin plugin does not check the target's role: install `staffGuard`
+// (staff-guard.ts) so these user and session powers reach players only.
 export const moderator = ac.newRole({
   user: ['list', 'get', 'ban'],
   session: ['list', 'revoke'],
