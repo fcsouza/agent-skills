@@ -67,15 +67,15 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 
 | Skill | Description |
 |-------|-------------|
-| [betterauth-integration](skills/betterauth-integration/) | Auth, OAuth, JWT, RBAC |
+| [betterauth-integration](skills/betterauth-integration/) | Player login, staff roles, session checks on WebSocket |
 | [bullmq-game-queues](skills/bullmq-game-queues/) | Job queues, async events, scheduled tasks |
 | [elevenlabs-sound-music](skills/elevenlabs-sound-music/) | SFX generation, adaptive music, voice acting |
 | [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
-| [game-state-sync](skills/game-state-sync/) | Client-server sync, rollback netcode, delta compression |
+| [game-state-sync](skills/game-state-sync/) | Client-server sync: prediction, reconciliation, interpolation, delta compression |
 | [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
-| [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, ELO, skill-based queues |
+| [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, rating systems, skill-based queues |
 | [postgres-game-schema](skills/postgres-game-schema/) | Game DB schemas, Drizzle ORM, inventory |
-| [redis-game-patterns](skills/redis-game-patterns/) | Caching, leaderboards, pub/sub, rate limiting |
+| [redis-game-patterns](skills/redis-game-patterns/) | Leaderboards, presence, rate limits, cache-aside |
 | [skill-progression-trees](skills/skill-progression-trees/) | Skill trees, talent trees, unlock graphs |
 | [stripe-game-payments](skills/stripe-game-payments/) | In-app purchases, subscriptions, webhooks |
 
@@ -84,7 +84,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | Skill | Description |
 |-------|-------------|
 | [ci-cd-game](skills/ci-cd-game/) | CI/CD pipelines, GitHub Actions, deployment |
-| [monitoring-game-ops](skills/monitoring-game-ops/) | Monitoring, logging, telemetry, alerts |
+| [monitoring-game-ops](skills/monitoring-game-ops/) | Logging, alerts, server health |
 
 #### Narrative
 
