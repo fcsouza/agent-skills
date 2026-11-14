@@ -25,6 +25,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { migrateAndValidate, type SaveSpec } from "./save-envelope";
 
 // Same definition as `GameDb` in postgres-game-schema's query patterns:
 // any Drizzle Postgres database, or a transaction from `db.transaction`.
@@ -223,15 +224,22 @@ export const saveToSlot = (db: GameDb, input: SaveInput): Promise<SaveResult> =>
 // The player picks a row from listSlotHistory. The restore is a normal save
 // of that row's payload: same revision check, and the version it replaces
 // goes into history, so a restore can itself be undone. The join on
-// playerId and slot stops one player restoring another's row. Migrate the
-// result with migrateAndValidate on load, as for any row.
-export const restoreFromHistory = (
+// playerId and slot stops one player restoring another's row. The row is
+// migrated and validated first: if it no longer loads (minLoadable has
+// risen since it was saved), the restore is refused and the slot is left
+// as it is, so an unloadable save never replaces one that loads.
+export const restoreFromHistory = <T>(
 	db: GameDb,
+	spec: SaveSpec<T>,
 	playerId: string,
 	slot: string,
 	historyId: string,
 	expectedRevision: number,
-): Promise<SaveResult | { status: "not-found" }> =>
+): Promise<
+	| SaveResult
+	| { status: "not-found" }
+	| { status: "unloadable"; reason: string }
+> =>
 	db.transaction(async (tx) => {
 		const [old] = await tx
 			.select({
@@ -244,13 +252,15 @@ export const restoreFromHistory = (
 			.where(and(eq(saveSlotHistory.id, historyId), slotWhere(playerId, slot)))
 			.limit(1);
 		if (!old) return { status: "not-found" };
+		const migrated = migrateAndValidate(spec, old.formatVersion, old.payload);
+		if (!migrated.ok) return { status: "unloadable", reason: migrated.reason };
 		return writeExisting(tx, {
 			playerId,
 			slot,
 			expectedRevision,
-			formatVersion: old.formatVersion,
+			formatVersion: spec.current,
 			playedMs: old.playedMs,
-			payload: old.payload,
+			payload: migrated.data,
 		});
 	});
 

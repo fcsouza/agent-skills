@@ -91,13 +91,19 @@ export const createSave = async <T>(
 	data: T,
 	playedMs: number,
 ): Promise<SaveEnvelope> => {
-	const payload = JSON.stringify(data);
-	const checked = spec.validate(JSON.parse(payload));
-	if (!checked.success) {
-		throw new Error("refusing to write a save that would fail to load", {
-			cause: checked.error,
-		});
+	const refuse = (cause: unknown) =>
+		new Error("refusing to write a save that would fail to load", { cause });
+	// JSON.stringify throws on BigInt and circular data, and returns undefined
+	// (despite its type) for undefined, functions and symbols.
+	let payload: string | undefined;
+	try {
+		payload = JSON.stringify(data);
+	} catch (error) {
+		throw refuse(error);
 	}
+	if (typeof payload !== "string") throw refuse("data is not JSON-serializable");
+	const checked = spec.validate(JSON.parse(payload));
+	if (!checked.success) throw refuse(checked.error);
 	return {
 		format: spec.format,
 		version: spec.current,

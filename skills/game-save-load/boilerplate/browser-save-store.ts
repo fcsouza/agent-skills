@@ -32,14 +32,26 @@ export type WriteResult =
 
 const backupKey = (slot: string) => `${slot}:backup`;
 
+export type WriteOptions = {
+	// Pass true when the current record failed loadSave and the game loaded
+	// the backup. The write then replaces the bad current record and leaves
+	// the good backup alone, instead of rotating the bad one over it.
+	keepBackup?: boolean;
+};
+
 // The rule `writeSlot` applies inside its transaction. `expected` is the
 // revision this tab loaded, 0 when it found the slot empty.
+// `rotate` says whether the stored record becomes the backup; it is false
+// with `keepBackup`, used after a recovery from the backup.
 export const decideLocalWrite = (
 	stored: { revision: number } | undefined,
 	expected: number,
-): { ok: true; next: number } | { ok: false } => {
+	opts: WriteOptions = {},
+): { ok: true; next: number; rotate: boolean } | { ok: false } => {
 	const current = stored?.revision ?? 0;
-	return current === expected ? { ok: true, next: current + 1 } : { ok: false };
+	return current === expected
+		? { ok: true, next: current + 1, rotate: !opts.keepBackup }
+		: { ok: false };
 };
 
 const isSlotRecord = (value: unknown): value is SlotRecord =>
@@ -104,6 +116,7 @@ export const writeSlot = (
 	slot: string,
 	envelope: SaveEnvelope,
 	expectedRevision: number,
+	opts: WriteOptions = {},
 ) =>
 	new Promise<WriteResult>((resolve, reject) => {
 		const tx = db.transaction(STORE, "readwrite");
@@ -114,12 +127,12 @@ export const writeSlot = (
 			const stored = isSlotRecord(getCurrent.result)
 				? getCurrent.result
 				: undefined;
-			const decision = decideLocalWrite(stored, expectedRevision);
+			const decision = decideLocalWrite(stored, expectedRevision, opts);
 			if (!decision.ok) {
 				result = { status: "stale", stored };
 				return; // no further requests: the transaction commits nothing
 			}
-			if (stored) store.put(stored, backupKey(slot));
+			if (stored && decision.rotate) store.put(stored, backupKey(slot));
 			const next: SlotRecord = { revision: decision.next, envelope };
 			store.put(next, slot);
 			result = { status: "saved", revision: decision.next };

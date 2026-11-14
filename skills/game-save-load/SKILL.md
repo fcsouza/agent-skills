@@ -60,10 +60,10 @@ Copy `boilerplate/save-envelope.ts`. Each save is an envelope: `format`, `versio
 ## Slots and backups
 
 - Give the player named slots plus one autosave slot. Autosave never writes over a manual slot.
-- Keep the previous version of every slot: the `:backup` key in the browser, and on the server the last `KEEP_HISTORY` rows of `save_slot_history` (5 is this skill's default; tune it to save size and how far back players need to go). On load, if the current save fails `loadSave`, try the backup and tell the player which save was restored.
+- Keep the previous version of every slot: the `:backup` key in the browser, and on the server the last `KEEP_HISTORY` rows of `save_slot_history` (5 is this skill's default; tune it to save size and how far back players need to go). On load, if the current save fails `loadSave`, try the backup and tell the player which save was restored. The next browser write after such a recovery passes `{ keepBackup: true }` to `writeSlot`, so the bad current record is replaced and the good backup stays; a normal write would rotate the bad record over it.
 - Keep the pre-migration copy until the migrated save has loaded and validated.
 - Back up the database itself as your Postgres host describes. Slot history protects against bad saves, not against losing the database.
-- Restoring an old version is a save: `listSlotHistory(db, playerId, slot)` lists the rows, and `restoreFromHistory` writes the chosen one through the same revision check and transaction, so the version it replaces goes into history too.
+- Restoring an old version is a save: `listSlotHistory(db, playerId, slot)` lists the rows, and `restoreFromHistory` writes the chosen one through the same revision check and transaction, so the version it replaces goes into history too. It runs `migrateAndValidate` on the row first and refuses with `unloadable` a row that no longer loads (for example after `minLoadable` rose), leaving the slot unchanged.
 
 ## When to save
 
