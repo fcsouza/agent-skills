@@ -15,6 +15,8 @@ Fill out one copy per major character. Minor characters can use an abbreviated v
 | **Species/Race** | _If applicable to the game world_ |
 | **Faction** | _Faction or group affiliation_ |
 | **Title/Rank** | _Official title or rank within their faction_ |
+| **Name string ID** | _e.g., `npc.merchant.name`; the name as translators see it_ |
+| **Translator notes** | _Grammatical gender, speech register, what the name refers to; see `game-localization`_ |
 
 ---
 

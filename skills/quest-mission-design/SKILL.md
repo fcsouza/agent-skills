@@ -82,3 +82,4 @@ Quest: [Name]
 - `worldbuilding`: world context for the setting.
 - `character-design-narrative`: NPC roles.
 - `postgres-game-schema`: persisting quest state.
+- `game-localization`: string IDs for quest names and objective text.

@@ -57,3 +57,4 @@ Writing a diverse cast takes research and care, and carries the risk of getting 
 - `story-structure-game`: where character arcs sit in the plot.
 - `quest-mission-design`: characters as quest givers.
 - `elevenlabs-sound-music`: voice acting.
+- `game-localization`: string IDs and translator notes for dialogue and names.

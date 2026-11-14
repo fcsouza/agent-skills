@@ -42,7 +42,7 @@ export interface HUDElement {
 // ============================================================
 
 export interface HealthBarSegment {
-	/** Label for this segment (e.g., "health", "shield", "armor") */
+	/** Label for this segment (e.g., "health", "shield", "armor"). In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	label: string;
 	current: number;
 	max: number;
@@ -72,7 +72,7 @@ export interface HealthBar extends HUDElement {
 export interface ResourceDisplay extends HUDElement {
 	/** Resource identifier */
 	resourceId: string;
-	/** Display label */
+	/** Display label. In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	label: string;
 	current: number;
 	max: number;
@@ -98,6 +98,7 @@ export type NotificationPriority = "low" | "medium" | "high" | "critical";
 
 export interface Notification {
 	id: string;
+	/**In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	message: string;
 	priority: NotificationPriority;
 	/** Duration in ms before auto-dismiss, 0 = manual dismiss */
@@ -138,7 +139,7 @@ export interface MinimapMarker {
 	color: string | null;
 	/** Whether this marker is visible on the minimap */
 	visible: boolean;
-	/** Tooltip text on hover */
+	/** Tooltip text on hover. In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	label: string | null;
 }
 
@@ -168,9 +169,9 @@ export interface MinimapConfig extends HUDElement {
 // ============================================================
 
 export interface TooltipSection {
-	/** Section label (e.g., "Stats", "Description", "Lore") */
+	/** Section label (e.g., "Stats", "Description", "Lore"). In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	label: string | null;
-	/** Content lines */
+	/** Content lines. In a localized game, each `text` is a string ID resolved by the string table (see `game-localization`). */
 	lines: Array<{ text: string; color: string | null }>;
 }
 

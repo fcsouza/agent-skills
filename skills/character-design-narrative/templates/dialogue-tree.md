@@ -20,16 +20,18 @@ Use this format to author branching dialogue. Each dialogue is a graph of nodes 
 
 Each row is one dialogue node. The player sees the Speaker's Line, then picks from Options.
 
-| Node ID | Speaker | Line | Options |
-|---------|---------|------|---------|
-| N01 | Merchant | "Welcome, traveler! Looking for something special?" | 1: "What do you sell?" → N02 / 2: "I'm looking for information." → N03 / 3: "Just browsing." → N_END |
-| N02 | Merchant | "I've got potions, scrolls, and a few rare items if you've got the coin." | 1: "Show me rare items." → N04 / 2: "I'll take a look at potions." → N05 / 3: "Actually, I need information." → N03 |
-| N03 | Merchant | "Information? That depends on the topic... and whether you can pay." | 1: "I can pay. Tell me about the ruins." → N06 / 2: "Forget it." → N_END |
-| N04 | Merchant | "Ah, a collector. Let me show you what I have in the back." | _(Opens rare shop inventory)_ → N_END |
-| N05 | Merchant | "Standard stock. Take your pick." | _(Opens potion shop inventory)_ → N_END |
-| N06 | Merchant | "The ruins to the north? Dangerous place. But there's treasure if you survive." | 1: "Tell me more." → N07 / 2: "Thanks, that's enough." → N_END |
-| N07 | Merchant | "They say there's a sealed door on the third level. You'll need a sun medallion to open it." | _(Set flag: knows_sun_medallion)_ → N_END |
-| N_END | Merchant | "Come back anytime, friend." | _(End dialogue)_ |
+Each line has a string ID; option N of that node swaps `.line` for `.optN` (`dlg.merchant.n01.opt1`). The English text is the source string. The translator note tells translators who speaks and what context they need. See `game-localization` for string tables.
+
+| Node ID | String ID | Speaker | Line | Options | Translator note |
+|---------|-----------|---------|------|---------|-----------------|
+| N01 | `dlg.merchant.n01.line` | Merchant | "Welcome, traveler! Looking for something special?" | 1: "What do you sell?" → N02 / 2: "I'm looking for information." → N03 / 3: "Just browsing." → N_END | _First meeting; friendly, informal; "traveler" is the player, any gender_ |
+| N02 | `dlg.merchant.n02.line` | Merchant | "I've got potions, scrolls, and a few rare items if you've got the coin." | 1: "Show me rare items." → N04 / 2: "I'll take a look at potions." → N05 / 3: "Actually, I need information." → N03 | _Speaker, register, context_ |
+| N03 | `dlg.merchant.n03.line` | Merchant | "Information? That depends on the topic... and whether you can pay." | 1: "I can pay. Tell me about the ruins." → N06 / 2: "Forget it." → N_END | _Speaker, register, context_ |
+| N04 | `dlg.merchant.n04.line` | Merchant | "Ah, a collector. Let me show you what I have in the back." | _(Opens rare shop inventory)_ → N_END | _Speaker, register, context_ |
+| N05 | `dlg.merchant.n05.line` | Merchant | "Standard stock. Take your pick." | _(Opens potion shop inventory)_ → N_END | _Speaker, register, context_ |
+| N06 | `dlg.merchant.n06.line` | Merchant | "The ruins to the north? Dangerous place. But there's treasure if you survive." | 1: "Tell me more." → N07 / 2: "Thanks, that's enough." → N_END | _Speaker, register, context_ |
+| N07 | `dlg.merchant.n07.line` | Merchant | "They say there's a sealed door on the third level. You'll need a sun medallion to open it." | _(Set flag: knows_sun_medallion)_ → N_END | _Speaker, register, context_ |
+| N_END | `dlg.merchant.end.line` | Merchant | "Come back anytime, friend." | _(End dialogue)_ | _Speaker, register, context_ |
 
 ---
 
@@ -40,9 +42,9 @@ Conditions gate which nodes or options are available.
 | Applies To | Condition Type | Condition | Effect |
 |------------|---------------|-----------|--------|
 | N04 (option 1) | item_held | gold >= 500 | Option visible only if player has 500+ gold |
-| N06 | flag_set | merchant_trust >= 1 | Node accessible only if player has merchant trust |
+| N06 | `dlg.merchant.n06.line` | flag_set | merchant_trust >= 1 | Node accessible only if player has merchant trust | _Speaker, register, context_ |
 | N03 → N06 | quest_completed | quest_find_market | Required to ask about ruins |
-| N07 | first_visit | dlg_merchant_001 | Only show sun medallion info on first conversation |
+| N07 | `dlg.merchant.n07.line` | first_visit | dlg_merchant_001 | Only show sun medallion info on first conversation | _Speaker, register, context_ |
 
 ---
 

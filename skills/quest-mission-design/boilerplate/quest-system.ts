@@ -51,6 +51,7 @@ export type QuestState = (typeof QuestState)[keyof typeof QuestState];
 
 export interface QuestObjective {
 	id: string;
+	/**In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	description: string;
 	type: ObjectiveType;
 	/** Current progress toward the target */
@@ -87,7 +88,9 @@ export interface QuestPrerequisite {
 
 export interface QuestDefinition {
 	id: string;
+	/**In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	name: string;
+	/**In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	description: string;
 	type: QuestType;
 	/** Root of the objective tree */
