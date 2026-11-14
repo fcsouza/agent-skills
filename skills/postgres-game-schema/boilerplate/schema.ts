@@ -61,7 +61,8 @@ export const leaderboardPeriodEnum = pgEnum("leaderboard_period", [
 // ─── Players ─────────────────────────────────────────────────────────────────
 // `level`, `xp` and `stats` below are for single-character games. When the
 // game has characters (next table), the character owns them and these three
-// columns go unused: delete them from `players`.
+// columns go unused: delete them and `players_level_idx` from `players`,
+// and repoint `getGuildWithMembers` (query-patterns.ts) at `characters`.
 
 export const players = pgTable(
 	"players",

@@ -35,7 +35,7 @@ Every table and query in a game project follows these. Other skills (`stripe-gam
 
 `players` is the account, keyed to the auth user. `characters` holds the several characters one account owns, with a name unique per shard among live characters (`characters_shard_name_idx` is a partial index on `deleted_at IS NULL`, so deleting a character frees its name; the schema comment says how to reserve names or make them global). The slot limit is a game rule; check it in code.
 
-When the game has characters, the character owns `level`, `xp` and `stats`, and you delete those three columns from `players`. A single-character game skips `characters` and keeps them on `players`.
+When the game has characters, the character owns `level`, `xp` and `stats`, and you delete those three columns from `players`, along with `players_level_idx`, and point `getGuildWithMembers` in `templates/query-patterns.ts` (it selects `players.level`) at the character. A single-character game skips `characters` and keeps them on `players`.
 
 The game decides whether wallets and inventory belong to the account or to a character. The schema ships them on the account (`playerId`). To move a table to characters:
 1. Replace its `playerId` column with `characterId` referencing `characters.id` (keep `onDelete: "cascade"`), and repoint its indexes.

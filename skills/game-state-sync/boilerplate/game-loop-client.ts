@@ -15,7 +15,7 @@ const DEFAULT_CONFIG: GameLoopConfig = {
 	tickRate: 20,
 	inputBufferSize: 128,
 	interpolationDelay: 2,
-	maxExtrapolationMs: 500,
+	maxExtrapolationMs: 250,
 };
 
 /**
