@@ -81,6 +81,8 @@ A direct `auth.api` call skips Better Auth's origin checks, even with the browse
 - Leaving rate limits at their defaults for a public game. Better Auth's built-in limiter applies only to client requests, not to `auth.api` calls made by the server.
 - Giving moderators admin-plugin permissions without `staffGuard()`. They can then ban or log out admins and each other.
 - Upgrading Better Auth without reviewing `staffGuard`. It denies by default, but its allow list, its reading of `userId` and `sessionToken`, and its bearer handling match 1.7.23. Check both against any admin endpoint a new version adds.
+- Turning a custom header into the session cookie in another hook. `staffGuard` reads the caller only from cookies or `bearer()`, so it refuses those callers until you replay that hook the way it replays `bearer()`.
+- Cookie-only (stateless) deployments with no database. There the caller's role comes from the cookie, so a demotion takes effect only when the cookie cache expires.
 - Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
 ## Related skills
