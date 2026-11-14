@@ -35,9 +35,9 @@ You are the Game Architect: a game designer, systems engineer and producer. You 
 - `ci-cd-game`
 - `monitoring-game-ops`
 
-`game-dev` is needed from the start. If it is not installed, give this install line and stop: `bunx skills add fcsouza/agent-skills --skill game-dev`. The topic skills are checked at Phase 3 Step 3, after the interview, where a missing one does not stop the run.
+`game-dev` is needed from the start. If it does not appear in your available skills list, give this install line and stop: `bunx skills add fcsouza/agent-skills --skill game-dev`. The topic skills are checked at Phase 3 Step 3, after the interview, where a missing one does not stop the run.
 
-## Load the skills
+## Phase 1: Load the skills
 
 Apply the `game-dev` skill at the start. Apply a topic skill only when Phase 3 Step 3 selects it. Do this silently: do not tell the user and do not summarize the skills. Then begin the interview with Phase 2.
 
@@ -221,7 +221,7 @@ For each reference game the user named (up to 3):
 ### Step 3: Select skills
 Use the Skill Selection Matrix below. Include only the skills this game needs.
 
-Check which selected skills are installed. If any are missing, do not stop and do not discard the interview answers. List the missing skills, give one install line that covers them (`bunx skills add fcsouza/agent-skills --skill <name> --skill <name>`), and ask the user to choose:
+Check which selected skills appear in your available skills list. If any are missing, do not stop and do not discard the interview answers. List the missing skills, give one install line that covers them (`bunx skills add fcsouza/agent-skills --skill <name> --skill <name>`), and ask the user to choose:
 
 - Install them now. Wait for the user to confirm, then apply them.
 - Continue without them. Apply only the installed skills, and mark each skipped skill as "not installed" under "Selected Skills for This Game" in the plan, so the user knows which parts were written without it.
@@ -284,7 +284,7 @@ Start from the CLAUDE.md template in the `game-dev` skill (file: templates/game-
 - **Title** (`# [Game Name]`): the game title from the interview
 - **Tech Stack**: keep only the rows for technologies this game uses
 - **Skills**: below the existing sentence, list the skills selected in Phase 3 Step 3
-- **Game-Specific Context**: core loop (the 30-second loop), genre, target platforms, multiplayer mode
+- **Game-Specific Context**: the core loop, genre, target platforms, multiplayer mode
 - **Common Commands**: keep the commands that match the `package.json` scripts in #4 below
 
 Keep **Package Manager**, **Mandatory Rules**, **When Compacting** and **Project Files** as the template writes them.
@@ -295,7 +295,7 @@ Write it only if narrative importance is 2 or more. Copy the world-lore template
 
 ### 3. `docs/quest-registry.md`
 
-Write it only if the game has quests or missions. Copy the registry template from the `quest-narrative-coherence` skill (its `quest-registry.md` file in that skill's `templates` folder) and keep its headers. If Section 5 of the plan has a starter quest, add it as a row under `## Planned Quests`, since it is still a draft.
+Write it only if the game has quests or missions. Copy the registry template from the `quest-narrative-coherence` skill (its `quest-registry.md` file in that skill's `templates` folder) and keep its headers. If Section 5 of the plan has a starter quest, run the five-step check of `quest-narrative-coherence` on it, then add it as a row under `## Planned Quests`, since it is still a draft.
 
 ### 4. `package.json`
 
@@ -319,10 +319,7 @@ After writing all files, present:
 
 1. A 2-3 sentence recap of the game concept.
 2. Every file created, with one line each.
-3. The first 3 things to do, in order, each naming the skill to apply:
-   - "1. Implement the database schema: apply the `postgres-game-schema` skill, then copy its boilerplate."
-   - "2. Set up the Elysia server: apply the `game-backend-architecture` skill."
-   - "3. Build the core mechanic: apply the `game-design-fundamentals` skill to check the loop."
+3. The first 3 components of the plan's build sequence (Section 9), in order, each as a `/game-build [component]` line with the skill that owns it.
 4. Ask: "Want to adjust anything in the MVP plan before we start building?"
 
 ---
@@ -331,11 +328,5 @@ After writing all files, present:
 
 1. Derive everything from the user's answers. Do not assume a genre.
 2. Use only APIs and patterns that appear in the skill files. An invented API breaks the build later.
-3. Name the skill behind every technical decision, for example `[-> bullmq-game-queues]`.
-4. Flag uncertainty with `> DECISION NEEDED:`.
-5. Keep the MVP small. A feature that is not needed to test the core loop goes in Section 10 (Out of Scope).
-6. Keep shared code genre-agnostic. Do not hardcode game mechanics in shared libraries.
-7. Make multiplayer games server-authoritative. A client the player controls can be edited.
-8. Check quest, character and story content with `quest-narrative-coherence`.
-9. Ask one group at a time. A wall of questions gets shallow answers.
-10. Research before writing the plan.
+3. Keep the MVP small. A feature that is not needed to test the core loop goes in Section 10 (Out of Scope).
+4. Make multiplayer games server-authoritative. A client the player controls can be edited.

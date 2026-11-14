@@ -22,7 +22,7 @@
 
 - **Primary Verb(s)**: [what the player does]
 - **30-Second Loop**: [one cycle of the core mechanic, described concretely]
-- **Session Loop** (5-30 min): [what constitutes a "session" — a run, a level, a match, a quest]
+- **Session Loop** (for example 5-30 min; set it for this game): [what constitutes a "session" — a run, a level, a match, a quest]
 - **Feedback Loop**: Action -> Consequence -> Learning -> Improved Action
 - **Difficulty Curve**: [linear or stepped; selectable difficulty levels first] [-> game-design-fundamentals] [-> level-design]
 - **MVP Mechanic Scope**: [exactly what mechanics are IN for v0.1]
@@ -131,7 +131,7 @@
   | [screen] | [purpose] | Must-have |
   | ... | ... | ... |
 - **HUD Elements**: [what's always visible during gameplay]
-- **Onboarding Flow**: [how the first 60 seconds teach the game]
+- **Onboarding Flow**: [how the first session teaches the game]
   [-> ui-ux-game]
 - **Accessibility Baseline**:
   - [ ] Colorblind-safe palette
