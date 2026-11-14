@@ -43,6 +43,10 @@ analytics, not ops: use `gameplay-analytics` for it.
   before `derive` runs. Those lines carry no `requestId`. The plugin logs
   them, and validation failures, as `warn` `request_rejected`, so the error
   rate counts server faults only.
+- A validation failure logs the target (`body`, `query`...), the property
+  path and the schema rule it broke, never the rejected value. Elysia's
+  `error.message` and its summary both include the input, and a login body
+  holds a password.
 - Create one session logger per WebSocket connection and pass it to the room.
   Every line from that player's messages then carries the player, session and
   room.

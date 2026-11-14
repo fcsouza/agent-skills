@@ -159,7 +159,19 @@ export const requestLogger = new Elysia({ name: "game.request-logger" })
 		const data = { code, method: request.method, url: request.url };
 		// Client mistakes are warnings, so an error-rate alert counts only
 		// server faults.
-		if (code === "NOT_FOUND" || code === "PARSE" || code === "VALIDATION") {
+		if (code === "VALIDATION") {
+			// error.message, error.value and Elysia's `summary` all carry the
+			// rejected input, which can be a password. Log where the input
+			// failed and the schema rule it broke, never the value.
+			log.warn("request_rejected", {
+				...data,
+				target: error.type,
+				path: error.valueError?.path,
+				rule: error.valueError?.message,
+			});
+			return;
+		}
+		if (code === "NOT_FOUND" || code === "PARSE") {
 			log.warn("request_rejected", { ...data, reason: error.message });
 			return;
 		}
