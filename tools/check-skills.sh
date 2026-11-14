@@ -10,6 +10,9 @@
 # failure, 0 otherwise.
 #
 # The repo root comes from CHECK_SKILLS_ROOT, else `git rev-parse --show-toplevel`.
+#
+# A new check goes in check_skill when it reads one skill (content checks
+# under its is_pending guard), or in the REPO_LEVEL block at the end.
 
 ALL_IDS="N1 N2 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
@@ -40,14 +43,13 @@ fail() {
   STATUS=1
 }
 
-# fail_load <path> <message>: a manifest that cannot be loaded leaves no
-# skills to check, so its M1 line prints whatever --only says.
+# fail_load <path> <message>: a manifest that cannot be loaded, or a skill
+# directory with no SKILL.md, leaves nothing to check, so its M1 line prints
+# whatever --only says.
 fail_load() {
   printf 'FAIL M1 %s: %s\n' "$1" "$2"
   STATUS=1
 }
-
-rel() { printf '%s' "${1#"$ROOT"/}"; }
 
 is_pending() { [[ -e $ROOT/$1/.content-pending ]]; }
 
@@ -87,13 +89,14 @@ fm_field() {
 # directories, plus tools/, evals/, docs/superpowers/ and bun.lock. Tracked
 # files when ROOT is its own git repo, every file in those places otherwise.
 p1_files() {
-  local top paths=(tools evals docs/superpowers bun.lock) dir
+  local prefix paths=(tools evals docs/superpowers bun.lock) dir
   for dir in "${SKILLS[@]}"; do
     paths+=("$dir")
   done
-  top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)"
-  if [[ $top == "$ROOT" ]]; then
-    git -C "$ROOT" ls-files -- "${paths[@]}"
+  # An empty prefix means ROOT is the top of a work tree. Comparing it with
+  # --show-toplevel would fail where ROOT sits behind a symlink.
+  if prefix="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null)" && [[ -z $prefix ]]; then
+    git -C "$ROOT" -c core.quotePath=false ls-files -- "${paths[@]}"
   else
     (
       cd "$ROOT" || exit
@@ -133,18 +136,29 @@ check_s1() {
   ((lines < 500)) || fail S1 "$dir/SKILL.md" "$lines lines, limit is 499"
 }
 
+# unfenced <file>: the file with the lines inside ``` code fences blanked.
+unfenced() {
+  awk '/^[ \t]*```/ { fenced = !fenced; print ""; next } { print (fenced ? "" : $0) }' "$1"
+}
+
+# A target ending in / may be a directory; any other target must be a file.
 check_l1() {
-  local dir=$1 skill="$ROOT/$dir/SKILL.md" target path
+  local dir=$1 target path
   while IFS= read -r target; do
     case $target in
       *://* | '#'* | mailto:* | *[\*\<\>\{\}\$]*) continue ;;
     esac
     path="${target%%[#?]*}"
     [[ -n $path ]] || continue
-    [[ -e $ROOT/$dir/$path ]] || fail L1 "$dir/SKILL.md" "'$target' does not resolve"
+    if [[ $path == */ ]]; then
+      [[ -d $ROOT/$dir/$path ]] || fail L1 "$dir/SKILL.md" "'$target' is not a directory"
+    else
+      [[ -f $ROOT/$dir/$path ]] || fail L1 "$dir/SKILL.md" "'$target' does not resolve to a file"
+    fi
   done < <(
-    grep -oE '\]\([^)[:space:]]+\)' "$skill" | sed -E 's/^\]\(//; s/\)$//'
-    grep -oE '`(templates|boilerplate|references)/[^`]+`' "$skill" | tr -d '`'
+    unfenced "$ROOT/$dir/SKILL.md" >"$TMP/l1-body"
+    grep -oE '\]\([^)[:space:]]+\)' "$TMP/l1-body" | sed -E 's/^\]\(//; s/\)$//'
+    grep -oE '`(templates|boilerplate|references)/[^`]+`' "$TMP/l1-body" | tr -d '`'
   )
 }
 
@@ -175,13 +189,18 @@ x1_applied() {
   grep -oiE 'apply the `[^`]+`' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
 }
 
-# x1_route <file>: backticked tokens in the table rows of the "## Route"
-# section, a leading / stripped.
+# x1_route <file>: backticked tokens in the last column (Skill) of the table
+# rows of the "## Route" section, a leading / stripped.
 x1_route() {
-  awk '
+  awk -F'|' '
     /^##[ \t]+Route[ \t]*$/ { inroute = 1; next }
     /^##[ \t]/ { inroute = 0 }
-    inroute && /^\|/ { print }
+    inroute && /^\|/ {
+      sub(/\r$/, "")
+      last = NF
+      if ($last ~ /^[ \t]*$/) last--
+      print $last
+    }
   ' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sed 's#^/##' | sort -u
 }
 
@@ -209,10 +228,21 @@ check_x1() {
   done < <(x1_applied "$file")
 
   if [[ $dir == skills/game-dev ]]; then
+    local route listed
+    route="$(x1_route "$file")"
     while IFS= read -r name; do
       [[ -n $name ]] || continue
       skill_exists "$name" || fail X1 "$dir/SKILL.md" "Route table names '$name', which does not exist"
-    done < <(x1_route "$file")
+    done <<<"$route"
+    # Every other listed skill needs a Route row. Paths with no SKILL.md are M1's.
+    if ((REPO_LEVEL)); then
+      for listed in "${SKILLS[@]}"; do
+        [[ $listed == skills/game-dev || ! -f $ROOT/$listed/SKILL.md ]] && continue
+        name="$(basename "$listed")"
+        grep -qxF -- "$name" <<<"$route" ||
+          fail X1 "$dir/SKILL.md" "Route table does not name '$name', which the marketplace lists"
+      done
+    fi
   fi
 }
 
@@ -224,8 +254,8 @@ check_c1() {
 check_c2() {
   local n
   while IFS=: read -r n _; do
-    fail C2 "$1/SKILL.md" "line $n is a block quote"
-  done < <(grep -nE '^>[[:space:]]*("|“)' "$ROOT/$1/SKILL.md")
+    fail C2 "$1/SKILL.md" "line $n is a block quote; state it as plain text and put its source in references/sources.md"
+  done < <(grep -n '^>' "$ROOT/$1/SKILL.md")
 }
 
 check_c3() {
@@ -236,13 +266,17 @@ check_c3() {
   done < <(grep -nE '^- ' "$file" | grep -v 'https://')
 }
 
+# First line of a .ts file with a third-party import:
+# `// Verified against: <pkg> <version>[, <pkg> <version>...] (<YYYY-MM-DD>)`.
+C4_HEADER='^// Verified against: [^ ,]+ [^ ,()]+(, [^ ,]+ [^ ,()]+)* \([0-9]{4}-[0-9]{2}-[0-9]{2}\)$'
+
 check_c4() {
   local dir=$1 file mod
   while IFS= read -r file; do
     while IFS= read -r mod; do
       case $mod in . | ./* | ../* | node:*) continue ;; esac
-      head -n 1 "$file" | grep -q '^// Verified against:' ||
-        fail C4 "${file#"$ROOT"/}" "imports '$mod' without a '// Verified against:' first line"
+      head -n 1 "$file" | tr -d '\r' | grep -qE "$C4_HEADER" ||
+        fail C4 "${file#"$ROOT"/}" "imports '$mod' without the first line '// Verified against: <pkg> <version> (<YYYY-MM-DD>)'"
       break
     done < <(
       grep -oE "(from|import)[[:space:]]+['\"][^'\"]+['\"]" "$file" |
@@ -260,7 +294,8 @@ check_c5() {
 check_skill() {
   local dir=$1
   if [[ ! -f $ROOT/$dir/SKILL.md ]]; then
-    fail M1 "$dir" "no SKILL.md"
+    # In repo mode check_m1 reports a listed path with no SKILL.md.
+    ((REPO_LEVEL)) || fail_load "$dir" "no SKILL.md"
     return
   fi
   check_n1 "$dir"
@@ -280,9 +315,10 @@ check_skill() {
 
 # ---------------------------------------------------------------- R1
 
-# r1_scan <label> <file> [filter-readme]: report banned patterns in a file.
+# r1_scan <label> <file> <pattern-file> [filter-readme]: report banned
+# patterns in a file.
 r1_scan() {
-  local label=$1 file=$2 readme=${3:-0} n hit
+  local label=$1 file=$2 patterns=$3 readme=${4:-0} n hit
   while IFS=: read -r n hit; do
     fail R1 "$label" "line $n contains '$hit'"
   done < <(
@@ -295,13 +331,13 @@ r1_scan() {
       ' "$file"
     else
       cat "$file"
-    fi | grep -noE -f "$R1_PATTERNS"
+    fi | grep -noE -f "$patterns"
   )
 }
 
 check_r1() { # repo-level flag: 1 when README and marketplace are in scope
-  local dir file name
-  R1_PATTERNS="$TMP/r1-patterns"
+  local dir file name d
+  local patterns="$TMP/r1-patterns" skill_patterns="$TMP/r1-skill-patterns"
   {
     printf '%s\n' \
       'skills/game-dev/(design|engineering|narrative|infrastructure)' \
@@ -313,21 +349,23 @@ check_r1() { # repo-level flag: 1 when README and marketplace are in scope
       name="$(basename "$d")"
       printf '(design|engineering|narrative|infrastructure)-%s\n' "$name"
     done
-  } >"$R1_PATTERNS"
+  } >"$patterns"
+  # The skills install with `bunx skills`; README keeps the public `npx skills` line.
+  { cat "$patterns"; printf '%s\n' 'npx skills'; } >"$skill_patterns"
 
   for dir in "${SKILLS[@]}"; do
     [[ -d $ROOT/$dir ]] || continue
     while IFS= read -r file; do
       grep -qI . "$file" 2>/dev/null || continue
-      r1_scan "${file#"$ROOT"/}" "$file"
+      r1_scan "${file#"$ROOT"/}" "$file" "$skill_patterns"
     done < <(find "$ROOT/$dir" -type f | sort)
   done
   if [[ $1 == 1 ]]; then
-    [[ -f $ROOT/README.md ]] && r1_scan README.md "$ROOT/README.md" 1
+    [[ -f $ROOT/README.md ]] && r1_scan README.md "$ROOT/README.md" "$patterns" 1
     # Only the game-dev entry: the manifest also lists unrelated plugins.
     if [[ -n $ENTRY ]]; then
       printf '%s' "$ENTRY" | jq . >"$TMP/game-dev-entry.json"
-      r1_scan "$MARKETPLACE (game-dev entry)" "$TMP/game-dev-entry.json"
+      r1_scan "$MARKETPLACE (game-dev entry)" "$TMP/game-dev-entry.json" "$patterns"
     fi
   fi
 }
@@ -352,6 +390,10 @@ load_entry() {
     fail_load "$MARKETPLACE" "file not found"
     return
   fi
+  if ! jq empty "$ROOT/$MARKETPLACE" >/dev/null 2>&1; then
+    fail_load "$MARKETPLACE" "not valid JSON"
+    return
+  fi
   ENTRY="$(jq -c '[.plugins[]? | select(.name == "game-dev")][0] // empty' "$ROOT/$MARKETPLACE" 2>/dev/null)"
   if [[ -z $ENTRY ]]; then
     fail_load "$MARKETPLACE" "no plugin named game-dev"
@@ -365,7 +407,6 @@ load_entry() {
     fail_load "$MARKETPLACE" "game-dev entry lists no skills"
     return
   fi
-  HAS_SKILLS_ARRAY=1
   skills_json="$(printf '%s' "$ENTRY" | jq -r '.skills[]')"
   local p
   while IFS= read -r p; do
@@ -395,12 +436,23 @@ check_m2() {
     for ex in "${SKILLS[@]}"; do
       [[ $ex == "$d" ]] && listed=1
     done
-    ((listed)) || fail M2 "$MARKETPLACE" "'$d' is not listed in the game-dev skills array"
+    ((listed)) || fail M2 "$MARKETPLACE" "'$d' is not listed in the game-dev skills array; add it there, or, if it is not a game-dev skill, add its name to EXCLUDED in tools/check-skills.sh"
+  done
+
+  # README links each listed skill as (skills/<name>/), commands as
+  # (skills/game-dev-commands/<name>/). Paths with no SKILL.md are M1's.
+  [[ -f $ROOT/README.md ]] || return 0
+  for d in "${SKILLS[@]}"; do
+    [[ -f $ROOT/$d/SKILL.md ]] || continue
+    grep -qF -- "($d/)" "$ROOT/README.md" ||
+      fail M2 README.md "'$d' has no link ($d/); add it to the README tables"
   done
 }
 
 check_p1() {
   local file label n
+  # Split into fragments so P1 (which scans tools/) and the owner's pre-commit
+  # path grep do not match this file.
   local pats=(-e "/Us""ers/" -e "/ho""me/" -e "li""nk:/" -e "fi""le:/")
   while IFS= read -r file; do
     [[ -f $ROOT/$file ]] || continue
@@ -448,6 +500,11 @@ while (($#)); do
   esac
 done
 
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'check-skills: jq not found; install jq\n' >&2
+  exit 2
+fi
+
 ROOT="${CHECK_SKILLS_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 if [[ -z $ROOT || ! -d $ROOT ]]; then
   printf 'cannot find the repo root; set CHECK_SKILLS_ROOT\n' >&2
@@ -457,7 +514,6 @@ ROOT="$(cd "$ROOT" && pwd)"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-HAS_SKILLS_ARRAY=0
 
 if ((${#DIRS[@]})); then
   for d in "${DIRS[@]}"; do
@@ -480,7 +536,7 @@ check_r1 "$REPO_LEVEL"
 if ((REPO_LEVEL)); then
   check_r2
   check_m1
-  ((HAS_SKILLS_ARRAY)) && check_m2
+  ((${#SKILLS[@]})) && check_m2
   check_p1
   check_z1
 fi

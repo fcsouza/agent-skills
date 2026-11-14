@@ -24,7 +24,21 @@ new_fixture() {
   printf '%s\n' '{"plugins":[{"name":"game-dev","description":"Game dev plugin","keywords":["game"],"skills":["./skills/demo"]}]}' \
     >"$FX/.claude-plugin/marketplace.json"
   printf '# Readme\n' >"$FX/README.md"
+  link_readme skills/demo
   write_skill demo "A demo skill." "Body."
+}
+
+# link_readme <skill-path> ...: add a README link to each path, as M2 wants.
+link_readme() {
+  local p
+  for p in "$@"; do
+    printf -- '- [%s](%s/)\n' "${p##*/}" "$p" >>"$FX/README.md"
+  done
+}
+
+# count_lines <ID>: number of FAIL <ID> lines in the last run.
+count_lines() {
+  printf '%s\n' "$OUT" | grep -c "^FAIL $1 "
 }
 
 # write_skill <dir-name> <description> <body>
@@ -96,6 +110,7 @@ printf -- '---\nname: game-build\ndescription: Build.\n---\n# Build\nApply the `
   >"$FX/skills/game-dev-commands/game-build/SKILL.md"
 printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/game-dev-commands/game-build"]}]}' \
   >"$FX/.claude-plugin/marketplace.json"
+link_readme skills/game-dev-commands/game-build
 expect_pass "nested command skill, excluded dirs, X1 resolves"
 
 new_fixture
@@ -110,6 +125,7 @@ Old layout: skills/game-dev/design and plugins/game-dev. Use bun.lockb no more.
 
 Fine.
 EOF
+link_readme skills/demo
 expect_pass "R1 exempts the Upgrading section"
 
 # ---------------------------------------------------------------- N1
@@ -122,6 +138,7 @@ mkdir -p "$FX/skills/bad_name"
 rm -r "$FX/skills/demo"
 write_skill bad_name "d" "Body."
 printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/bad_name"]}]}' >"$FX/.claude-plugin/marketplace.json"
+link_readme skills/bad_name
 expect_fail N1 "name has an underscore"
 
 new_fixture
@@ -129,6 +146,7 @@ long="$(printf 'a%.0s' $(seq 1 65))"
 rm -r "$FX/skills/demo"
 write_skill "$long" "d" "Body."
 printf '{"plugins":[{"name":"game-dev","skills":["./skills/%s"]}]}\n' "$long" >"$FX/.claude-plugin/marketplace.json"
+link_readme "skills/$long"
 expect_fail N1 "name longer than 64"
 
 # ---------------------------------------------------------------- N2
@@ -190,11 +208,22 @@ expect_fail R1 "banned token in a non-SKILL file of the skill"
 
 new_fixture
 printf '# Readme\n\nSee plugins/game-dev for more.\n' >"$FX/README.md"
+link_readme skills/demo
 expect_fail R1 "banned path in README"
 
 new_fixture
 printf '# Readme\n\n## Upgrading from 1.x\n\nOld: skills/game-dev/design.\n\n## Usage\n\nStill uses CLAUDE_HOOK_INPUT.\n' >"$FX/README.md"
+link_readme skills/demo
 expect_fail R1 "README violation after the exempt section"
+
+new_fixture
+write_skill demo "d" "Install with \`npx skills add fcsouza/agent-skills --skill demo\`."
+expect_fail R1 "npx skills in a skill"
+
+new_fixture
+write_skill demo "d" "Install with \`bunx skills add fcsouza/agent-skills --skill demo\`."
+printf 'npx skills add fcsouza/agent-skills --skill demo\n' >>"$FX/README.md"
+expect_pass "bunx skills in a skill, npx skills in README"
 
 new_fixture
 printf '%s\n' '{"plugins":[{"name":"game-dev","keywords":["bun.lockb"],"skills":["./skills/demo"]}]}' >"$FX/.claude-plugin/marketplace.json"
@@ -223,6 +252,7 @@ expect_fail R2 "skill count in marketplace entry"
 
 new_fixture
 printf '# Readme\n\nThis ships 12 skills.\n' >"$FX/README.md"
+link_readme skills/demo
 expect_fail R2 "skill count in README"
 
 # ---------------------------------------------------------------- L1
@@ -240,6 +270,31 @@ printf 'x\n' >"$FX/skills/demo/references/guide.md"
 write_skill demo "d" "See [guide](references/guide.md), [site](https://example.com), [top](#top)."
 expect_pass "links that resolve, URLs and anchors"
 
+new_fixture
+write_skill demo "d" "$(printf 'Example:\n\n```md\nSee [guide](references/missing.md) and `templates/missing.md`.\n```\n')"
+expect_pass "L1 skips links inside a fenced code block"
+
+new_fixture
+write_skill demo "d" "$(printf '```md\nfenced\n```\n\nSee [guide](references/missing.md).\n')"
+expect_fail L1 "L1 checks links after a fenced code block closes"
+
+new_fixture
+mkdir -p "$FX/skills/demo/references"
+printf 'x\n' >"$FX/skills/demo/references/guide.md"
+write_skill demo "d" "See [refs](references) and [guide](references/guide.md)."
+expect_fail L1 "link to a directory without a trailing slash"
+
+new_fixture
+mkdir -p "$FX/skills/demo/references"
+printf 'x\n' >"$FX/skills/demo/references/guide.md"
+write_skill demo "d" "See [refs](references/) and \`references/guide.md\`."
+expect_pass "link to a directory with a trailing slash"
+
+new_fixture
+write_skill demo "d" "See [guide](guide.md/)."
+printf 'x\n' >"$FX/skills/demo/guide.md"
+expect_fail L1 "trailing slash on a regular file"
+
 # ---------------------------------------------------------------- L2
 new_fixture
 mkdir -p "$FX/skills/demo/templates"
@@ -256,6 +311,23 @@ expect_pass "mentioned template"
 new_fixture
 printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/ghost"]}]}' >"$FX/.claude-plugin/marketplace.json"
 expect_fail M1 "listed path has no SKILL.md"
+m1n="$(count_lines M1)"
+if [[ $m1n == 1 && $(printf '%s\n' "$OUT" | grep -c '^FAIL ') == 1 ]]; then
+  report 1 "M1 listed path with no SKILL.md prints one line"
+else
+  report 0 "M1 listed path with no SKILL.md prints one line" "m1=$m1n
+$OUT"
+fi
+
+new_fixture
+printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo"]}' >"$FX/.claude-plugin/marketplace.json"
+run_lint
+if [[ $CODE == 1 && $OUT == "FAIL M1 .claude-plugin/marketplace.json: not valid JSON" ]]; then
+  report 1 "M1 invalid JSON is reported as invalid JSON"
+else
+  report 0 "M1 invalid JSON is reported as invalid JSON" "exit=$CODE
+$OUT"
+fi
 
 new_fixture
 printf '%s\n' '{"plugins":[{"name":"game-dev","description":"no list"}]}' >"$FX/.claude-plugin/marketplace.json"
@@ -283,6 +355,29 @@ fi
 new_fixture
 write_skill unlisted "d" "Body."
 expect_fail M2 "directory not listed in marketplace"
+if [[ $OUT == *"game-dev skills array"* && $OUT == *"EXCLUDED in tools/check-skills.sh"* ]]; then
+  report 1 "M2 unlisted message names both fixes"
+else
+  report 0 "M2 unlisted message names both fixes" "$OUT"
+fi
+
+new_fixture
+printf '# Readme\n\nNo links here.\n' >"$FX/README.md"
+expect_fail M2 "listed skill has no README link"
+if [[ $OUT == *"'skills/demo'"* && $OUT == *"add it to the README tables"* ]]; then
+  report 1 "M2 README message names the skill and the fix"
+else
+  report 0 "M2 README message names the skill and the fix" "$OUT"
+fi
+
+new_fixture
+mkdir -p "$FX/skills/game-dev-commands/game-build"
+printf -- '---\nname: game-build\ndescription: Build.\n---\n# Build\n\n## Requires\n\n- `demo`\n' \
+  >"$FX/skills/game-dev-commands/game-build/SKILL.md"
+printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/game-dev-commands/game-build"]}]}' \
+  >"$FX/.claude-plugin/marketplace.json"
+printf -- '- [game-build](skills/game-build/)\n' >>"$FX/README.md"
+expect_fail M2 "command README link must use the game-dev-commands path"
 
 # ---------------------------------------------------------------- X1
 new_fixture
@@ -338,6 +433,7 @@ Apply the `demo` skill, then apply the `demo` skill again.
 EOF
   printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
     >"$FX/.claude-plugin/marketplace.json"
+  link_readme skills/game-dev skills/game-dev-commands/game-build
 }
 
 x1_fixture
@@ -356,8 +452,32 @@ x1_fixture
 write_skill other "d" "Body."
 printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
   >"$FX/.claude-plugin/marketplace.json"
+link_readme skills/other
+sed 's/| Demo work | `demo` |/| Demo work | `demo` |\
+| Other work | `other` |/' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
+mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
 printf '\nApply the `other` skill.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
 expect_fail X1 "command applies an existing skill not in its Requires block"
+
+x1_fixture
+write_skill other "d" "Body."
+printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
+  >"$FX/.claude-plugin/marketplace.json"
+link_readme skills/other
+expect_fail X1 "listed skill missing from the index Route table"
+if [[ $(count_lines X1) == 1 && $OUT == *"'other'"* ]]; then
+  report 1 "X1 Route coverage names the missing skill once"
+else
+  report 0 "X1 Route coverage names the missing skill once" "$OUT"
+fi
+
+x1_fixture
+expect_pass "X1 Route coverage is skipped for a directory argument" skills/game-dev
+
+x1_fixture
+sed 's/| Demo work |/| Demo work, see `not-a-skill` notes |/' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
+mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
+expect_pass "X1 reads only the Skill column of the Route table"
 
 x1_fixture
 sed 's/`demo` |/`dmeo` |/' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
@@ -394,6 +514,23 @@ write_skill react-animations "d" "Path $HOME_MAC here."
 printf 'x %s\n' "$HOME_MAC" >"$FX/docs/research/note.md"
 expect_pass "P1 ignores skills outside the game-dev list and docs/research"
 
+# git_fixture: a fixture that is its own git repo with every file staged.
+git_fixture() {
+  new_fixture
+  git -C "$FX" init -q
+  git -C "$FX" add -- .claude-plugin README.md skills
+}
+
+git_fixture
+write_skill demo "d" "Path $HOME_MAC here."
+git -C "$FX" add skills/demo/SKILL.md
+expect_fail P1 "git repo: tracked file with a machine path"
+
+git_fixture
+mkdir -p "$FX/tools"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/tools/untracked.sh"
+expect_pass "git repo: untracked file with a machine path"
+
 new_fixture
 mkdir -p "$FX/tools" "$FX/evals"
 printf '%s\n' '{"plugins":[{"name":"other"}]}' >"$FX/.claude-plugin/marketplace.json"
@@ -422,6 +559,27 @@ write_skill demo "d" "$(printf '> \xe2\x80\x9cA curly quote\xe2\x80\x9d\n')"
 expect_fail C2 "curly-quote blockquote"
 
 new_fixture
+write_skill demo "d" "$(printf '> *"quoted"*\n')"
+expect_fail C2 "italic quoted blockquote"
+
+new_fixture
+write_skill demo "d" "$(printf '> Name Surname said this\n')"
+expect_fail C2 "attributed blockquote without quote marks"
+
+new_fixture
+write_skill demo "d" "$(printf '> note\n')"
+expect_fail C2 "plain blockquote"
+if [[ $OUT == *"line 6 is a block quote; state it as plain text and put its source in references/sources.md"* ]]; then
+  report 1 "C2 message gives the line and the fix"
+else
+  report 0 "C2 message gives the line and the fix" "$OUT"
+fi
+
+new_fixture
+write_skill demo "d" "$(printf 'A line with a > sign inside.\n')"
+expect_pass "no block quote"
+
+new_fixture
 mkdir -p "$FX/skills/demo/references"
 printf -- '- https://ok.example\n- no link here\n' >"$FX/skills/demo/references/sources.md"
 write_skill demo "d" "See \`references/sources.md\`."
@@ -435,9 +593,32 @@ expect_fail C4 "ts with external import and no Verified header"
 
 new_fixture
 mkdir -p "$FX/skills/demo/boilerplate"
-printf "// Verified against: zod 3.23 docs\nimport { z } from 'zod';\nimport { b } from './b';\nimport fs from 'node:fs';\nexport const a = z.string();\n" >"$FX/skills/demo/boilerplate/a.ts"
+printf "// Verified against: zod 3.23.8 (2026-11-14)\nimport { z } from 'zod';\nimport { b } from './b';\nimport fs from 'node:fs';\nexport const a = z.string();\n" >"$FX/skills/demo/boilerplate/a.ts"
 write_skill demo "d" "See \`boilerplate/a.ts\`."
 expect_pass "ts with Verified header"
+
+# c4_header <first line>: a boilerplate file with that header and a bullmq import.
+c4_header() {
+  new_fixture
+  mkdir -p "$FX/skills/demo/boilerplate"
+  printf "%s\nimport { Queue } from 'bullmq';\n" "$1" >"$FX/skills/demo/boilerplate/q.ts"
+  write_skill demo "d" "See \`boilerplate/q.ts\`."
+}
+
+c4_header '// Verified against:'
+expect_fail C4 "empty Verified header"
+
+c4_header '// Verified against: bullmq 6.7.6 (2026-11-14)'
+expect_pass "Verified header with one package"
+
+c4_header '// Verified against: bullmq 6.7.6, @scope/ioredis-x 5.4.1 (2026-11-14)'
+expect_pass "Verified header with two packages"
+
+c4_header '// Verified against: bullmq 6.7.6'
+expect_fail C4 "Verified header without a date"
+
+c4_header '// Verified against: bullmq (2026-11-14)'
+expect_fail C4 "Verified header without a version"
 
 new_fixture
 mkdir -p "$FX/skills/demo/boilerplate"
@@ -519,6 +700,15 @@ for manifest in '{"plugins":[{"name":"other"}]}' '{"plugins":[{"name":"game-dev"
 $OUT"
   fi
 done
+
+new_fixture
+run_lint --only N1 skills/typo-dir
+if [[ $CODE == 1 && $(count_lines M1) == 1 && $OUT == *"FAIL M1 skills/typo-dir: no SKILL.md"* ]]; then
+  report 1 "--only N1 still reports a directory arg with no SKILL.md"
+else
+  report 0 "--only N1 still reports a directory arg with no SKILL.md" "exit=$CODE
+$OUT"
+fi
 
 new_fixture
 printf '# Readme\n\nShips 9 skills.\n' >"$FX/README.md"
