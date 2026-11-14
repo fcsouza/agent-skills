@@ -137,6 +137,33 @@ export class RollbackBuffer<T> {
 	}
 
 	/**
+	 * Find the newest entry at or before `tick` and the oldest entry after it.
+	 * Use for interpolation when entries are stored every N ticks, not every tick.
+	 */
+	getBracket(tick: number): {
+		before: BufferEntry<T> | null;
+		after: BufferEntry<T> | null;
+	} {
+		let before: BufferEntry<T> | null = null;
+		let after: BufferEntry<T> | null = null;
+		for (const entry of this.buffer) {
+			if (!entry) continue;
+			if (entry.tick <= tick && (!before || entry.tick > before.tick)) {
+				before = entry;
+			} else if (entry.tick > tick && (!after || entry.tick < after.tick)) {
+				after = entry;
+			}
+		}
+		return {
+			before: before && {
+				tick: before.tick,
+				state: structuredClone(before.state),
+			},
+			after: after && { tick: after.tick, state: structuredClone(after.state) },
+		};
+	}
+
+	/**
 	 * Current number of entries stored.
 	 */
 	size(): number {

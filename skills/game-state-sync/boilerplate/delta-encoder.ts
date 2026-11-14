@@ -185,7 +185,13 @@ export function toBinaryDelta(delta: Delta): BinaryDelta {
  */
 export function fromBinaryDelta(binary: BinaryDelta): Delta {
 	const decoder = new TextDecoder();
-	const view = new DataView(binary.buffer.buffer);
+	// Respect the view's offset: a Uint8Array received from the network can be
+	// a slice of a larger ArrayBuffer.
+	const view = new DataView(
+		binary.buffer.buffer,
+		binary.buffer.byteOffset,
+		binary.buffer.byteLength,
+	);
 	const changeCount = view.getUint16(0);
 	const removalCount = view.getUint16(2);
 
@@ -297,13 +303,14 @@ function parsePath(path: string): (string | number)[] {
 	const parts = path.split(".");
 
 	for (const part of parts) {
+		// Only bracket suffixes are array indices. Dot parts stay strings, so a
+		// Record key such as "123" or "1p" is not mistaken for an array index.
 		const bracketMatch = part.match(/^(.+?)\[(\d+)\]$/);
 		if (bracketMatch) {
 			segments.push(bracketMatch[1]);
-			segments.push(parseInt(bracketMatch[2], 10));
+			segments.push(Number.parseInt(bracketMatch[2], 10));
 		} else {
-			const num = parseInt(part, 10);
-			segments.push(Number.isNaN(num) ? part : num);
+			segments.push(part);
 		}
 	}
 
@@ -314,7 +321,7 @@ function isPlainObject(val: unknown): val is Record<string, unknown> {
 	return typeof val === "object" && val !== null && !Array.isArray(val);
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(a: unknown, b: unknown): boolean {
 	if (a === b) return true;
 	if (typeof a !== typeof b) return false;
 	if (a === null || b === null) return false;
