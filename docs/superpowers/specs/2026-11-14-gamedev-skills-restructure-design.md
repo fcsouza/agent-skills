@@ -18,7 +18,7 @@ Evidence for every claim below lives in `docs/research/2026-11-14-gamedev-skills
 
 ## Decisions (owner's, 2026-11-14)
 
-The owner's rule: no claim without a source someone opened. Every source, quote and version claim needs a URL.
+The owner's rule: no claim without a source someone opened. Every source, quote and version claim needs a URL someone opened.
 
 1. Install path is `npx skills` (cherry-pick).
 2. Remove MCP and agents from the bundle.
