@@ -57,8 +57,13 @@ live match state outside the database, or applies timed buffs.
   client goes offline without cleanup code. Set the TTL to a few heartbeat
   intervals so one lost packet does not flash the player offline.
 - Match state: one JSON key per match with a TTL longer than the longest
-  match. Two servers can update the same match, so `update()` uses
-  `WATCH`/`MULTI` and retries when another writer got there first.
+  match. `update()` reads the JSON, applies your pure function and writes
+  the result with a compare-and-set Lua script: the write lands only if the
+  key still holds what was read, else it reads again and retries. Calls for
+  one match from the same process run one after another, so they never race
+  each other; the script catches races with other servers. Do not use
+  `WATCH`/`MULTI` here: concurrent updates on one shared client interleave
+  their `WATCH` and `EXEC` and lose writes.
 - Timed buffs: one key per effect with `EX`, plus a per-player sorted set
   scored by expiry time to list them. Expiry needs no sweeper job.
 - `SET` clears an existing TTL unless you pass `EX` again. Every write in the

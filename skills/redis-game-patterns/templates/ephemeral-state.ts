@@ -17,47 +17,73 @@ export interface MatchState {
 
 const matchKey = (matchId: string) => `match:${matchId}`;
 
-export const createMatchState = (redis: Redis, ttlSeconds = 3600) => ({
-	async create(state: MatchState) {
-		await redis.set(matchKey(state.matchId), JSON.stringify(state), "EX", ttlSeconds);
-	},
+// Writes ARGV[2] with a TTL of ARGV[3] seconds only if the key still holds
+// ARGV[1], the JSON this caller read. Redis runs a script atomically, so no
+// other write lands between the comparison and the SET. Returns 1 on write,
+// 0 when another writer changed the key first.
+const COMPARE_AND_SET = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+return 1
+`;
 
-	async get(matchId: string): Promise<MatchState | null> {
-		const raw = await redis.get(matchKey(matchId));
-		return raw ? (JSON.parse(raw) as MatchState) : null;
-	},
+export const createMatchState = (redis: Redis, ttlSeconds = 3600) => {
+	// Updates to one match from this process run one after another, so they
+	// never race each other. The compare-and-set covers writers on other
+	// servers: a lost race reads again and retries.
+	const queues = new Map<string, Promise<unknown>>();
+	const serialise = <T>(key: string, run: () => Promise<T>): Promise<T> => {
+		const result = (queues.get(key) ?? Promise.resolve()).then(run, run);
+		const tail = result.catch(() => undefined);
+		queues.set(key, tail);
+		void tail.then(() => {
+			if (queues.get(key) === tail) queues.delete(key);
+		});
+		return result;
+	};
 
-	// Read-modify-write with WATCH: if another server changes the key between
-	// the read and EXEC, EXEC returns null and we retry.
-	// WATCH state lives on the connection, so give this its own client
-	// (redis.duplicate()) if other code shares the connection concurrently.
-	async update(
-		matchId: string,
-		apply: (current: MatchState) => MatchState,
-		maxAttempts = 5,
-	): Promise<MatchState | null> {
-		const key = matchKey(matchId);
-		for (let attempt = 0; attempt < maxAttempts; attempt++) {
-			await redis.watch(key);
-			const raw = await redis.get(key);
-			if (!raw) {
-				await redis.unwatch();
-				return null;
-			}
-			const next = apply(JSON.parse(raw) as MatchState);
-			const result = await redis
-				.multi()
-				.set(key, JSON.stringify(next), "EX", ttlSeconds)
-				.exec();
-			if (result) return next;
-		}
-		throw new Error(`match ${matchId}: update lost ${maxAttempts} races`);
-	},
+	return {
+		async create(state: MatchState) {
+			await redis.set(matchKey(state.matchId), JSON.stringify(state), "EX", ttlSeconds);
+		},
 
-	async delete(matchId: string) {
-		await redis.del(matchKey(matchId));
-	},
-});
+		async get(matchId: string): Promise<MatchState | null> {
+			const raw = await redis.get(matchKey(matchId));
+			return raw ? (JSON.parse(raw) as MatchState) : null;
+		},
+
+		// Read, apply, compare-and-set. `apply` must be pure: it can run more
+		// than once when another server wins the race.
+		update(
+			matchId: string,
+			apply: (current: MatchState) => MatchState,
+			maxAttempts = 5,
+		): Promise<MatchState | null> {
+			const key = matchKey(matchId);
+			return serialise(key, async () => {
+				for (let attempt = 0; attempt < maxAttempts; attempt++) {
+					const raw = await redis.get(key);
+					if (!raw) return null;
+					const next = apply(JSON.parse(raw) as MatchState);
+					const written = await redis.eval(
+						COMPARE_AND_SET,
+						1,
+						key,
+						raw,
+						JSON.stringify(next),
+						ttlSeconds,
+					);
+					if (written === 1) return next;
+				}
+				throw new Error(`match ${matchId}: update lost ${maxAttempts} races`);
+			});
+		},
+
+		async delete(matchId: string) {
+			await redis.del(matchKey(matchId));
+		},
+	};
+};
 
 // --- Player presence ---
 // Clients heartbeat every few seconds; a missing key means offline.
