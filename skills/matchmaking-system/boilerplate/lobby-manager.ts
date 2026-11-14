@@ -17,8 +17,6 @@ export interface Lobby {
 	gameMode: string;
 	region: string;
 	players: LobbyPlayer[];
-	/** Players the match needs. Below this the lobby dissolves. */
-	matchSize: number;
 	averageRating: number;
 	createdAt: number;
 	countdownStartedAt: number | null;
@@ -82,8 +80,8 @@ export class LobbyChangedError extends Error {}
 /**
  * Lobby state machine: WAITING -> COUNTDOWN -> IN_PROGRESS -> COMPLETE.
  * The last ready-up moves WAITING to COUNTDOWN. A leave or a failed presence
- * check before IN_PROGRESS leaves the lobby short of `matchSize`, so it
- * dissolves: the lobby is deleted, every player is unmapped, and the
+ * check before IN_PROGRESS leaves the lobby short of the players its match
+ * needs (a lobby holds exactly the matched players), so it dissolves: the lobby is deleted, every player is unmapped, and the
  * remaining ids go back to the caller to requeue.
  * A lobby is one JSON value in Redis. Every transition reads it, applies a pure
  * change, and writes it back with a compare-and-set script, so two players
@@ -108,7 +106,6 @@ export class LobbyManager {
 			gameMode: match.gameMode,
 			region: match.region,
 			players: match.players.map((p) => ({ playerId: p.playerId, ready: false, joinedAt: now })),
-			matchSize: match.players.length,
 			averageRating: match.averageRating,
 			createdAt: now,
 			countdownStartedAt: null,
@@ -155,8 +152,8 @@ export class LobbyManager {
 	}
 
 	/**
-	 * Removes a player before the match starts. The lobby is then short of
-	 * `matchSize`, so it dissolves in the same write. Returns the ids of the
+	 * Removes a player before the match starts. The lobby is then short of a
+	 * player its match needs, so it dissolves in the same write. Returns the ids of the
 	 * players who were left in it, already unmapped, so the caller can requeue
 	 * them with their original `queuedAt` (their bracket stays wide).
 	 */

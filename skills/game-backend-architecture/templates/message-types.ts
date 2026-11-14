@@ -7,6 +7,8 @@ import { type Static, t } from "elysia";
 // session it checked on the WebSocket upgrade.
 // One TypeBox schema: the server validates every message with it, and the
 // TypeScript type comes from it, so the two cannot drift apart.
+// Browser code: `import type { ClientMessage, ServerMessage }` from this file,
+// so the client bundle does not pull in elysia.
 // ---------------------------------------------------------------------------
 
 export const clientMessage = t.Union([
