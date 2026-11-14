@@ -4,6 +4,8 @@
 
 type WebhookEventType =
 	| "checkout.session.completed"
+	| "checkout.session.async_payment_succeeded"
+	| "checkout.session.async_payment_failed"
 	| "invoice.paid"
 	| "customer.subscription.updated"
 	| "customer.subscription.deleted"

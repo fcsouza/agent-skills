@@ -1,144 +1,63 @@
 ---
 name: stripe-game-payments
 description: >-
-  Use when implementing game payments, in-app purchases, subscriptions, Stripe webhooks, or monetization flows. Triggers: payments, IAP, subscription, Stripe, checkout, webhooks, monetization.
+  Covers selling premium currency, items and subscriptions in a game through Stripe: product catalog, webhook fulfilment, refund and dispute revocation, and the idempotency table. Use when a game needs real-money purchases, a battle pass or premium membership, or has to grant and take back currency safely from Stripe events.
 ---
 
 # Stripe Game Payments
 
-## Purpose
+For client setup, Checkout Sessions and the API itself, use the `stripe-docs` skill if it is installed, otherwise https://docs.stripe.com. This skill covers the game side: what to sell, when to grant, when to take back.
 
-In-app purchases, subscriptions, consumables, webhooks, idempotency, and fraud prevention for games using Stripe.
+## Decisions
 
-## When to Use
+1. All payment logic runs on the server. The client never sends a price, a quantity or an entitlement.
+2. Sell premium currency, then let players spend it on items. Prices can change without new Stripe products.
+3. Grant only from webhooks. The player may never load the success page.
+4. Grant inside the same database transaction that records the Stripe event id. A crash then leaves neither, and Stripe retries.
+5. A subscription period is granted once per invoice. Stripe's guide provisions on `checkout.session.completed` and again on each `invoice.paid`; both can name the first invoice, so the grant is unique on invoice id.
+6. A full refund or a dispute revokes what a one-time purchase granted. A partial refund, or a refund or dispute on a subscription payment, goes to a human: grants of subscription periods are keyed by invoice, not by payment intent.
 
-Trigger: payments, Stripe, IAP, in-app purchase, subscription, premium, battle pass, virtual currency, webhook, checkout, monetization
+## Steps
 
-## Prerequisites
+1. `bun add stripe`. Do not pass `apiVersion`: the SDK uses the version it was released with.
+2. Define the catalog. Copy when starting the store: `templates/product-catalog.ts`. Each product `id` is what Checkout metadata carries.
+3. Create Checkout Sessions on the server (vendor docs). Set `metadata: { playerId, productId }` for one-time purchases and `subscription_data: { metadata: { playerId } }` for subscriptions. Pass an idempotency key on the create call so a retried request does not create a second session.
+4. Add the idempotency table to the game's database: one row per processed Stripe event, the event id under a unique constraint, plus the time it was processed. Purchases need their own unique keys: checkout session id for one-time grants, invoice id for subscription periods. Follow the `postgres-game-schema` skill for table conventions.
+5. Copy when wiring the webhook endpoint: `boilerplate/webhooks.ts`. Implement its `PaymentStore` and `PaymentTx` against those tables, then call `handleStripeWebhook(rawBody, signatureHeader, { stripe, webhookSecret, store })` from your route and return its `Response`.
+6. Keep `grantCurrency` short: write the purchase row and enqueue reward delivery with the `bullmq-game-queues` skill. Stripe wants a 2xx response before slow work.
+7. Read when designing the payment audit log: `templates/webhook-events.ts`. Log every handled event with player, product, amount and status.
+8. Subscribe the endpoint to these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`.
 
-- `postgres-game-schema` (player accounts, inventory, currency tables)
-- `betterauth-integration` (authenticated player sessions)
+## How `webhooks.ts` handles each event
 
-## Core Principles
+| Event | Action |
+| --- | --- |
+| `checkout.session.completed` | `mode === 'payment'`: grant if `payment_status === 'paid'`, otherwise wait. `mode === 'subscription'`: retrieve the subscription from `session.subscription`, store its status, grant the period for `session.invoice` if `active`. |
+| `checkout.session.async_payment_succeeded` | Same as completed. Delayed methods such as bank debits land here. |
+| `checkout.session.async_payment_failed` | Flag for review so the game can tell the player. |
+| `invoice.paid` | Read the subscription id from `invoice.parent.subscription_details.subscription` after checking `invoice.parent?.type === 'subscription_details'`. Retrieve the subscription; grant the period for this invoice only if its status is `active`. |
+| `customer.subscription.updated` / `.deleted` | Retrieve the subscription and store its current status, not the status in the event. |
+| `charge.refunded` | `charge.refunded` is true only for a full refund: revoke by payment intent. Partial, or no matching grant: flag for review. |
+| `charge.dispute.created` | Revoke by `dispute.payment_intent` and flag the account. The money has already left your balance. |
 
-> Sid Meier: "A game is a series of interesting decisions." Monetization should enable interesting decisions, not replace them.
+## Pitfalls
 
-1. **Payments are server-side only** — never trust the client with price, quantity, or entitlement logic
-2. **Idempotency keys on every mutation** — prevent double-charges on retries or network failures
-3. **Webhook-first fulfillment** — deliver purchases via webhook events, not checkout completion callbacks
-4. **Two-phase fulfillment** — record the purchase first, then queue reward delivery separately
-5. **Support both one-time and recurring** — consumables (currency packs, items) and subscriptions (battle pass, premium membership)
-6. **Currency abstraction** — players buy premium currency, then spend it on items; never sell game items directly for real money
-7. **Refund handling** — revoke rewards on chargebacks and refunds automatically
-8. **Fraud signals** — velocity checks, suspicious purchase patterns, geographic anomalies
+- Signature checks on Bun need `await stripe.webhooks.constructEventAsync(...)`. Bun loads the SDK's web build, whose crypto is async-only, so `constructEvent` throws.
+- Verify against the raw body exactly as received. A framework that parses JSON first breaks the signature.
+- Deduplicating by event id is not enough. Stripe can send two different events for the same object, and one session can complete on `checkout.session.completed` or later on `async_payment_succeeded`. The purchase row's unique key stops the second grant.
+- An in-memory `Set` of processed ids forgets on restart and is not shared between instances. Use the database table.
+- Events arrive out of order (https://docs.stripe.com/webhooks#event-ordering). Do not use `created` to order them. `webhooks.ts` retrieves the subscription and stores the status Stripe returns now, so a late `updated` cannot overwrite `canceled`.
+- `invoice.subscription` no longer exists on current API versions. Use the `parent` path above.
+- Revocation must be idempotent. Duplicate events, and separate events for the same payment, can reach it more than once.
+- When the player already spent the currency, decide in game rules what revocation does: negative balance, item removal or account lock. Do not let it throw, or Stripe retries the event for up to three days.
+- Missing `playerId` metadata means a bug in session creation. Flag it; do not throw.
+- Rate-limit purchases per player and turn on Radar for fraud (https://docs.stripe.com/radar).
 
-## Step-by-Step Instructions
+## Related skills
 
-### 1. Install Dependencies
+- `postgres-game-schema`: purchase, inventory and currency tables, and the idempotency table.
+- `betterauth-integration`: the authenticated player whose id goes in Checkout metadata.
+- `bullmq-game-queues`: reward delivery after the purchase is recorded.
+- `game-economy-design`: currency pricing and balance.
 
-```bash
-bun add stripe
-```
-
-### 2. Configure Stripe Client
-
-Use `boilerplate/stripe-setup.ts` to initialize the Stripe SDK, sync your product catalog, and link Stripe customers to player accounts.
-
-### 3. Define Product Catalog
-
-Start with `templates/product-catalog.ts` to define your product types (consumable, subscription, currency bundle, cosmetic) and map them to Stripe price IDs and game rewards.
-
-### 4. Create Checkout Sessions
-
-Use `boilerplate/checkout.ts` to create Stripe Checkout sessions for one-time purchases, subscriptions, and premium currency bundles. Always attach player metadata.
-
-### 5. Handle Webhooks
-
-Implement `boilerplate/webhooks.ts` for signature verification, idempotent event processing, and two-phase fulfillment. Route events to typed handlers defined in `templates/webhook-events.ts`.
-
-### 6. Queue Reward Delivery
-
-After recording a purchase, dispatch a fulfillment job via BullMQ (see `bullmq-game-queues`). The worker grants the items, currency, or subscription entitlement.
-
-### 7. Handle Refunds & Chargebacks
-
-Listen for `charge.refunded` and `charge.dispute.*` events. Revoke granted rewards, deduct premium currency, and flag the player account for review.
-
-### 8. Monitor & Audit
-
-Log every payment event with an audit trail. Track fulfillment status (pending, fulfilled, revoked) and alert on anomalies.
-
-## Code Examples
-
-### Creating a checkout for a currency bundle
-
-```typescript
-import { createCurrencyBundleCheckout } from './checkout';
-
-const session = await createCurrencyBundleCheckout({
-  playerId: 'player_123',
-  priceId: 'price_premium_1000',
-  quantity: 1,
-  successUrl: 'https://game.example.com/store/success',
-  cancelUrl: 'https://game.example.com/store',
-});
-```
-
-### Creating a subscription checkout
-
-```typescript
-import { createSubscriptionCheckout } from './checkout';
-
-const session = await createSubscriptionCheckout({
-  playerId: 'player_123',
-  priceId: 'price_battle_pass_monthly',
-  successUrl: 'https://game.example.com/pass/success',
-  cancelUrl: 'https://game.example.com/pass',
-});
-```
-
-### Processing a webhook event
-
-```typescript
-import { handleStripeWebhook } from './webhooks';
-
-app.post('/webhooks/stripe', async ({ request }) => {
-  const sig = request.headers.get('stripe-signature')!;
-  const body = await request.text();
-  await handleStripeWebhook(body, sig);
-  return new Response('ok', { status: 200 });
-});
-```
-
-See `boilerplate/stripe-setup.ts` for client configuration, `boilerplate/checkout.ts` for session creation, `boilerplate/webhooks.ts` for event handling, and `templates/product-catalog.ts` for product definitions.
-
-## Cross-References
-
-- `betterauth-integration` for authenticated player sessions and Stripe customer linking
-- `postgres-game-schema` for purchase records, inventory, and currency tables
-- `bullmq-game-queues` for async fulfillment job dispatch and processing
-- `game-economy-design` for pricing strategy and currency balance design
-
-## Pitfalls & Anti-Patterns
-
-- **Don't fulfill purchases on checkout completion** — always use webhooks; checkout success redirects can be faked or missed
-- **Don't skip idempotency keys** — network retries and webhook replays will cause double-charges or double-grants without them
-- **Don't store Stripe API keys in client code** — all payment logic must be server-side only
-- **Don't sell game items directly for real money** — use a premium currency layer so you can adjust prices without changing Stripe products
-- **Don't ignore chargebacks** — unhandled disputes lead to account bans by Stripe; always revoke rewards and flag accounts
-- **Don't couple payment processing with reward delivery** — use two-phase fulfillment so a failed reward grant doesn't block payment recording
-- **Don't skip webhook signature verification** — unsigned webhooks can be spoofed to grant free items
-- **Don't allow unlimited purchase velocity** — rate-limit purchases per player to detect fraud and prevent accidental overspending
-
-## Designer Philosophy
-
-**Sid Meier:** Monetization should enable interesting decisions, not replace them. A well-designed payment system gives players meaningful choices about how they engage with content. Premium currency buys time, not power. A battle pass rewards engagement, not spending. Fair monetization respects player skill and time investment — the best purchases enhance the experience without gating core gameplay.
-
-## Sources
-
-- [Stripe Official Documentation](https://docs.stripe.com)
-- [Stripe Checkout Integration Guide](https://docs.stripe.com/payments/checkout)
-- [Stripe Webhooks Best Practices](https://docs.stripe.com/webhooks/best-practices)
-- [Stripe Gaming & Digital Goods](https://stripe.com/use-cases/gaming)
-- [Stripe Idempotent Requests](https://docs.stripe.com/api/idempotent_requests)
-- [Stripe Fraud Prevention](https://docs.stripe.com/radar)
+Read when checking a claim or a field path: `references/sources.md`.
