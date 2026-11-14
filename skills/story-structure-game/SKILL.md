@@ -28,14 +28,14 @@ Give the protagonist goals, obstacles and conflicts that match what the player d
 
 ## Plan branching
 
-Choice trees grow fast: ten levels of three choices give 88,573 outcomes. You cannot write or test that. Decide how you will cut it before you write branches.
+Choice trees grow fast: ten levels of three choices give a tree of 88,573 nodes (Schell's figure). You cannot write or test the full tree. Decide how you will cut it before you write branches.
 
 1. List the choices the player must feel. Mark the rest as flags that change later text, not new scenes.
 2. Converge branches where you must. Convergence cheapens the early choices, so carry their effects forward: the world, the dialogue and the available options change after the merge, even if the next scene does not.
 3. Plan the endings. Equal endings rarely work: players ask which one is the real one and dislike replaying to see the rest. Prefer one ending shaped by tracked choices. If you want two endings, make each a full, different story, such as a light path and a dark path.
 4. Limit story verbs. Games offer few ways to speak or act in story terms, so each choice must map to something the game can show.
 5. Decide whether the player can undo. Undo removes tragedy from a loss.
-6. Test every path from start to finish.
+6. Test every path that remains after the cuts, from start to finish.
 
 Use `templates/branching-diagram.md` to draw the graph and `templates/story-beat-template.md` to list beats, prerequisites and consequences.
 
