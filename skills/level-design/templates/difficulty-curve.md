@@ -16,6 +16,8 @@ Difficulty
 
 ### Phase Breakdown
 
+The durations and ranges below are placeholders. Replace them with your own targets and check them in playtests.
+
 | Phase | Duration | Difficulty Range | Purpose | Key Design |
 |-------|----------|-----------------|---------|-----------|
 | Tutorial | 5-15 min | 1-2 | Teach core mechanics | No failure possible, guided |
@@ -53,6 +55,8 @@ Intensity
 
 ## Difficulty Tuning Knobs
 
+The percentages are starting guesses, not tested values. Change a knob by doubling or halving to find the direction fast, then refine.
+
 | Parameter | Easy | Normal | Hard |
 |-----------|------|--------|------|
 | Enemy/obstacle count | -30% | Base | +30% |
@@ -79,6 +83,8 @@ Intensity
 
 ### Approach B: Adaptive Difficulty
 
+Adaptive difficulty has three known costs: it breaks the sense of a fixed world, players can exploit it by playing badly, and players want to improve by practice. Prefer preset modes. The thresholds below are example values.
+
 ```
 IF player.deathCount > 3 in same area:
     reduce difficulty by 1 step
@@ -100,7 +106,7 @@ IF player.completionTime < expected * 0.5:
 
 | Mistake | Symptom | Fix |
 |---------|---------|-----|
-| Flat difficulty | Players get bored | Add peaks and valleys |
+| Flat difficulty | Players get bored | Use a sawtooth: step up, then a moment to use an old skill on a harder problem |
 | Sudden spike | Players quit at specific point | Add transition encounters |
 | No rest areas | Player fatigue | Insert cool-down zones between challenges |
 | Tutorial too long | Players skip/quit early | Teach through play, not text |
