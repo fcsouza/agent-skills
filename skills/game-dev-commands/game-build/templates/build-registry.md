@@ -1,3 +1,10 @@
+# Build registry template
+
+`/game-build` copies the skeleton into a new `docs/build-registry.md`, then adds one entry per component in the entry format. Do not copy the entry format into the registry as an entry.
+
+## Registry skeleton
+
+```markdown
 # Build Registry
 
 Managed by `/game-build`. Edit by hand only to fix a wrong entry.
@@ -10,15 +17,21 @@ Managed by `/game-build`. Edit by hand only to fix a wrong entry.
 ## Components
 
 <!-- entries are added by /game-build -->
+```
 
-## Entry format (one per component)
+## Entry format
 
+One entry per component. A component's dependents are the entries whose "Depends on" names it, so no entry records them.
+
+```markdown
 ## [component-name]
-- **Status:** built | mock
+- **Status:** built | mock | rebuilding
 - **Path:** src/[component-name]/index.ts
 - **Built at:** [ISO timestamp]
 - **Depends on:** [real dependencies used]
-- **Depended on by:** [leave empty; filled when another component imports this one]
 - **Mocks generated:** [mocks this build created, or "none"]
 - **Skills applied:** [skills that informed this build]
 - **Open TODOs:** [items marked NOT IN PLAN or left incomplete]
+```
+
+`rebuilding` means a `--rebuild` is under way. A run that finds it offers to resume with `--rebuild`.
