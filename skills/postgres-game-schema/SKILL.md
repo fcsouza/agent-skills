@@ -113,7 +113,7 @@ See `boilerplate/schema.ts` for full table definitions and `templates/query-patt
 - **Don't hardcode genre-specific columns in core tables** — use JSONB metadata instead of adding `swordDamage` or `spellPower` columns
 - **Don't use hard deletes** — always soft delete with `deletedAt` timestamps so game history is preserved
 - **Don't forget composite indexes** — queries like "player's inventory filtered by type" need `(playerId, type)` indexes
-- **Don't share one Neon database across git worktrees** — two worktrees that run migrations collide, because every worktree points at the same remote database. Create one Neon branch per worktree and run migrations from one worktree at a time.
+- **Don't run migrations from two git worktrees at once** — worktrees share one Neon database, so concurrent migrations conflict. Only one worktree runs migrations at a time. Use separate Neon branches for experimental schema work.
 
 ## Designer Philosophy
 

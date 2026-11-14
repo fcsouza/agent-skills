@@ -28,7 +28,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Queues, delayed jobs, scheduled work | `bullmq-game-queues` |
 | Sound effects, music, voice | `elevenlabs-sound-music` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |
-| Client-server sync, prediction, rollback | `game-state-sync` |
+| Lag, desync, jitter; client-server sync, prediction, rollback | `game-state-sync` |
 | Player events, retention, funnels | `gameplay-analytics` |
 | Pairing players, lobbies, ranks | `matchmaking-system` |
 | Tables, player data, inventory, Drizzle | `postgres-game-schema` |
@@ -50,7 +50,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Need | Skill |
 |---|---|
 | Pipelines, deploys, migration safety, staging | `ci-cd-game` |
-| Logging, alerts, performance budgets | `monitoring-game-ops` |
+| Logging, alerts, server health, tick time, error rates | `monitoring-game-ops` |
 
 ### Workflows
 
@@ -76,7 +76,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 - Run all game logic on the server and treat the client as display only. A client the player controls can be edited.
 - Apply `quest-narrative-coherence` before writing a quest, character or lore entry. New content then cannot contradict what exists.
 - Read `postgres-game-schema` before writing database code. Queries written without the schema drift from it.
-- Keep shared code free of genre-specific mechanics. Shared code stays reusable across genres.
+- Keep shared code free of genre-specific mechanics. Genre-specific logic in shared code breaks the next game that reuses it.
 
 ## Missing skill
 
