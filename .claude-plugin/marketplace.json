@@ -9,12 +9,18 @@
     "version": "2.0.0",
     "repository": "https://github.com/fcsouza/agent-skills"
   },
+  "renames": {
+    "game-dev-design": "game-dev",
+    "game-dev-engineering": "game-dev",
+    "game-dev-narrative": "game-dev",
+    "game-dev-infrastructure": "game-dev",
+    "game-dev-commands": "game-dev"
+  },
   "plugins": [
     {
       "name": "game-dev",
       "source": "./",
       "description": "Game development skills: design, engineering, narrative, infrastructure and seven workflow commands, with an index skill that routes to them.",
-      "version": "2.0.0",
       "keywords": [
         "game-dev",
         "game-design",

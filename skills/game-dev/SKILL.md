@@ -64,12 +64,14 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Design one quest end to end | `/game-quest` (`game-quest`) |
 | Audit code against the design rules | `/game-review` (`game-review`) |
 
+Installed as the Claude Code plugin, the commands are `/game-dev:<name>`, for example `/game-dev:game-build`.
+
 ## Project files
 
-- `docs/mvp-first-draft.md`: the MVP plan, written by `game-architect`.
-- `docs/build-registry.md`: components built so far, kept by `game-build`.
-- `docs/world-lore.md`: canonical world state, kept by `game-lore`.
-- `docs/quest-registry.md`: every quest, kept by `game-quest`.
+- `docs/mvp-first-draft.md`: the MVP plan, created by `game-architect`, then extended by `game-expand`.
+- `docs/build-registry.md`: components built so far, created and kept by `game-build`.
+- `docs/world-lore.md`: canonical world state, created by `game-architect`, then kept by `game-lore`.
+- `docs/quest-registry.md`: every quest, created by `game-architect` (or by `game-quest` when missing), then kept by `game-quest` and `game-build`.
 
 ## Rules
 

@@ -41,7 +41,7 @@ Preserve in the compact summary:
 
 ## Skills
 
-Start from the `game-dev` skill. It routes each task to the right game-dev skill. If a skill is missing, install it with `npx skills add fcsouza/agent-skills --skill <name>`.
+Start from the `game-dev` skill. It routes each task to the right game-dev skill. If a skill is missing, install it with `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Project Files
 

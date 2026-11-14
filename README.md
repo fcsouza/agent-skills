@@ -97,7 +97,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 
 #### Workflows
 
-Each workflow is a skill. In Claude Code you can also run it as a slash command.
+Each workflow is a skill. In Claude Code you can also run it as a slash command. Installed as the Claude Code plugin, the commands are `/game-dev:<name>`, for example `/game-dev:game-build`.
 
 | Command | Description |
 |---------|-------------|
@@ -187,7 +187,19 @@ npx skills remove -g -y \
   narrative-story-structure-game narrative-worldbuilding
 ```
 
-Run the same command without `-g` in each project that has them. If you use the Claude Code plugin, run `/plugin marketplace update fcsouza-agent-skills` and then `/plugin install game-dev@fcsouza-agent-skills`. Otherwise install the skills you want with `npx skills add`, as shown above.
+Run the same command without `-g` in each project that has them. The command skips names that are not installed. If you use the Claude Code plugin, run `/plugin marketplace update fcsouza-agent-skills` and then `/plugin install game-dev@fcsouza-agent-skills`. Otherwise install the skills you want with `npx skills add`, as shown above.
+
+The marketplace maps the five old entry names to `game-dev`, so Claude Code moves an enabled old entry to `game-dev`. If `claude plugin list` still shows an old entry, uninstall it in your shell:
+
+```bash
+claude plugin uninstall game-dev-design@fcsouza-agent-skills
+claude plugin uninstall game-dev-engineering@fcsouza-agent-skills
+claude plugin uninstall game-dev-narrative@fcsouza-agent-skills
+claude plugin uninstall game-dev-infrastructure@fcsouza-agent-skills
+claude plugin uninstall game-dev-commands@fcsouza-agent-skills
+```
+
+These act on user scope. Add `--scope project` or `--scope local` for an entry installed there.
 
 ## License
 
