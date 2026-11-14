@@ -188,6 +188,14 @@ printf '%s\n' '{"plugins":[{"name":"game-dev","keywords":["bun.lockb"],"skills":
 expect_fail R1 "banned token in marketplace.json"
 
 new_fixture
+printf '%s\n' '{"plugins":[{"name":"bun-only","description":"Runs bunx biome"},{"name":"game-dev","skills":["./skills/demo"]}]}' >"$FX/.claude-plugin/marketplace.json"
+expect_pass "R1 ignores a banned string in another plugin entry"
+
+new_fixture
+printf '%s\n' '{"plugins":[{"name":"bun-only","description":"ok"},{"name":"game-dev","description":"Runs bunx biome","skills":["./skills/demo"]}]}' >"$FX/.claude-plugin/marketplace.json"
+expect_fail R1 "banned string in the game-dev entry description"
+
+new_fixture
 write_skill demo "d" "Use the design-demo skill."
 expect_fail R1 "prefixed name of a real skill directory"
 

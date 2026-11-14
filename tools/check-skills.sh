@@ -271,7 +271,11 @@ check_r1() { # repo-level flag: 1 when README and marketplace are in scope
   done
   if [[ $1 == 1 ]]; then
     [[ -f $ROOT/README.md ]] && r1_scan README.md "$ROOT/README.md" 1
-    [[ -f $ROOT/$MARKETPLACE ]] && r1_scan "$MARKETPLACE" "$ROOT/$MARKETPLACE"
+    # Only the game-dev entry: the manifest also lists unrelated plugins.
+    if [[ -n $ENTRY ]]; then
+      printf '%s' "$ENTRY" | jq . >"$TMP/game-dev-entry.json"
+      r1_scan "$MARKETPLACE (game-dev entry)" "$TMP/game-dev-entry.json"
+    fi
   fi
 }
 
