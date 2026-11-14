@@ -204,6 +204,27 @@ claude plugin uninstall game-dev-commands@fcsouza-agent-skills
 
 These act on user scope. Add `--scope project` or `--scope local` for an entry installed there.
 
+## Maintaining
+
+The game-dev skills have a lint, a typecheck and CI.
+
+```bash
+bash tools/check-skills.test.sh
+```
+
+```bash
+tools/check-skills.sh --final
+```
+
+```bash
+bun install --frozen-lockfile && bun run typecheck
+```
+
+- `tools/check-skills.sh` checks names, links, the marketplace list, the index and this README against each other, banned strings, and that each skill keeps its citations in `references/sources.md`. `.github/workflows/skills.yml` runs all three commands on every pull request and on `main`.
+- The typecheck compiles every `boilerplate/` and `templates/` file against the versions pinned in `package.json`. Each file that imports a package starts with a `// Verified against: <pkg> <version> (<date>)` line. When you bump a version, rerun the typecheck and update that line.
+- To re-verify a source, open the URL in its `references/sources.md` line and check that the page still supports the claim after `supports:`. If it does not, fix or remove the claim and the line, and update the `checked` date.
+- When a skill never fires, run `/skill-doctor` in Claude Code and tighten that skill's `description`.
+
 ## License
 
 MIT
