@@ -14,6 +14,25 @@
 # A new check goes in check_skill when it reads one skill (content checks
 # under its is_pending guard), or in the REPO_LEVEL block at the end.
 
+# Check IDs:
+#   N1 name equals the directory, kebab-case, at most 64 characters
+#   N2 description exists, at most 1,024 characters
+#   N3 frontmatter parses as YAML
+#   S1 SKILL.md under 500 lines
+#   R1 no banned legacy strings in a skill, README or marketplace entry
+#   R2 no skill count in README or marketplace
+#   L1 relative links and templates/ boilerplate/ references/ paths resolve
+#   L2 every file under templates/ boilerplate/ references/ is mentioned
+#   M1 marketplace loads and every listed path has a SKILL.md
+#   M2 every skill directory is listed in the marketplace and linked in README
+#   X1 required, applied and routed skills exist; a command lists what it applies
+#   P1 no machine path or local dependency URL
+#   C1 no "## Sources" heading in SKILL.md
+#   C2 no block quote in SKILL.md
+#   C3 every bullet in references/sources.md has an https:// link
+#   C4 a .ts file with a third-party import starts with a "Verified against" line
+#   C5 description has no "Triggers:" list
+#   Z1 with --final, no .content-pending file remains
 ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
 # Directories under skills/ that the game-dev set leaves out.
@@ -201,9 +220,10 @@ x1_requires() {
   ' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
 }
 
-# x1_applied <file>: names in "apply the `name`", any case.
+# x1_applied <file>: names in "apply the `name`", "apply `name`" and
+# "apply `a` and `b`", any case.
 x1_applied() {
-  grep -oiE 'apply the `[^`]+`' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
+  grep -oiE 'apply (the )?`[^`]+`( and `[^`]+`)*' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
 }
 
 # x1_route <file>: backticked tokens in the last column (Skill) of the table

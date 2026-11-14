@@ -485,6 +485,35 @@ mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
 printf '\nApply the `other` skill.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
 expect_fail X1 "command applies an existing skill not in its Requires block"
 
+# x1_other_fixture: x1_fixture plus a second, existing skill `other` that the
+# command does not list under Requires.
+x1_other_fixture() {
+  x1_fixture
+  write_skill other "d" "Body."
+  printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
+    >"$FX/.claude-plugin/marketplace.json"
+  link_readme skills/other
+  sed 's/| Demo work | `demo` |/| Demo work | `demo` |\
+| Other work | `other` |/' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
+  mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
+}
+
+x1_other_fixture
+printf '\nApply `other` to the result.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "capital Apply without 'the' applies a skill not in Requires"
+
+x1_other_fixture
+printf '\nApply `demo` and `other` together.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "apply a and b: the second name is not in Requires"
+
+x1_other_fixture
+printf '\nApply `typo-name`.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "bare Apply names an unknown skill"
+
+x1_fixture
+printf '\nApply `demo`, then apply `demo` and `demo`.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_pass "bare apply of a listed skill passes"
+
 x1_fixture
 write_skill other "d" "Body."
 printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
