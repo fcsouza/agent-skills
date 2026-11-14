@@ -1,6 +1,7 @@
 ---
 name: story-structure-game
-description: Structures a game's story: act framework, branching and endings, and story beats. Use when planning how a game's plot is delivered and how player choices change it, or when a branching story grows too big to write or test.
+description: >-
+  Structures a game's story: act framework, branching and endings, and story beats. Use when planning how a game's plot is delivered and how player choices change it, or when a branching story grows too big to write or test.
 ---
 
 # Story Structure for Games

@@ -1,6 +1,7 @@
 ---
 name: worldbuilding
-description: Covers game world creation: rules, history, geography, factions, culture, tone and the world bible. Use when a game needs a setting, lore, factions or regions designed, when new lore must not contradict what exists, or when NPCs or quests feel disconnected from the world.
+description: >-
+  Covers game world creation: rules, history, geography, factions, culture, tone and the world bible. Use when a game needs a setting, lore, factions or regions designed, when new lore must not contradict what exists, or when NPCs or quests feel disconnected from the world.
 ---
 
 # Worldbuilding

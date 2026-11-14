@@ -1,6 +1,7 @@
 ---
 name: mmo-design
-description: Covers the design choices that only a persistent online world with many players forces: shards versus layers, economy measurement and real-money trade policy at persistent-world scale, characters and alts, group roles and guilds, endgame, and live operations. Use when a game is a persistent world with many players and needs a decision on shards or layers, how to watch money supply and deflation, a real-money trade policy, several characters per account, tank/healer/damage roles, guild structure, a level cap or endgame, or seasons and patch cadence.
+description: >-
+  Covers the design choices that only a persistent online world with many players forces: shards versus layers, economy measurement and real-money trade policy at persistent-world scale, characters and alts, group roles and guilds, endgame, and live operations. Use when a game is a persistent world with many players and needs a decision on shards or layers, how to watch money supply and deflation, a real-money trade policy, several characters per account, tank/healer/damage roles, guild structure, a level cap or endgame, or seasons and patch cadence.
 ---
 
 # MMO Design
