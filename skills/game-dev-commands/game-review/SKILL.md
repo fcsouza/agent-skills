@@ -18,7 +18,7 @@ argument-hint: Optional component name or path to review (defaults to entire src
 - `matchmaking-system`
 - `gameplay-analytics`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 Phase 0 picks which of these apply to the code under review.
 
@@ -58,7 +58,7 @@ Severity:
 - Warning: the code breaks a skill rule, but no exploit follows from it by itself.
 - Suggestion: a skill's recommended pattern is missing.
 
-Always check, in any scope:
+Always check, in any scope. These three are this command's own baseline; no skill states them:
 
 - A secret or `.env` value in source, or a Stripe secret key in code the client receives. Critical: anyone can read it.
 - `eval()` or `new Function()` on user input. Critical: it runs attacker code.
@@ -79,7 +79,7 @@ If `docs/world-lore.md` is missing, print `Narrative check skipped: docs/world-l
 
 1. Read both files.
 2. Collect quest IDs, character, faction and location names from the source.
-3. Compare each against the lore and the registry using steps 3 and 4 of `quest-narrative-coherence` (clash, lore contradiction, NPC availability, location, faction relations, reward fit, difficulty fit, and the lore anchor). Report each failure.
+3. Compare each against the lore and the registry using steps 3 and 4 of `quest-narrative-coherence`. Report each failure.
 4. Format each finding as `Lore conflict: character "Mira" is used in src/quests/main.ts but is not in docs/quest-registry.md`.
 
 ## Phase 3: MVP scope drift
@@ -111,7 +111,7 @@ List findings by category (Engineering, Narrative, Scope), each as:
 File: src/path/to/file.ts (line ~42)
 Issue: <what is wrong>
 Fix: <concrete change>
-Skill: <skill name and the section it comes from>
+Skill: <skill name and the section it comes from, or "baseline" for an always-check item>
 ```
 
 If a category has no findings, write `<Category>: no issues found`.
@@ -129,6 +129,6 @@ End with:
 
 1. Never change code. This is an audit, and a fix made during review hides what the review found.
 2. Skip a pattern that looks wrong but is fine in context. A false positive costs the reader's trust in the report.
-3. Every finding names the skill and section that defines the correct pattern.
+3. Every finding names the skill and section that defines the correct pattern, except the three baseline items, which say "baseline".
 4. Every finding names a file and an approximate line.
 5. Report few real findings, not many doubtful ones.
