@@ -567,23 +567,47 @@ check_p1() {
 # in input_match as a whole alternative: after `|`, `(` or `(?:`, before `|`,
 # `)` or the end of the line, so game-dev is not met by game-dev-foo.
 check_e1() {
-  local evals="$ROOT/evals/game-dev" dir name file rel line
+  local evals="$ROOT/evals/game-dev" dir name file rel line case_dir
+  local names=() hit
   [[ -d $evals ]] || return 0
   for dir in "${SKILLS[@]}"; do
-    name="$(basename "$dir")"
-    [[ $name == game-dev ]] && continue
-    [[ -d $evals/trigger-$name ]] ||
-      fail E1 "evals/game-dev/trigger-$name" "no trigger case for '$name'; create evals/game-dev/trigger-$name/"
+    names+=("$(basename "$dir")")
   done
-  while IFS= read -r -d '' file; do
+  for name in "${names[@]}"; do
+    [[ $name == game-dev ]] && continue
+    case_dir="$evals/trigger-$name"
+    if [[ ! -d $case_dir ]]; then
+      fail E1 "evals/game-dev/trigger-$name" "no trigger case for '$name'; create evals/game-dev/trigger-$name/"
+      continue
+    fi
+    [[ -f $case_dir/prompt.md || -f $case_dir/case.yaml ]] ||
+      fail E1 "evals/game-dev/trigger-$name" "has neither prompt.md nor case.yaml"
+    hit=0
+    for file in "$case_dir"/graders/*.md; do
+      [[ -f $file ]] && hit=1
+    done
+    ((hit)) || fail E1 "evals/game-dev/trigger-$name" "has no graders/*.md"
+  done
+  # Each trigger-negative-* directory needs graders/no-game-skill.md. The check
+  # works on the text of the input_match line: a name moved into another group
+  # of the regex still passes.
+  while IFS= read -r -d '' case_dir; do
+    file="$case_dir/graders/no-game-skill.md"
     rel="${file#"$ROOT"/}"
-    line="$(grep -m1 '^input_match:' "$file" | tr -d '\r')"
-    for dir in "${SKILLS[@]}"; do
-      name="$(basename "$dir")"
+    if [[ ! -f $file ]]; then
+      fail E1 "$rel" "negative case has no graders/no-game-skill.md"
+      continue
+    fi
+    line="$(grep -m1 '^input_match:[[:space:]]*[^[:space:]>|]' "$file" | tr -d '\r')"
+    if [[ -z $line ]]; then
+      fail E1 "$rel" "no single-line input_match in that file"
+      continue
+    fi
+    for name in "${names[@]}"; do
       printf '%s\n' "$line" | grep -qE -- "([|(]|\(\?:)$name([|)]|\$)" ||
         fail E1 "$rel" "input_match does not name '$name'"
     done
-  done < <(find "$evals" -path '*/trigger-negative-*/graders/no-game-skill.md' -type f -print0)
+  done < <(find "$evals" -maxdepth 1 -type d -name 'trigger-negative-*' -print0)
 }
 
 check_z1() {
