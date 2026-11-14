@@ -34,6 +34,15 @@ jobs:
         run: bun run typecheck
 
       # Pull request: one Neon branch per pull request, migrated, then tested.
+      - name: Require a non-production parent branch
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -z "$PARENT" ]; then
+            echo "::error::Set the NEON_CI_PARENT_BRANCH repository variable to a seed branch; refusing to branch from the default branch."
+            exit 1
+          fi
+        env:
+          PARENT: ${{ vars.NEON_CI_PARENT_BRANCH }}
       - name: Create Neon branch for this pull request
         if: github.event_name == 'pull_request'
         id: neon
@@ -41,6 +50,8 @@ jobs:
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           branch_name: preview/pr-${{ github.event.number }}
+          # A seed branch with synthetic or anonymised data, never production.
+          parent_branch: ${{ vars.NEON_CI_PARENT_BRANCH }}
           api_key: ${{ secrets.NEON_API_KEY }}
       - name: Migrate and test on the pull request branch
         if: github.event_name == 'pull_request'
