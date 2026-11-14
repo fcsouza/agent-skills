@@ -1,23 +1,34 @@
 ---
 name: game-balance
 description: Analyzes a game system against design principles — economy health metrics, difficulty curve, reward schedules, and progression cost curves. Flags imbalances with severity levels. Use after creating an MVP plan with game-architect. Extract the analysis scope (economy/difficulty/progression/rewards/all) from the user's message.
+argument-hint: '"economy", "difficulty", "progression", "rewards", or "all" (default: all)'
 ---
 
 # Game Balance — Balance Analyzer
 
+## Requires
+
+- `game-economy-design`
+- `game-design-fundamentals`
+- `skill-progression-trees`
+
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+
 ## Prerequisites
 
-- Requires `docs/mvp-first-draft.md` in the project (run `game-architect` first)
+- Requires `docs/mvp-first-draft.md` in the project (run the `game-architect` skill (`/game-architect`) first)
 
 ---
 
 ## Phase 0 — Context Load (silent, mandatory)
 
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message.
+
 Execute in this exact order:
 
 1. READ `docs/mvp-first-draft.md`
-   - If it does NOT exist: output `⛔ Cannot proceed. docs/mvp-first-draft.md not found. Run the game-architect skill first to generate the MVP plan before running a balance analysis.` and stop.
-2. Determine scope from the user's message:
+   - If it does NOT exist: output `⛔ Cannot proceed. docs/mvp-first-draft.md not found. Run the game-architect skill (/game-architect) first to generate the MVP plan before running a balance analysis.` and stop.
+2. Determine scope from the input:
    - If no scope specified or "all": analyze all systems (Phases 1–4)
    - If "economy": run Phase 1 only
    - If "difficulty": run Phase 2 only

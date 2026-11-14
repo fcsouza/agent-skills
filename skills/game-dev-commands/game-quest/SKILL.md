@@ -1,40 +1,41 @@
 ---
 name: game-quest
 description: Designs a single quest end-to-end — coherence check, objective tree, quest brief, and registry entry. Extract the quest name from the user's message. Requires docs/world-lore.md and docs/quest-registry.md.
+argument-hint: quest name (e.g. "The Merchant's Debt", "Rescue at the Crossroads")
 ---
 
 # Game Quest — Quest Designer
 
+## Requires
+
+- `quest-narrative-coherence`
+- `quest-mission-design`
+
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+
 ## Prerequisites
 
-- Requires `docs/world-lore.md` in the project (run `game-architect` first, or create it manually)
-- Apply the `quest-narrative-coherence` skill
-- Apply the `quest-mission-design` skill
+- Requires `docs/world-lore.md` in the project (run the `game-architect` skill (`/game-architect`) first, or create it manually)
 
 ---
 
 ## Phase 0 — Context Load (silent, mandatory before producing any output)
 
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the quest name or concept.
+
 Execute in this exact order:
 
 1. READ `docs/world-lore.md`
-   - If it does NOT exist: output `⛔ Cannot proceed. docs/world-lore.md not found. Run the game-architect skill first to generate the world foundation, or create docs/world-lore.md manually.` and stop.
+   - If it does NOT exist: output `⛔ Cannot proceed. docs/world-lore.md not found. Run the game-architect skill (/game-architect) first to generate the world foundation, or create docs/world-lore.md manually.` and stop.
 2. READ `docs/quest-registry.md`
-   - If it does NOT exist: create it using this template:
-     ```markdown
-     # Quest Registry
-     > Managed by game-quest skill
-
-     | Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
-     |----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
-     ```
+   - If it does NOT exist: create it from the registry template of the `quest-narrative-coherence` skill (templates/quest-registry.md in that skill). Keep its headers. New quests go in the table under the `## Active Quests` heading.
 3. Apply the `quest-narrative-coherence` skill
 4. Apply the `quest-mission-design` skill
 5. READ `docs/mvp-first-draft.md` if it exists (for economy and progression context — optional)
 
 ## Phase 1 — Coherence Check (mandatory — cannot be skipped under any circumstances)
 
-Run the 5-step check from `quest-narrative-coherence` against the quest name from the user's message:
+Run the 5-step check from `quest-narrative-coherence` against the quest name (the input):
 
 **Step 1: Load World State** — already done in Phase 0. Extract from world-lore.md:
 - Active factions and their relationships
@@ -148,12 +149,12 @@ Output the complete quest brief in GDD section format:
 [What happens if the player abandons or fails the quest]
 
 ### Economy Note
-[Reward amount cross-referenced against mvp-first-draft.md economy params OR flagged as: "⚠️ Economy not yet defined — validate rewards when running the game-balance skill"]
+[Reward amount cross-referenced against mvp-first-draft.md economy params OR flagged as: "⚠️ Economy not yet defined — validate rewards when running the game-balance skill (/game-balance)"]
 ```
 
 ## Phase 5 — Register Quest
 
-Append the completed quest to `docs/quest-registry.md` in the registry format:
+Append the completed quest as a new row at the end of the table under the `## Active Quests` heading of `docs/quest-registry.md`, in the registry format. Do not add it to the Completed Quests or Planned Quests tables:
 
 ```markdown
 | [QID] | [Quest Name] | [Type] | [Giver NPC] | [Location] | [Factions Affected] | [Rewards Summary] | [Prerequisites] | [Story Arc] |
@@ -168,7 +169,7 @@ After writing the entry, output:
 If the quest introduces any NPC or location not currently in `docs/world-lore.md`:
 ```
 ⚠️ New [NPC/Location] introduced: [name]
-   → Run the game-lore skill to add them to world-lore.md
+   → Run the game-lore skill (/game-lore) with `npc [name]` or `location [name]` to add them to world-lore.md
 ```
 
 ---

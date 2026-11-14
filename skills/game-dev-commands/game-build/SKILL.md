@@ -1,25 +1,46 @@
 ---
 name: game-build
 description: Builds a game component from the MVP plan — production TypeScript + Vitest tests + mock dependencies + build registry tracking. Extract the component name from the user's message (or "status" to check progress). Requires docs/mvp-first-draft.md — run game-architect first.
+argument-hint: component name (e.g. auth, matchmaking, shop) or "status" to check progress
 ---
 
 # Game Build — Component Builder
 
+## Requires
+
+- `game-backend-architecture`
+- `game-design-fundamentals`
+- `quest-mission-design`
+- `quest-narrative-coherence`
+- `postgres-game-schema`
+- `redis-game-patterns`
+- `bullmq-game-queues`
+- `betterauth-integration`
+- `stripe-game-payments`
+- `elevenlabs-sound-music`
+- `game-state-sync`
+- `matchmaking-system`
+- `gameplay-analytics`
+
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+
 ## Prerequisites
 
-- Requires `docs/mvp-first-draft.md` in the project (run `game-architect` first)
+- Requires `docs/mvp-first-draft.md` in the project (run the `game-architect` skill (`/game-architect`) first)
 
 ---
 
 ## Phase 0 — Context Load (silent, mandatory before writing a single line of code)
 
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the component name, or "status".
+
 Execute in this exact order:
 
 1. Check if `docs/mvp-first-draft.md` exists in the project
-   - If it does NOT exist: output `⛔ Cannot proceed. Run the game-architect skill first to generate the MVP plan. game-build requires an existing plan to avoid architectural drift.` and stop.
-2. READ `docs/mvp-first-draft.md` (the MVP plan from game-architect)
-   - Check Section 10 (Out of Scope / Deferred): if the component name from the user's message matches any deferred item, output `⚠️ [component] was explicitly deferred: "[reason]". Building now may increase scope. Continue?` and wait for confirmation before proceeding.
-3. IDENTIFY which skills are relevant to the component name from the user's message — apply only those skills from: `game-backend-architecture`, `game-design-fundamentals`, `quest-narrative-coherence`, `postgres-game-schema`, `redis-game-patterns`, `bullmq-game-queues`, `betterauth-integration`, `stripe-game-payments`, `elevenlabs-sound-music`, `game-state-sync`, `matchmaking-system`, `gameplay-analytics`
+   - If it does NOT exist: output `⛔ Cannot proceed. Run the game-architect skill (/game-architect) first to generate the MVP plan. game-build requires an existing plan to avoid architectural drift.` and stop.
+2. READ `docs/mvp-first-draft.md` (the MVP plan written by the `game-architect` skill)
+   - Check Section 10 (Out of Scope / Deferred): if the component name matches any deferred item, output `⚠️ [component] was explicitly deferred: "[reason]". Building now may increase scope. Continue?` and wait for confirmation before proceeding.
+3. APPLY only the skills listed under Requires that this component needs.
 4. READ `docs/build-registry.md` if it exists (create it if not, using the template below)
 5. READ `docs/world-lore.md` if component touches narrative/quests
 6. READ `docs/quest-registry.md` if component touches quests
@@ -51,7 +72,7 @@ For each dependency of the component:
 - If **NOT built**: generate a typed mock/stub:
   - Same TypeScript interface as the real implementation will have
   - Returns realistic fake data matching the expected types
-  - Clearly marked with: `// MOCK — replace with real implementation via game-build [dependency-name]`
+  - Clearly marked with: `// MOCK — replace with real implementation via /game-build [dependency-name]`
   - Register in `docs/build-registry.md` as `status: "mock"`
 
 List all mocks generated at the top of your output so the user knows what to build next.
@@ -178,8 +199,8 @@ bun vitest run src/[component-name]/
 Based on the MVP plan build sequence (Section 9) and the mocks generated:
 ```
 Recommended next:
-  game-build [mock-dependency]   ← replaces mock created today
-  game-build [next-in-sequence]  ← next item from MVP plan Section 9
+  /game-build [mock-dependency]   ← replaces mock created today
+  /game-build [next-in-sequence]  ← next item from MVP plan Section 9
 ```
 
 ---

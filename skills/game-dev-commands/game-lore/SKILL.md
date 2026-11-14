@@ -1,33 +1,41 @@
 ---
 name: game-lore
 description: Adds or updates a single world lore entry (faction, location, NPC, or event) — validates against existing lore for consistency, applies the right template, and updates docs/world-lore.md. Extract the entry type (faction/location/npc/event) and name from the user's message.
+argument-hint: type and name (e.g. "faction The Iron Court", "location Ashfall Crossing", "npc Mira the Keeper", "event The Founding War")
 ---
 
 # Game Lore — Lore Entry Command
 
+## Requires
+
+- `worldbuilding`
+- `quest-narrative-coherence`
+
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+
 ## Prerequisites
 
-- Requires `docs/world-lore.md` in the project (run `game-architect` first, or create it manually)
-- Apply the `worldbuilding` skill
-- Apply the `quest-narrative-coherence` skill
+- Requires `docs/world-lore.md` in the project (run the `game-architect` skill (`/game-architect`) first, or create it manually)
 
 ---
 
 ## Phase 0 — Context Load (silent, mandatory)
+
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the entry type and name.
 
 Execute in this exact order:
 
 1. Apply the `worldbuilding` skill
 2. Apply the `quest-narrative-coherence` skill
 3. READ `docs/world-lore.md`
-   - If it does NOT exist: output `⛔ Cannot proceed. docs/world-lore.md not found. Run the game-architect skill first to generate the world foundation, or create docs/world-lore.md manually with a World Overview, Factions, Locations, Characters, and History sections.` and stop.
-4. Parse the user's message to detect entry type:
+   - If it does NOT exist: output `⛔ Cannot proceed. docs/world-lore.md not found. Run the game-architect skill (/game-architect) first to generate the world foundation, or create docs/world-lore.md manually with a World Overview, Factions, Locations, Characters, and History sections.` and stop.
+4. Parse the input to detect entry type:
    - Contains "faction" → FACTION mode
    - Contains "location" → LOCATION mode
    - Contains "npc" or "character" → NPC mode
    - Contains "event" or "history" → HISTORICAL EVENT mode
    - Not recognized → ask: "What type of lore entry is this? Reply with: faction / location / npc / event"
-5. Extract the entry name from the user's message (the text after the type keyword)
+5. Extract the entry name from the input (the text after the type keyword)
 6. READ `docs/quest-registry.md` if it exists (for cross-reference in Phase 4)
 
 ## Phase 1 — Consistency Check (mandatory before creating anything)
@@ -155,12 +163,12 @@ Output:
 ```
 🔗 Quest registry cross-reference:
   Quests referencing this entry: [list with quest IDs and names, or "none found"]
-  [If quests reference it]: Consider running the game-quest skill to update those quests with the new lore.
+  [If quests reference it]: Consider running the game-quest skill (/game-quest) to update those quests with the new lore.
 ```
 
 If `docs/quest-registry.md` doesn't exist:
 ```
-🔗 Quest registry: not yet created — run the game-quest skill to start creating quests that use this lore.
+🔗 Quest registry: not yet created — run the game-quest skill (/game-quest) to start creating quests that use this lore.
 ```
 
 ---
@@ -171,5 +179,5 @@ If `docs/quest-registry.md` doesn't exist:
 2. **Never use vague personality traits** for NPCs ("nice", "mean", "mysterious") — always use concrete, actionable descriptions
 3. **Faction relationships must be bidirectional** — if faction A is enemy of faction B, check faction B and update if needed
 4. **Tone must match the world** — extract the tone from world-lore.md before writing; whimsy in a grim dark world is a bug
-5. **Never invent new factions or major locations inside an NPC or Event entry** — if a new faction is implied, stop and ask if user wants to run game-lore for that faction first
+5. **Never invent new factions or major locations inside an NPC or Event entry** — if a new faction is implied, stop and ask if user wants to run the `game-lore` skill (`/game-lore`) for that faction first
 6. **All timeline references must use the world's own time markers** — never use real-world dates (AD/BC/CE)

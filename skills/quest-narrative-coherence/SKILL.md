@@ -1,5 +1,5 @@
 ---
-name: narrative-quest-narrative-coherence
+name: quest-narrative-coherence
 description: >-
   Use when creating any quest, mission, or story content — enforces the 5-step narrative coherence check: lore validation, conflict detection, quest registry, and contradiction prevention. Triggers: coherence check, lore validation, quest registry, narrative consistency.
 ---

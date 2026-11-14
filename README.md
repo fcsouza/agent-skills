@@ -6,11 +6,11 @@ Built by [Fabricio Cavalcante](https://github.com/fcsouza) — Software Engineer
 
 ## Available Plugins
 
-Plugins are complete workflow bundles — skills + agents + hooks working together as an integrated system. Install a plugin to get the full experience.
+A plugin bundles skills you install in one step.
 
 | Plugin | Description | Platform |
 |--------|-------------|----------|
-| [game-dev](plugins/game-dev/) | **26 skills, 7 commands, 3 agents, 5 hooks** — complete game development workflow with engineering, design, narrative, and infrastructure | Game Dev |
+| [game-dev](skills/game-dev/) | Game development skills for design, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
 
 ## Claude Code Mods
 
@@ -44,7 +44,15 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | [nuvemshop-sdk](skills/nuvemshop-sdk/) | Prepare, audit, implement, homologate, and publish Nuvemshop/Tiendanube apps — OAuth, API, NubeSDK, Nexo, Nimbus, webhooks, and App Store approval | [Nuvemshop](https://dev.nuvemshop.com.br/docs/getting-started) |
 | [react-animations](skills/react-animations/) | React animation patterns and utilities | React |
 
-### Game Dev — Design
+### Game Dev
+
+Start with `game-dev`. It routes a game task to the right skill below and states the project conventions.
+
+| Skill | Description |
+|-------|-------------|
+| [game-dev](skills/game-dev/) | Entry point: routes a game task to the right skill and states the project conventions |
+
+#### Design
 
 | Skill | Description |
 |-------|-------------|
@@ -53,10 +61,9 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | [level-design](skills/level-design/) | Levels, environments, difficulty curves |
 | [procedural-gen](skills/procedural-gen/) | Dungeon gen, noise terrain, wave function collapse |
 | [quest-mission-design](skills/quest-mission-design/) | Quests, objectives, quest trees |
-| [skill-progression-trees](skills/skill-progression-trees/) | Skill trees, talent trees, unlock graphs |
 | [ui-ux-game](skills/ui-ux-game/) | HUD, menus, onboarding, accessibility |
 
-### Game Dev — Engineering
+#### Engineering
 
 | Skill | Description |
 |-------|-------------|
@@ -69,18 +76,17 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, ELO, skill-based queues |
 | [postgres-game-schema](skills/postgres-game-schema/) | Game DB schemas, Drizzle ORM, inventory |
 | [redis-game-patterns](skills/redis-game-patterns/) | Caching, leaderboards, pub/sub, rate limiting |
+| [skill-progression-trees](skills/skill-progression-trees/) | Skill trees, talent trees, unlock graphs |
 | [stripe-game-payments](skills/stripe-game-payments/) | In-app purchases, subscriptions, webhooks |
 
-### Game Dev — Infrastructure
+#### Infrastructure
 
 | Skill | Description |
 |-------|-------------|
 | [ci-cd-game](skills/ci-cd-game/) | CI/CD pipelines, GitHub Actions, deployment |
-| [claude-code-game-workflow](skills/claude-code-game-workflow/) | Entry point for AI agents on game projects |
-| [cursor-codex-integration](skills/cursor-codex-integration/) | Cursor IDE, .cursorrules, Codex setup |
 | [monitoring-game-ops](skills/monitoring-game-ops/) | Monitoring, logging, telemetry, alerts |
 
-### Game Dev — Narrative
+#### Narrative
 
 | Skill | Description |
 |-------|-------------|
@@ -89,23 +95,39 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 | [story-structure-game](skills/story-structure-game/) | Branching narratives, player agency, story arcs |
 | [worldbuilding](skills/worldbuilding/) | Lore, factions, geography, world bibles |
 
+#### Workflows
+
+Each workflow is a skill. In Claude Code you can also run it as a slash command. Installed as the Claude Code plugin, the commands are `/game-dev:<name>`, for example `/game-dev:game-build`.
+
+| Command | Description |
+|---------|-------------|
+| [game-architect](skills/game-dev-commands/game-architect/) | Interview you, then write an MVP plan with starter project files |
+| [game-build](skills/game-dev-commands/game-build/) | Build one component from the MVP plan, with tests and mocks |
+| [game-expand](skills/game-dev-commands/game-expand/) | Add a feature to an existing MVP plan |
+| [game-balance](skills/game-dev-commands/game-balance/) | Check economy, difficulty, progression and rewards for imbalances |
+| [game-review](skills/game-dev-commands/game-review/) | Audit game code for server authority, auth, payments and scope drift |
+| [game-lore](skills/game-dev-commands/game-lore/) | Add or update one lore entry and keep it consistent |
+| [game-quest](skills/game-dev-commands/game-quest/) | Design one quest from objective tree to registry entry |
+
 ## Structure
 
 All skills follow a flat layout:
 
 ```
 skills/<skill-name>/
-├── README.md           # Overview and installation instructions
 ├── SKILL.md            # Main skill file (YAML frontmatter + body)
-├── boilerplate/        # Starter code to copy and customize (optional)
-├── templates/          # Document and config templates (optional)
 ├── references/         # Deep-dive reference files (optional)
+├── templates/          # Document and config templates (optional)
+├── boilerplate/        # Starter code to copy and customize (optional)
 └── ARCHITECTURE.md     # System design decisions (optional)
 ```
 
+The seven workflow commands sit under `skills/game-dev-commands/<name>/`.
+
 - `SKILL.md` is always the entry point — read this first
-- `boilerplate/` files are starter code, copy and customize
+- `references/` holds deep-dive files that `SKILL.md` links to
 - `templates/` are document/config templates to fill in
+- `boilerplate/` files are starter code, copy and customize
 - `ARCHITECTURE.md` explains system design decisions
 
 ## Installation
@@ -117,16 +139,14 @@ skills/<skill-name>/
 /plugin install game-dev@fcsouza-agent-skills
 ```
 
-See [plugins/game-dev/README.md](plugins/game-dev/README.md) for the full skill index, commands, and agents.
-
 ### Individual skills (cherry-pick)
 
 ```bash
 # Install a specific skill
 npx skills add fcsouza/agent-skills --skill game-design-fundamentals
 
-# Install all game-dev engineering skills at once
-npx skills add fcsouza/agent-skills --skill betterauth-integration --skill postgres-game-schema --skill game-backend-architecture
+# Install the index skill and a few topic skills
+npx skills add fcsouza/agent-skills --skill game-dev --skill betterauth-integration --skill postgres-game-schema
 
 # List all available skills
 npx skills add fcsouza/agent-skills --list
@@ -135,9 +155,6 @@ npx skills add fcsouza/agent-skills --list
 ### Manual
 
 ```bash
-# Plugin (full bundle)
-cp -r plugins/game-dev/ .claude/plugins/game-dev/
-
 # Individual skill
 cp -r skills/<skill-name>/ .claude/skills/<skill-name>/
 
@@ -145,6 +162,47 @@ cp -r skills/<skill-name>/ .claude/skills/<skill-name>/
 cp -r skills/<skill-name>/ ~/.openclaw/workspace/skills/<skill-name>/
 ```
 
+## Upgrading from 1.x
+
+Version 2.0.0 changes names and removes parts of the plugin.
+
+- Skill names no longer carry a category prefix. `design-level-design` is now `level-design`. The prefixes `design-`, `engineering-`, `narrative-` and `infrastructure-` are gone.
+- Two skills were removed: `claude-code-game-workflow` and `cursor-codex-integration`.
+- The five plugin entries `game-dev-design`, `game-dev-engineering`, `game-dev-narrative`, `game-dev-infrastructure` and `game-dev-commands` are now one entry, `game-dev`.
+- The hooks, agents and MCP config that shipped with the plugin are gone.
+
+To upgrade, remove the old prefixed skills, then install again. Use `-g` for skills installed in your home directory, and leave it off for the current project.
+
+```bash
+npx skills remove -g -y \
+  design-game-design-fundamentals design-game-economy-design design-level-design \
+  design-procedural-gen design-quest-mission-design design-skill-progression-trees \
+  design-ui-ux-game \
+  engineering-betterauth-integration engineering-bullmq-game-queues \
+  engineering-elevenlabs-sound-music engineering-game-backend-architecture \
+  engineering-game-state-sync engineering-gameplay-analytics \
+  engineering-matchmaking-system engineering-postgres-game-schema \
+  engineering-redis-game-patterns engineering-stripe-game-payments \
+  infrastructure-ci-cd-game infrastructure-claude-code-game-workflow \
+  infrastructure-cursor-codex-integration infrastructure-monitoring-game-ops \
+  narrative-character-design-narrative narrative-quest-narrative-coherence \
+  narrative-story-structure-game narrative-worldbuilding
+```
+
+Run the same command without `-g` in each project that has them. The command skips names that are not installed. If you use the Claude Code plugin, run `/plugin marketplace update fcsouza-agent-skills` and then `/plugin install game-dev@fcsouza-agent-skills`. Otherwise install the skills you want with `npx skills add`, as shown above.
+
+The marketplace maps the five old entry names to `game-dev`, so Claude Code should move an enabled old entry to `game-dev`. If `claude plugin list` still shows an old entry, uninstall it in your shell:
+
+```bash
+claude plugin uninstall game-dev-design@fcsouza-agent-skills
+claude plugin uninstall game-dev-engineering@fcsouza-agent-skills
+claude plugin uninstall game-dev-narrative@fcsouza-agent-skills
+claude plugin uninstall game-dev-infrastructure@fcsouza-agent-skills
+claude plugin uninstall game-dev-commands@fcsouza-agent-skills
+```
+
+These act on user scope. Add `--scope project` or `--scope local` for an entry installed there.
+
 ## License
 
-GPL-3.0
+MIT

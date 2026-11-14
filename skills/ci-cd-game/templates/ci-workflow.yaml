@@ -18,7 +18,7 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
-      - run: bunx biome check .
+      - run: bun run lint:biome
       - run: bun run typecheck
 
   test:
