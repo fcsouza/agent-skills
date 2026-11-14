@@ -1,6 +1,6 @@
 ---
 name: mmo-design
-description: Covers the design choices that only a persistent online world with many players forces: world partitioning, economy at scale, characters and alts, group roles and guilds, endgame, and live operations. Use when a game is a persistent world with many players and needs a decision on shards or zones, an open economy that must not inflate or collapse, several characters per account, tank/healer/damage roles, guild structure, a level cap or endgame, seasons and patch cadence, or what to do when one busy area overloads a server.
+description: Covers the design choices that only a persistent online world with many players forces: shards versus layers, economy measurement and real-money trade policy at persistent-world scale, characters and alts, group roles and guilds, endgame, and live operations. Use when a game is a persistent world with many players and needs a decision on shards or layers, how to watch money supply and deflation, a real-money trade policy, several characters per account, tank/healer/damage roles, guild structure, a level cap or endgame, or seasons and patch cadence.
 ---
 
 # MMO Design
@@ -11,30 +11,22 @@ Most sources here are period data from specific games. Read each number as that 
 
 ## 1. World partitioning and scale
 
-Decide the unit of load before you write the netcode.
+Decide the unit of load before you write the netcode. `game-backend-architecture` ("When one space outgrows a process") has the decisions: the unit of load, the floor below which a hot area cannot split, moving non-spatial services off the simulation, and the overload policy, with EVE's evidence. `game-state-sync` has interest filtering. The design choices that stay here:
 
-1. **Pick the unit.** Name what one process owns: a room, a zone, a shard. EVE splits its universe into load-balancing units on single-core nodes, and hundreds of solar systems can share one node. Players in one unit must be able to see each other, so the unit is a place, not a player count.
-2. **Pick the copy policy.** A shard is a full copy of the world with its own data. Layering (WoW Classic) runs parallel copies of one realm for launch crowds. Blizzard called it temporary and cut the layers as players spread out. If you add layers, plan the merge back.
-3. **Plan for the hot spot.** One unit can outgrow one process, and then you cannot balance it further. EVE's answers:
-   - Move non-spatial work (character, corporation, alliance data) to separate nodes. CCP reports that up to 80 percent of the calls to its busiest system node went elsewhere.
-   - Slow the game clock under overload (time dilation) so the work queue stays short. Timers that players read against the wall clock, such as reinforcement timers, do not dilate. CCP rejected shortening module cycle times because it changes the game design.
-4. **Choose an overload policy now.** Options: dilate time, shed load, cap the area, split the area. If you dilate, every cooldown, regeneration and movement rule must read the scaled clock.
-5. **Filter what each player receives.** Send state only for the player's region. The mechanics belong to `game-state-sync`.
-
-Where to go for the mechanics: `game-backend-architecture` for rooms, tick loops and fan-out between servers; `game-state-sync` for interest filtering and delta encoding; `redis-game-patterns` for presence and short-lived state.
+1. **Pick the copy policy.** A shard is a full copy of the world with its own data. Layering (WoW Classic) runs parallel copies of one realm for launch crowds. Blizzard called it temporary and reduced the layers per realm as players spread out.
+2. **Decide whether copies are permanent.** This skill's advice, not a sourced rule: choose at launch whether your copies are shards that stay or layers that go, because players form ties inside a copy.
+3. **Choose the overload policy before launch.** Options: dilate time, shed load, cap the area, split the area. The mechanics and the clock rules are in `game-backend-architecture`.
 
 ## 2. Economy at scale
 
-`game-economy-design` owns the faucet-and-sink mechanics. These are the choices a persistent world adds.
+`game-economy-design` owns the mechanics: open versus closed economy, goods over coin, faucets and sinks, exploit review and duplication. These are the choices a persistent world adds.
 
-1. **Run an open economy and manage it.** Koster states the model: new currency enters, pools in the game, and needs a matching drain. A closed economy is hard to balance and bug-sensitive. Bartle notes that nobody has built a closed or a managed open economy for a large world, and that giving money is far easier than removing it.
-2. **Expect deflation as well as inflation.** Castronova's 29-item price index for EverQuest fell from 100 in Q4 2000 to 71 in Q3 2001. Items from expansions fell furthest. He built an equal-weight index from a fan price site and says a true index needs a survey.
-3. **Watch the float.** CCP's monthly economic report charts money supply (ISK float), velocity, consumer and producer price indices, sinks and faucets, and production against destruction. Track a similar set for your world, and give someone the job: CCP hired an economist in 2007 to watch faucets and sinks.
-4. **Treat a faucet change as a price change.** The balance of sinks and faucets sets the inflation rate, and with it what a unit of currency buys. Test any faucet edit against a model of the economy before it ships.
-5. **Reward goods, not only coin.** Goods float with supply and demand. Fixed cash rewards feel unfair once prices move.
-6. **Assume players exploit and quit.** Koster's rule: if a design can be abused, it will be. Bartle adds that a player whom the market pays badly leaves for a world that pays. Players will also lobby the team to fix prices. If the team adjusts supply or demand, expect players to distrust the change. Bartle suggests giving a committee of players a say so they carry the blame.
-7. **Treat every transfer path as a duplication surface.** Stack splits, trades, drops and object templates are the usual weak points. Server-side checks for trades and spends are in `postgres-game-schema` and `redis-game-patterns`.
-8. **Choose your real-money trade policy.** Bartle says it will occur in any large commercial world. The options are black, grey or white market. Decide before launch and tell players.
+1. **Expect deflation as well as inflation.** Castronova's 29-item price index for EverQuest fell from 100 in Q4 2000 to 71 in Q3 2001. Items from expansions fell furthest. He built an equal-weight index from a fan price site and says a true index needs a survey.
+2. **Watch the float.** CCP's monthly economic report charts money supply (ISK float), velocity, consumer and producer price indices, sinks and faucets, and production against destruction. Track a similar set for your world, and give someone the job: CCP hired an economist in 2007 to watch faucets and sinks.
+3. **Treat a faucet change as a price change.** The balance of sinks and faucets sets the inflation rate, and with it what a unit of currency buys. `game-economy-design` has the simulation step to run first.
+4. **Expect players to leave and to lobby.** Bartle: a player whom the market pays badly leaves for a world that pays. Players will also lobby the team to fix prices. If the team adjusts supply or demand, expect players to distrust the change. Bartle suggests giving a committee of players a say so they carry the blame.
+5. **Route trades and spends through the server's guarded paths.** Trade checks are in `game-backend-architecture` ("What lives where"). Guarded spends are `spendCurrency` in `postgres-game-schema`.
+6. **Choose your real-money trade policy.** Bartle says it will occur in any large commercial world. The options are black, grey or white market. Decide before launch and tell players.
 
 ## 3. Characters and accounts
 
@@ -95,7 +87,7 @@ Where to go: `skill-progression-trees` for trees, costs and prestige mechanics.
 ## 6. Live operations
 
 1. **Staff it for good.** Koster: keep a team on a persistent world indefinitely or it stagnates. Bartle describes a live team that does support, tech, feature work and protection of play quality against player cunning.
-2. **Choose what a season resets.** Path of Exile's league-end notice shows one answer. League-only items such as equipped Grafts, growing items, Implant currencies and stored Graftblood are deleted. Some mechanics move into the core game, others do not. Write the reset list before the season starts.
+2. **Choose what a season resets.** Path of Exile's league-end notice shows one answer. The notice says equipped Grafts, growing wombgifts and Implant currencies are deleted and stored Graftblood is lost. Some mechanics move into the core game, others do not. Write the reset list before the season starts.
 3. **Choose the cadence for your team.** Studios pick differently, and capacity decides.
    - FFXIV: after a delay, Yoshida said the team would return to a major patch roughly every three and a half months and would not speed up to recover time, because that would cut content and quality.
    - Path of Exile: Jonathan Rogers said the 3.26 league lost its date because staff were borrowed to ship Path of Exile 2. He said he should have resisted the move.
@@ -106,9 +98,7 @@ Where to go: `skill-progression-trees` for trees, costs and prestige mechanics.
 ## 7. Pitfalls
 
 - One process owns a world that grows past it, with no overload policy.
-- A closed economy chosen because it looks tidy.
 - Watching only inflation.
-- Fixed prices with unbounded money.
 - Wallet and inventory ownership left undecided until players have alts.
 - Account-wide catch-up that gives many-alt players an edge.
 - A role count nobody can balance.
