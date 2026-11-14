@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "types": ["bun"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["skills/*/boilerplate/**/*.ts", "skills/*/templates/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "skills/claude-agent-sdk",
+    "skills/database-performance-tuning",
+    "skills/foundry-vtt-module-dev",
+    "skills/foundry-vtt-system-dev",
+    "skills/nuvemshop-sdk",
+    "skills/openclaw-genie",
+    "skills/react-animations"
+  ]
+}
