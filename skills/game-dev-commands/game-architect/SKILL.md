@@ -665,7 +665,7 @@ Standard Biome config: single quotes, semicolons, trailing commas, tabs for inde
 Minimal package.json with:
 - `name`: kebab-case from game title
 - Standard scripts: `dev`, `build`, `typecheck`, `test`, `db:generate`, `db:migrate`
-- Code quality scripts, which the CLAUDE.md template runs: `"format": "ultracite fix"` and `"lint:biome": "ultracite check"`, with `ultracite` in `devDependencies`
+- Code quality scripts, which the CLAUDE.md template runs: `"format": "ultracite fix"` and `"lint:biome": "ultracite check"`. Run `bunx ultracite init --yes --linter biome --pm bun` to install the packages they need; it also writes the linter config.
 - Dependencies: only install packages needed based on selected skills
 
 ---
