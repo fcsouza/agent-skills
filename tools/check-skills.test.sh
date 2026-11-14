@@ -44,7 +44,8 @@ count_lines() {
 # write_skill <dir-name> <description> <body>
 write_skill() {
   mkdir -p "$FX/skills/$1"
-  printf -- '---\nname: %s\ndescription: %s\n---\n# %s\n%s\n' "$1" "$2" "$1" "$3" \
+  # Folded block, so a description holding ": " stays valid YAML (N3).
+  printf -- '---\nname: %s\ndescription: >-\n  %s\n---\n# %s\n%s\n' "$1" "$2" "$1" "$3" \
     >"$FX/skills/$1/SKILL.md"
 }
 
@@ -180,6 +181,15 @@ expect_pass "CRLF frontmatter with a wrapped plain description"
 new_fixture
 printf -- '---\r\nname: demo\r\ndescription: %s\r\n  %s\r\n---\r\nBody\r\n' "$half" "$half" >"$(skill_md)"
 expect_fail N2 "CRLF wrapped description over 1024 in all"
+
+# ---------------------------------------------------------------- N3
+new_fixture
+printf -- '---\nname: demo\ndescription: Covers dialogue: NPCs and companions.\n---\nBody\n' >"$(skill_md)"
+expect_fail N3 "plain description with ': ' is invalid YAML"
+
+new_fixture
+printf -- '---\nname: demo\ndescription: >-\n  Covers dialogue: NPCs and companions.\n---\nBody\n' >"$(skill_md)"
+expect_pass "folded description with ': ' is valid YAML"
 
 # ---------------------------------------------------------------- S1
 new_fixture
@@ -615,7 +625,7 @@ expect_fail C2 "attributed blockquote without quote marks"
 new_fixture
 write_skill demo "d" "$(printf '> note\n')"
 expect_fail C2 "plain blockquote"
-if [[ $OUT == *"line 6 is a block quote; state it as plain text and put its source in references/sources.md"* ]]; then
+if [[ $OUT == *"line 7 is a block quote; state it as plain text and put its source in references/sources.md"* ]]; then
   report 1 "C2 message gives the line and the fix"
 else
   report 0 "C2 message gives the line and the fix" "$OUT"
@@ -681,13 +691,13 @@ write_skill demo "Does things. Triggers: a, b." "Body."
 expect_fail C5 "Triggers: in description"
 
 new_fixture
-printf -- '---\nname: demo\ndescription: Does things.\n  Triggers: a, b.\n---\nBody\n' >"$(skill_md)"
+printf -- '---\nname: demo\ndescription: >-\n  Does things.\n  Triggers: a, b.\n---\nBody\n' >"$(skill_md)"
 expect_fail C5 "Triggers: on the second line of a wrapped description"
 
 # ---------------------------------------------------------------- .content-pending and Z1
 new_fixture
 {
-  printf -- '---\nname: demo\ndescription: Does things. Triggers: a.\n---\n## Sources\n> "quote"\n'
+  printf -- '---\nname: demo\ndescription: >-\n  Does things. Triggers: a.\n---\n## Sources\n> "quote"\n'
   for _ in $(seq 1 600); do printf 'line\n'; done
 } >"$(skill_md)"
 mkdir -p "$FX/skills/demo/templates" "$FX/skills/demo/references" "$FX/skills/demo/boilerplate"

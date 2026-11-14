@@ -14,7 +14,7 @@
 # A new check goes in check_skill when it reads one skill (content checks
 # under its is_pending guard), or in the REPO_LEVEL block at the end.
 
-ALL_IDS="N1 N2 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
+ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
 # Directories under skills/ that the game-dev set leaves out.
 EXCLUDED="claude-agent-sdk database-performance-tuning foundry-vtt-module-dev foundry-vtt-system-dev nuvemshop-sdk openclaw-genie react-animations"
@@ -129,6 +129,22 @@ check_n2() {
     return
   fi
   ((${#desc} <= 1024)) || fail N2 "$dir/SKILL.md" "description is ${#desc} characters, limit is 1024"
+}
+
+# N3: the frontmatter must parse as YAML. Claude Code and `npx skills` skip a
+# skill whose frontmatter does not parse, and a plain scalar holding ": " is
+# the usual cause. Uses Bun's YAML parser; skipped when bun is not installed.
+check_n3() {
+  local dir=$1 err
+  command -v bun >/dev/null 2>&1 || return 0
+  if ! err="$(bun -e '
+const t = (await Bun.file(process.argv[1]).text()).replace(/\r\n/g, "\n");
+const m = t.match(/^---\n([\s\S]*?)\n---(\n|$)/);
+if (!m) process.exit(0);
+try { Bun.YAML.parse(m[1]); } catch (e) { console.log(e.message); process.exit(1); }
+' "$ROOT/$dir/SKILL.md" 2>&1)"; then
+    fail N3 "$dir/SKILL.md" "frontmatter is not valid YAML (${err}); quote the value or use a folded block (>-)"
+  fi
 }
 
 check_s1() {
@@ -301,6 +317,7 @@ check_skill() {
   fi
   check_n1 "$dir"
   check_n2 "$dir"
+  check_n3 "$dir"
   check_l1 "$dir"
   check_x1 "$dir"
   if ! is_pending "$dir"; then
