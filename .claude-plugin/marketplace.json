@@ -45,6 +45,7 @@
         "./skills/gameplay-analytics",
         "./skills/level-design",
         "./skills/matchmaking-system",
+        "./skills/mmo-design",
         "./skills/monitoring-game-ops",
         "./skills/postgres-game-schema",
         "./skills/procedural-gen",

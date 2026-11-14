@@ -16,6 +16,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Design loop, core loop, difficulty, rewards | `game-design-fundamentals` |
 | Currencies, sinks and faucets, loot, crafting, shops | `game-economy-design` |
 | Level layout, pacing, encounter placement, difficulty curve | `level-design` |
+| Persistent world with many players: shards, economy at scale, alts, roles, guilds, endgame, live ops | `mmo-design` |
 | Dungeons, maps, terrain, seeds | `procedural-gen` |
 | Quests, missions, objectives, rewards | `quest-mission-design` |
 | HUD, menus, onboarding, accessibility | `ui-ux-game` |
