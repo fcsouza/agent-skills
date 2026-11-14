@@ -69,7 +69,7 @@ flowchart TD
 
 - Runs `bun run lint:biome` to catch formatting and lint errors
 - Fails fast: if lint fails, no further stages run
-- Uses Biome config from `biome.json` / `biome.jsonc`
+- The `lint:biome` script runs `ultracite check`, which lints without changing files
 
 ### 2. Test (Bun)
 

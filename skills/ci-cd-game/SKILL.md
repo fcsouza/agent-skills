@@ -48,7 +48,7 @@ Set up CI with Bun + GitHub Actions:
        restore-keys: |
          ${{ runner.os }}-bun-
    ```
-3. **Steps in order**:
+3. **Steps in order** (the project's `package.json` must define `lint:biome` as `ultracite check` and `format` as `ultracite fix`):
    - `bun install --frozen-lockfile` — reproducible installs
    - `bun run lint:biome` — lint and format check
    - `bun run typecheck` — TypeScript strict mode
