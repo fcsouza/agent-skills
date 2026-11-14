@@ -1,145 +1,90 @@
 ---
 name: procedural-gen
-description: >-
-  Use when implementing procedural content generation, dungeon or map generation, procedural loot tables, world seeds, noise-based terrain, NPC behavior variation, or wave function collapse. Triggers: procedural, dungeon gen, map gen, loot table, world seed, noise, BSP, wave function collapse, randomization.
+description: Covers seeded procedural generation of dungeons, maps, terrain and world content - seeds and RNG, algorithm choice, budgets, validation and caching. Use when a game needs generated levels or worlds that stay reproducible from a seed, or when generated content repeats, comes out unplayable or loops forever. Loot and drop tables belong to `game-economy-design`.
 ---
 
-# Procedural Content Generation
+# Procedural generation
 
-## Purpose
+Related skills: `game-economy-design` (loot tables, drop rates), `postgres-game-schema` (stored generated content), `redis-game-patterns` (session caches), `game-backend-architecture` (server-side generation).
 
-Procedural content generation for replayability — maps, dungeons, loot, terrain, NPC behavior variation, and world construction. Genre-agnostic — applies to roguelikes, survival games, idle games, open-world titles, or any game that benefits from generated content.
+## Decide before you build
 
-## When to Use
+State these for each generator. They set where validation effort goes.
 
-Trigger: procedural generation, dungeon gen, map gen, loot table, world seed, noise terrain, BSP, wave function collapse, randomization, seeded random, perlin noise, simplex noise, generated content, roguelike, replayability
+- Online (at runtime) or offline (at build time). Runtime generators must run in milliseconds.
+- Necessary or optional content. A level with no reachable exit is a bug. A misplaced decoration is not. Validate necessary content fully and optional content lightly.
+- Deterministic or stochastic. Deterministic means the same seed and parameters give the same content, which lets you reproduce bugs, share seeds and regenerate instead of store.
+- Constructive (one pass) or generate-and-test (loop until a test passes). Both are normal. Generate-and-test needs a retry cap.
 
-## Prerequisites
+## Rules
 
-- `game-economy-design` — loot balance and reward curves
-- `postgres-game-schema` — caching generated content, seed storage
+1. **Seed everything.** Use a seeded PRNG such as mulberry32 (in `boilerplate/dungeon-generator.ts`). `Math.random()` cannot be seeded or reset by the caller.
+2. **Derive one seed per system** from the world seed (`<worldSeed>:<system>:<id>`), so changing one generator does not shift the output of the others. Read `templates/world-seed-config.md` when you design the derivation and the generation order.
+3. **Set the budget first.** Min and max for rooms, enemies, items and path length come before any generation code. The budget is the design.
+4. **Generate in layers.** Macro structure first (world, regions, areas), then detail (rooms, props, items). Each layer constrains the next.
+5. **Prefer playability by construction.** Cap gap widths at the jump range and connect rooms along the tree. Check afterwards only what construction cannot promise.
+6. **Emit a witness.** Generate a solution path with the level and test it. A level with a valid path is solvable. Reachability found by a later search is a bug found late.
+7. **Cap every retry loop.** Fail with a clear error and loosen the budget. Never `while (true)`.
+8. **Do not simulate more detail than the player sees.** Extra layers cost time and make causes hard to trace.
+9. **Cache or regenerate, never both.** Store what the player can change or what is slow to build. Regenerate what the player only observes.
+10. **Version the generator.** Any algorithm change makes old seeds produce different content. Store the generator version beside the seed.
 
-## Core Principles
+## Choose the algorithm
 
-> Will Wright: "I'm not interested in creating a game that does things for the player. I want to create a simulation that responds to the player." — Emergence from simple rules is the heart of procedural generation.
-
-> Derek Yu (Spelunky): "The magic of procedural generation isn't randomness — it's constrained randomness. The constraints are the design."
-
-> Tarn Adams (Dwarf Fortress): "Simulate the world first, then let the stories emerge."
-
-> The original Rogue developers (Michael Toy, Glenn Wichman): "Every run should feel different, but every run should feel fair."
-
-1. **Seed everything** — same seed = same result; enables debugging, sharing, bug reproduction, and deterministic replays
-2. **Separate generation from validation** — generate freely, then validate constraints; never generate-and-check in a tight loop that risks infinite loops
-3. **BSP (Binary Space Partitioning) for dungeon rooms** — balanced, controllable density; recursively split space into leaf nodes, place rooms in leaves
-4. **Perlin/Simplex noise for continuous variation** — terrain, weather, ambient variation, resource density; always coherent and smooth
-5. **Weighted random tables for loot** — never pure random; control variance with weights, pity systems, and guaranteed drops (cross-ref `game-economy-design`)
-6. **Wave Function Collapse for tile-based worlds** — define adjacency rules between tiles, collapse cells from lowest entropy; produces coherent, rule-respecting layouts
-7. **Budget constraints before generation** — set min/max values for room count, enemy density, item count, path length BEFORE generating; the budget is the design
-8. **Layered generation** — generate macro structure first (world → regions → areas), then micro detail (rooms → furniture → items); each layer constrains the next
-9. **Cache or regenerate, never both** — decide per content type: store in DB (expensive to generate, rarely changes) or regenerate on demand (cheap, seed-deterministic)
-10. **Determinism across environments** — use a known PRNG algorithm (mulberry32, xoshiro128), never `Math.random()`; JS engine differences in `Math.random()` break cross-platform seeds
-
-## Step-by-Step Instructions
-
-### 1. Define Seed and RNG Strategy
-
-Choose a seeded PRNG. Never use `Math.random()` — it is not seedable and varies across engines.
-
-```typescript
-// mulberry32 — fast, deterministic, 32-bit state
-const mulberry32 = (seed: number): (() => number) => {
-  let s = seed | 0;
-  return () => {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-};
-```
-
-Derive per-system seeds from a world seed:
-
-```typescript
-const deriveSubSeed = (worldSeed: string, system: string, id: string): number => {
-  const str = `${worldSeed}:${system}:${id}`;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
-  }
-  return hash >>> 0;
-};
-```
-
-### 2. Choose Generation Algorithm
-
-| Content Type | Algorithm | When to Use |
+| Content | Algorithm | Notes |
 |---|---|---|
-| Dungeon rooms/corridors | BSP tree | Grid-based levels with rooms and hallways |
-| Open terrain, height maps | Perlin/Simplex noise | Continuous, smooth landscapes |
-| Tile-based worlds | Wave Function Collapse | Tile sets with adjacency rules |
-| Loot, drops, rewards | Weighted random tables | Any item distribution system |
-| Cave systems | Cellular automata | Organic, cave-like shapes |
-| City layouts, road networks | L-systems / Voronoi | Structured but organic layouts |
+| Rooms and corridors | BSP tree | Split recursively, one room per leaf, connect rooms along the tree. Rooms never overlap. Tree nodes can group rooms into themed wings. |
+| Caves | Cellular automata | Fill at random, then repeat a neighbour rule. Parameters interact, so you cannot ask for "N rooms". |
+| Terrain heights | Gradient noise summed over octaves | One noise scale gives uniform undulation. Add octaves at half amplitude per doubled frequency. Never fill a heightmap with independent random values. |
+| Plants and other self-similar shapes | L-systems | Rewrite all symbols in parallel, then draw the string. |
+| Tile worlds from an example | Wave Function Collapse | Output only contains patterns found in the input. Propagation can remove every option for a cell (a contradiction), so allow a restart. |
+| Mission order (keys, locks) | Graph grammar, then layout | Generate the mission graph and the space as two steps. |
+| Hand-made rooms assembled at random | Template chunks | Use when authored quality matters more than novelty. Spelunky works this way. |
 
-### 3. Define Budget Constraints
+Read `references/algorithms.md` when you need the parameters, steps and failure modes for BSP, cellular automata, noise octaves or the witness-path check.
 
-Before any generation runs, define hard limits:
+For a full runtime pipeline (voxel generation, polygonization, texturing, population, simulation), watch the GDC 2017 talk "Continuous World Generation in 'No Man's Sky'" by Innes McKendrick. The link is in `references/sources.md`.
 
-```typescript
-interface GenerationBudget {
-  minRooms: number;
-  maxRooms: number;
-  minEnemies: number;
-  maxEnemies: number;
-  minItems: number;
-  maxItems: number;
-  maxRetries: number; // CRITICAL: prevent infinite loops
-}
-```
+## Procedure
 
-### 4. Generate, Validate, Retry
+1. Pick the seed format and PRNG. Use string seeds for player-facing seeds. A 32-bit seed space reaches a 50% chance of some collision after about 77,000 seeds.
+2. Write the budget as a typed object, including `maxRetries`.
+3. Generate with a PRNG derived from the seed and the attempt number.
+4. Validate. Return `null` after `maxRetries` and let the caller loosen the budget.
+5. Measure the generator (see below) before you ship it.
 
 ```typescript
 const generateWithValidation = <T>(
   generator: (rng: () => number) => T,
   validator: (result: T) => boolean,
-  seed: number,
+  makeRng: (attempt: number) => () => number,
   maxRetries: number,
 ): T | null => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const rng = mulberry32(seed + attempt);
-    const result = generator(rng);
+    const result = generator(makeRng(attempt));
     if (validator(result)) return result;
   }
-  return null; // Budget exhausted — loosen constraints or fix generator
+  return null;
 };
 ```
 
-### 5. Cache Generated Content
+## Measure the generator
 
-For expensive generation (full dungeon layouts, world maps), cache keyed by seed:
+Pick two or three metrics that do not simply echo your input parameters (for example, linearity or density, not "difficulty" if difficulty is an input). Generate a large sample, plot a 2D histogram of the metrics and read the hot spots. Compare the plots across parameter settings to see how much control the parameters give. This finds bias. It does not prove quality.
 
-```typescript
-// Store in DB via postgres-game-schema
-const cacheKey = `${generatorVersion}:${seed}`;
-// Regenerate on demand for cheap content (loot rolls, NPC names)
-```
+## Files
 
-Cross-reference `redis-game-patterns` for ephemeral seed caches during active sessions.
+- `boilerplate/dungeon-generator.ts`: copy when you need a seeded BSP dungeon generator with rooms, corridors, entrance, exits and a cell grid. It retries up to 20 times and throws when the budget is too tight.
+- `templates/world-seed-config.md`: read when you design seed derivation, generation order and the store-or-regenerate split.
+- `references/algorithms.md`: read when you implement BSP, cellular automata, noise octaves or the witness-path check.
+- `references/sources.md`: read when you need the source behind a claim.
 
-## Code Examples
-
-### BSP Dungeon Generation
-
-See `boilerplate/dungeon-generator.ts` for a complete BSP-based dungeon generator. Usage:
+## Usage
 
 ```typescript
 import { DungeonGenerator } from './dungeon-generator';
 
-const generator = new DungeonGenerator();
-const dungeon = generator.generate('my-seed-123', {
+const dungeon = new DungeonGenerator().generate('my-seed-123', {
   width: 80,
   height: 60,
   minRooms: 5,
@@ -148,61 +93,13 @@ const dungeon = generator.generate('my-seed-123', {
   maxRoomSize: 10,
   corridorWidth: 1,
 });
-
-// dungeon.rooms — array of placed rooms
-// dungeon.corridors — connections between rooms
-// dungeon.entrance — starting point
-// dungeon.exits — exit points
-// dungeon.grid — 2D cell array for rendering
+// dungeon.rooms, dungeon.corridors, dungeon.entrance, dungeon.exits, dungeon.grid
 ```
 
-### Weighted Loot Tables
+## Pitfalls
 
-See `boilerplate/loot-table.ts` for a weighted loot table using Vose's alias method. Usage:
-
-```typescript
-import { LootTable } from './loot-table';
-
-const table = new LootTable<string>()
-  .add('Common Sword', 60)
-  .add('Rare Shield', 25)
-  .add('Epic Staff', 10)
-  .add('Legendary Crown', 4)
-  .add('Mythic Amulet', 1)
-  .withGuaranteed('Health Potion');
-
-const drops = table.roll(3, seededRng); // 3 weighted rolls + guaranteed item
-```
-
-## Cross-References
-
-- `game-economy-design` — loot balance, reward curves, drop rate tuning
-- `postgres-game-schema` — caching generated content in DB, seed storage
-- `redis-game-patterns` — ephemeral seed cache, session-scoped generated content
-- `game-backend-architecture` — server-side generation, authoritative dungeon state
-
-## Pitfalls & Anti-Patterns
-
-- **Infinite retry loops** — overly constrained budgets cause generate-validate to loop forever; always cap retries with `maxRetries` and fail gracefully
-- **Seed collisions at scale** — 32-bit seeds have ~4B values; at 10K daily seeds, birthday paradox hits around 65K seeds; use 64-bit or string seeds for large-scale games
-- **Non-determinism across JS engines** — `Math.random()` implementations differ between V8, SpiderMonkey, and JavaScriptCore; always use an explicit PRNG
-- **Generating in a tight loop** — generating and immediately discarding in a while(true) burns CPU; batch attempts, cap retries, and log failure rates
-- **Storing generated content AND the seed** — pick one; storing both wastes space and creates sync bugs when the generator version changes
-- **Over-constraining WFC** — too many adjacency rules make collapse impossible; start with loose rules and tighten incrementally
-- **Forgetting generator versioning** — if you change the algorithm, old seeds produce different results; version your generators and store the version alongside the seed
-
-## Designer Philosophy
-
-**Will Wright** (SimCity, Spore): The best procedural systems are emergent — simple rules interacting to produce complex, unpredictable results. Your generator should surprise you. If you can predict every output, the system isn't complex enough. If every output is chaos, the constraints aren't tight enough.
-
-**Derek Yu** (Spelunky): Procedural generation is not a substitute for design. Every generated room, every placed enemy, every dropped item should feel intentional. The generator is a tool that executes your design intent at scale — it needs clear rules, tight constraints, and careful tuning.
-
-**Tarn Adams** (Dwarf Fortress): Simulate deeply. The richest procedural content comes from layered simulation — history generates factions, factions generate conflicts, conflicts generate quests. Each layer feeds the next.
-
-## Sources
-
-- "Procedural Content Generation in Games" — Noor Shaker, Julian Togelius, Mark J. Nelson
-- "Spelunky" — Derek Yu (Boss Fight Books)
-- "The Art of Game Design" — Jesse Schell, Chapter on Randomness
-- "Wave Function Collapse" — Maxim Gumin (original algorithm)
-- GDC Talks: "Building Worlds with Noise" (2018), "Procedural Generation in No Man's Sky" (2017)
+- Over-constrained budgets make generate-and-test loop until the cap. Log the failure rate per attempt.
+- Wave Function Collapse runs into contradictions when the input is tight. Cap the restarts like any other retry.
+- Storing the content and the seed both. The two drift apart when the generator changes.
+- Generating and discarding in a hot loop. Batch the attempts and cap them.
+- Seeds shared as 32-bit numbers collide at scale. Use longer or string seeds.
