@@ -36,6 +36,11 @@ export interface MatchmakingConfig {
 	candidateLimit: number;
 	/** Seconds a queue entry lives without being refreshed. */
 	entryTtlSeconds: number;
+	/**
+	 * Seconds a cancel blocks a requeue. Must outlast the `onMatch` attempt
+	 * whose failure triggers the requeue.
+	 */
+	cancelMarkerSeconds: number;
 }
 
 const DEFAULT_CONFIG: MatchmakingConfig = {
@@ -47,30 +52,35 @@ const DEFAULT_CONFIG: MatchmakingConfig = {
 	veteranGames: 100,
 	candidateLimit: 50,
 	entryTtlSeconds: 300,
+	cancelMarkerSeconds: 60,
 };
 
 /**
  * Adds or refreshes players in one pool. A player is in at most one pool at a
  * time: a global marker key holds the pool id while they are queued.
- * For player i (1-based), KEYS[3i-2] marker, KEYS[3i-1] pool sorted set,
- * KEYS[3i] player hash. ARGV[1] pool id, ARGV[2] TTL seconds, then per player
- * ARGV[3 + 7(i-1) ...] = playerId, rating, deviation, gamesPlayed, gameMode,
- * region, queuedAt.
- * Returns one flag per player: 1 written, 0 refused because the marker points
- * to another pool. All checks and writes run inside one script, so Redis
- * applies them atomically.
+ * For player i (1-based), KEYS[4i-3] marker, KEYS[4i-2] pool sorted set,
+ * KEYS[4i-1] player hash, KEYS[4i] cancelled marker. ARGV[1] pool id, ARGV[2]
+ * TTL seconds, ARGV[3] mode, then per player ARGV[4 + 7(i-1) ...] = playerId,
+ * rating, deviation, gamesPlayed, gameMode, region, queuedAt.
+ * Mode "enqueue" (the player asked to search) clears the cancelled marker.
+ * Mode "requeue" (putting a claimed player back) skips a player whose
+ * cancelled marker is set: they cancelled while the match was being set up.
+ * Returns one flag per player: 1 written, 0 refused (marker points to another
+ * pool, or cancelled during a requeue). All checks and writes run inside one
+ * script, so Redis applies them atomically.
  */
 const ENQUEUE_SCRIPT = `
-local pool, ttl = ARGV[1], tonumber(ARGV[2])
-local n = #KEYS / 3
+local pool, ttl, mode = ARGV[1], tonumber(ARGV[2]), ARGV[3]
+local n = #KEYS / 4
 local written = {}
 for i = 1, n do
-  local marker, queue, hash = KEYS[3*i-2], KEYS[3*i-1], KEYS[3*i]
+  local marker, queue, hash, cancelled = KEYS[4*i-3], KEYS[4*i-2], KEYS[4*i-1], KEYS[4*i]
   local current = redis.call('GET', marker)
-  if current and current ~= pool then
+  if (current and current ~= pool) or (mode == 'requeue' and redis.call('EXISTS', cancelled) == 1) then
     written[i] = 0
   else
-    local a = 3 + 7*(i-1)
+    local a = 4 + 7*(i-1)
+    if mode == 'enqueue' then redis.call('DEL', cancelled) end
     redis.call('SET', marker, pool, 'EX', ttl)
     redis.call('ZADD', queue, ARGV[a+1], ARGV[a])
     redis.call('HSET', hash, 'playerId', ARGV[a], 'rating', ARGV[a+1],
@@ -114,6 +124,20 @@ if redis.call('GET', KEYS[3]) == ARGV[2] then redis.call('DEL', KEYS[3]) end
 return 1
 `;
 
+/**
+ * REMOVE_SCRIPT plus a short-lived cancelled marker, so a requeue after a
+ * failed match setup does not put the player back. KEYS[1..3] as in
+ * REMOVE_SCRIPT, KEYS[4] cancelled marker; ARGV[1] player id, ARGV[2] pool
+ * id, ARGV[3] marker TTL seconds.
+ */
+const CANCEL_SCRIPT = `
+redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('DEL', KEYS[2])
+if redis.call('GET', KEYS[3]) == ARGV[2] then redis.call('DEL', KEYS[3]) end
+redis.call('SET', KEYS[4], '1', 'EX', ARGV[3])
+return 1
+`;
+
 /** Game modes and regions become part of Redis keys; allow only these characters. */
 const KEY_PART = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -144,7 +168,7 @@ export class MatchmakingEngine {
 	 * queued in another pool; cancel that search first.
 	 */
 	async enqueue(player: PlayerQueueEntry): Promise<void> {
-		const [written] = await this.writeEntries([player]);
+		const [written] = await this.writeEntries([player], "enqueue");
 		if (!written) {
 			throw new Error(`Player ${player.playerId} is already queued in another mode or region`);
 		}
@@ -154,17 +178,32 @@ export class MatchmakingEngine {
 	 * Puts claimed players back after the match could not be set up. Each entry
 	 * keeps its rating and original `queuedAt`, so the player keeps their place
 	 * and their widened bracket. One script writes all of them atomically. A
-	 * player who queued elsewhere in the meantime is left there. Returns the
+	 * player who queued elsewhere in the meantime is left there, and a player
+	 * who cancelled in the last `cancelMarkerSeconds` stays out. Returns the
 	 * ids that were put back.
 	 */
 	async requeue(players: readonly PlayerQueueEntry[]): Promise<string[]> {
-		const written = await this.writeEntries(players);
+		const written = await this.writeEntries(players, "requeue");
 		return players.filter((_, i) => written[i]).map((p) => p.playerId);
 	}
 
-	/** Player cancelled the search. */
+	/**
+	 * Player cancelled the search. Also blocks a requeue for
+	 * `cancelMarkerSeconds`, in case a worker claimed the player a moment ago
+	 * and its match setup fails.
+	 */
 	async cancel(gameMode: string, region: string, playerId: string): Promise<void> {
-		await this.remove(gameMode, region, playerId);
+		await this.redis.eval(
+			CANCEL_SCRIPT,
+			4,
+			this.queueKey(gameMode, region),
+			this.playerKey(gameMode, region, playerId),
+			this.markerKey(playerId),
+			this.cancelledKey(playerId),
+			playerId,
+			this.poolId(gameMode, region),
+			this.config.cancelMarkerSeconds,
+		);
 	}
 
 	/** Bracket half-width after waiting `waitMs`. It only grows. */
@@ -245,7 +284,10 @@ export class MatchmakingEngine {
 	}
 
 	/** Runs ENQUEUE_SCRIPT for players of one pool; returns a written flag per player. */
-	private async writeEntries(players: readonly PlayerQueueEntry[]): Promise<boolean[]> {
+	private async writeEntries(
+		players: readonly PlayerQueueEntry[],
+		mode: "enqueue" | "requeue",
+	): Promise<boolean[]> {
 		const first = players[0];
 		if (!first) return [];
 		const { gameMode, region } = first;
@@ -253,12 +295,17 @@ export class MatchmakingEngine {
 			throw new Error("writeEntries: all players must share one pool");
 		}
 		const keys: string[] = [];
-		const args: string[] = [this.poolId(gameMode, region), String(this.config.entryTtlSeconds)];
+		const args: string[] = [
+			this.poolId(gameMode, region),
+			String(this.config.entryTtlSeconds),
+			mode,
+		];
 		for (const p of players) {
 			keys.push(
 				this.markerKey(p.playerId),
 				this.queueKey(gameMode, region),
 				this.playerKey(gameMode, region, p.playerId),
+				this.cancelledKey(p.playerId),
 			);
 			args.push(
 				p.playerId,
@@ -334,6 +381,11 @@ export class MatchmakingEngine {
 	/** Global: names the one pool a player is queued in. */
 	private markerKey(playerId: string): string {
 		return `mm:{mm}:queued:${playerId}`;
+	}
+
+	/** Global: set for a short time after the player cancels. */
+	private cancelledKey(playerId: string): string {
+		return `mm:{mm}:cancelled:${playerId}`;
 	}
 }
 

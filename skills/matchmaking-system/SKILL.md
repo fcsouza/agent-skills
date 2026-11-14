@@ -44,7 +44,7 @@ Persist ratings in Postgres after each match (`postgres-game-schema`) and cache 
 5. A pair fits when the rating gap is inside the wider of the two players' brackets, so the player who waited longer decides.
 6. Claim the pair in one Lua script: if both members are still in the sorted set, remove both and delete both hashes; otherwise remove nothing and try the next candidate. See "Atomic dequeue" below.
 7. Create the lobby. Players ready up; the last ready-up moves the lobby to COUNTDOWN.
-8. When the countdown ends, check every player's presence (WebSocket heartbeat). If all are there, the lobby goes IN_PROGRESS. If anyone dropped, remove them, return the lobby to WAITING and requeue the others with their original `queuedAt` so their bracket stays wide.
+8. When the countdown ends, check every player's presence (WebSocket heartbeat). If all are there, the lobby goes IN_PROGRESS. If anyone dropped, the lobby is short of its match size, so it dissolves: `startMatch` deletes it, unmaps every player and returns the connected ones in `requeue`. Requeue them with their original `queuedAt` so their bracket stays wide. A leave before IN_PROGRESS dissolves the lobby the same way; `leaveLobby` returns the ids to requeue.
 9. On match end, mark the lobby COMPLETE, update ratings, and let the lobby expire after the results screen.
 
 Copy when building the queue: `boilerplate/matchmaker.ts` (`MatchmakingEngine`, `startMatchmaking`). It takes the ioredis client as a parameter.
@@ -56,8 +56,10 @@ import { MatchmakingEngine, startMatchmaking } from './matchmaker';
 import { LobbyManager } from './lobby-manager';
 
 const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
-// Request path: default retries, so a Redis outage fails the request fast.
-const redis = new Redis(url);
+// Request path: by default ioredis holds a command through 20 reconnect
+// attempts (maxRetriesPerRequest: 20); 1 fails the request fast when Redis is
+// down, as `bullmq-game-queues` does for producers.
+const redis = new Redis(url, { maxRetriesPerRequest: 1 });
 // Worker connection: BullMQ requires maxRetriesPerRequest: null here.
 const workerRedis = new Redis(url, { maxRetriesPerRequest: null });
 const engine = new MatchmakingEngine(redis);
@@ -90,7 +92,7 @@ The boilerplate's claim script checks both members with ZSCORE, then ZREMs both 
 
 ## Lobby state machine
 
-WAITING -> COUNTDOWN -> IN_PROGRESS -> COMPLETE. A leave or a failed presence check sends COUNTDOWN back to WAITING and clears every ready flag. A leave after IN_PROGRESS is an abandon, not a lobby change.
+WAITING -> COUNTDOWN -> IN_PROGRESS -> COMPLETE. A leave or a failed presence check before IN_PROGRESS dissolves the lobby: it is deleted in the same compare-and-set write, every player is unmapped, and the remaining ids go back to the caller to requeue. A lobby short of its match size never starts. A leave after IN_PROGRESS is an abandon, not a lobby change.
 
 Every transition reads the lobby JSON, applies a change and writes it back with a compare-and-set script. Without that, two players readying up at once overwrite each other and the lobby never leaves WAITING.
 
@@ -110,12 +112,12 @@ Check both in your own match data before you change anything: compare predicted 
 - Resetting a requeued player's wait: keep the original `queuedAt` so the bracket stays wide.
 - One global queue: separate by mode and region.
 - Long waits: the queue entry's hash expires after `entryTtlSeconds` and the player drops out silently. Refresh it from the client heartbeat or raise the TTL.
-- Losing a claimed pair: once the claim script runs, both players are out of the queue. `startMatchmaking` handles an `onMatch` failure by calling `engine.requeue` (one script, original rating and `queuedAt`), restarting both searches and rethrowing. Do the same if you call `findMatch` yourself.
+- Losing a claimed pair: once the claim script runs, both players are out of the queue. `startMatchmaking` handles an `onMatch` failure by calling `engine.requeue` (one script, original rating and `queuedAt`), restarting both searches and rethrowing. Do the same if you call `findMatch` yourself. `cancel` leaves a marker for `cancelMarkerSeconds` so that requeue skips a player who cancelled while the match was being set up; a fresh `enqueue` clears it.
 - One player in two pools: a per-mode key lets the same player queue in two modes or regions and get matched twice. The boilerplate keeps a global "queued in" marker, written by the enqueue script, cleared by the claim and cancel scripts, and refuses an enqueue into a second pool.
 - Untrusted key parts: game mode and region become part of Redis keys; the boilerplate rejects anything but letters, digits, `_` and `-`.
 - Leave calls from non-members or stale clients: refuse a leave from a player not in the lobby, and delete the player-to-lobby mapping only if it still names this lobby (compare-and-delete script).
 - Starting on a stale presence check: the lobby can change while presence is checked. Start only if the countdown, its end time and the player set are the ones that were checked; otherwise `startMatch` throws `LobbyChangedError` and you call it again when the new countdown ends.
-- Skipping the presence check before IN_PROGRESS: a player who dropped during the countdown starts a match one short.
+- Skipping the presence check before IN_PROGRESS: a player who dropped during the countdown starts a match one short. A lobby that lost a player must dissolve, not wait in WAITING: no one can join it, and a lone player could ready up and start alone.
 - Priorities in BullMQ: jobs with no priority run before every prioritized job. If you boost long waiters with `priority`, give every search job a priority.
 - Tuning by opinion: test what your players care about most (latency, skill, streaks or wait time) with match data before you change the weights.
 - Client choice: the boilerplate uses ioredis because the other skills do. Its README says it is in maintenance and recommends node-redis for new projects; the claim logic ports as is.

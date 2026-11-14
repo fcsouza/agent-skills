@@ -17,6 +17,8 @@ export interface Lobby {
 	gameMode: string;
 	region: string;
 	players: LobbyPlayer[];
+	/** Players the match needs. Below this the lobby dissolves. */
+	matchSize: number;
 	averageRating: number;
 	createdAt: number;
 	countdownStartedAt: number | null;
@@ -62,6 +64,16 @@ if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) 
 return 0
 `;
 
+/**
+ * Deletes the lobby only if it still holds the JSON the caller read.
+ * KEYS[1] lobby key; ARGV[1] expected JSON. Returns 1 on delete, 0 on conflict.
+ */
+const CAS_DELETE_SCRIPT = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+redis.call('DEL', KEYS[1])
+return 1
+`;
+
 const MAX_CAS_RETRIES = 10;
 
 /** The lobby changed between the read and the write; read it again and retry. */
@@ -69,8 +81,10 @@ export class LobbyChangedError extends Error {}
 
 /**
  * Lobby state machine: WAITING -> COUNTDOWN -> IN_PROGRESS -> COMPLETE.
- * The last ready-up moves WAITING to COUNTDOWN; a leave or a failed presence
- * check moves COUNTDOWN back to WAITING.
+ * The last ready-up moves WAITING to COUNTDOWN. A leave or a failed presence
+ * check before IN_PROGRESS leaves the lobby short of `matchSize`, so it
+ * dissolves: the lobby is deleted, every player is unmapped, and the
+ * remaining ids go back to the caller to requeue.
  * A lobby is one JSON value in Redis. Every transition reads it, applies a pure
  * change, and writes it back with a compare-and-set script, so two players
  * readying up at once cannot overwrite each other. Events go out on the
@@ -94,6 +108,7 @@ export class LobbyManager {
 			gameMode: match.gameMode,
 			region: match.region,
 			players: match.players.map((p) => ({ playerId: p.playerId, ready: false, joinedAt: now })),
+			matchSize: match.players.length,
 			averageRating: match.averageRating,
 			createdAt: now,
 			countdownStartedAt: null,
@@ -118,7 +133,7 @@ export class LobbyManager {
 	 * `countdownDurationMs` (for example with a delayed BullMQ job).
 	 */
 	async readyUp(lobbyId: string, playerId: string): Promise<Lobby> {
-		const lobby = await this.transition(lobbyId, (l) => {
+		const lobby = await this.transitionTo(lobbyId, (l) => {
 			if (l.state !== "WAITING") throw new Error(`Cannot ready up in state ${l.state}`);
 			const players = l.players.map((p) => (p.playerId === playerId ? { ...p, ready: true } : p));
 			if (!players.some((p) => p.playerId === playerId)) {
@@ -140,31 +155,34 @@ export class LobbyManager {
 	}
 
 	/**
-	 * Removes a player before the match starts. A leave during COUNTDOWN sends
-	 * the lobby back to WAITING and clears every ready flag. Returns the ids
-	 * still in the lobby so the caller can requeue them with their original
-	 * `queuedAt` (their bracket stays wide).
+	 * Removes a player before the match starts. The lobby is then short of
+	 * `matchSize`, so it dissolves in the same write. Returns the ids of the
+	 * players who were left in it, already unmapped, so the caller can requeue
+	 * them with their original `queuedAt` (their bracket stays wide).
 	 */
 	async leaveLobby(lobbyId: string, playerId: string): Promise<string[]> {
-		const lobby = await this.transition(lobbyId, (l) => {
+		const remaining: string[] = [];
+		await this.transition(lobbyId, (l) => {
 			if (l.state === "IN_PROGRESS" || l.state === "COMPLETE") {
 				throw new Error(`Cannot leave lobby in state ${l.state}; record it as an abandon`);
 			}
 			if (!l.players.some((p) => p.playerId === playerId)) {
 				throw new Error(`Player ${playerId} not in lobby`);
 			}
-			return this.revertToWaiting(l, [playerId]);
+			remaining.splice(0, remaining.length, ...this.idsWithout(l, [playerId]));
+			return null;
 		});
-		await this.unmapPlayers(lobbyId, [playerId]);
-		if (lobby.players.length === 0) await this.redis.del(this.lobbyKey(lobbyId));
+		await this.unmapPlayers(lobbyId, [playerId, ...remaining]);
 		await this.emit(lobbyId, "lobby:player-left", { playerId });
-		return lobby.players.map((p) => p.playerId);
+		await this.emit(lobbyId, "lobby:dissolved", { requeue: remaining });
+		return remaining;
 	}
 
 	/**
 	 * COUNTDOWN -> IN_PROGRESS after checking every player is still connected.
 	 * `findDisconnected` returns the ids that failed the presence check. If any
-	 * did, they are removed and the lobby returns to WAITING.
+	 * did, the lobby dissolves: `requeue` lists the players still connected,
+	 * already unmapped, for the caller to put back in the queue.
 	 * The write only goes through if the lobby is still the one that was
 	 * checked: same countdown, countdown elapsed, same players. Otherwise it
 	 * throws `LobbyChangedError`; call `startMatch` again when the new
@@ -173,12 +191,13 @@ export class LobbyManager {
 	async startMatch(
 		lobbyId: string,
 		findDisconnected: (playerIds: string[]) => Promise<string[]>,
-	): Promise<{ started: boolean; disconnected: string[] }> {
+	): Promise<{ started: boolean; disconnected: string[]; requeue: string[] }> {
 		const current = await this.getLobby(lobbyId);
 		if (!current) throw new Error(`Lobby ${lobbyId} not found`);
 		const disconnected = await findDisconnected(current.players.map((p) => p.playerId));
 
 		const checkedIds = current.players.map((p) => p.playerId).sort();
+		const remaining: string[] = [];
 		const lobby = await this.transition(lobbyId, (l) => {
 			if (l.state !== "COUNTDOWN") throw new Error(`Cannot start match in state ${l.state}`);
 			const ids = l.players.map((p) => p.playerId).sort();
@@ -193,15 +212,15 @@ export class LobbyManager {
 			if (Date.now() < l.countdownStartedAt + l.countdownDurationMs) {
 				throw new LobbyChangedError(`Lobby ${lobbyId}: countdown has not ended`);
 			}
-			return disconnected.length > 0
-				? this.revertToWaiting(l, disconnected)
-				: { ...l, state: "IN_PROGRESS" };
+			if (disconnected.length === 0) return { ...l, state: "IN_PROGRESS" };
+			remaining.splice(0, remaining.length, ...this.idsWithout(l, disconnected));
+			return null;
 		});
 
-		if (lobby.state !== "IN_PROGRESS") {
-			await this.unmapPlayers(lobbyId, disconnected);
-			await this.emit(lobbyId, "lobby:countdown-cancelled", { disconnected });
-			return { started: false, disconnected };
+		if (!lobby) {
+			await this.unmapPlayers(lobbyId, [...disconnected, ...remaining]);
+			await this.emit(lobbyId, "lobby:dissolved", { disconnected, requeue: remaining });
+			return { started: false, disconnected, requeue: remaining };
 		}
 		const multi = this.redis.multi();
 		for (const p of lobby.players) {
@@ -209,11 +228,11 @@ export class LobbyManager {
 		}
 		await multi.exec();
 		await this.emit(lobbyId, "lobby:match-started", { lobbyId });
-		return { started: true, disconnected: [] };
+		return { started: true, disconnected: [], requeue: [] };
 	}
 
 	async completeLobby(lobbyId: string): Promise<void> {
-		const lobby = await this.transition(lobbyId, (l) => {
+		const lobby = await this.transitionTo(lobbyId, (l) => {
 			if (l.state !== "IN_PROGRESS") throw new Error(`Cannot complete lobby in state ${l.state}`);
 			return { ...l, state: "COMPLETE" };
 		});
@@ -242,28 +261,43 @@ export class LobbyManager {
 		}
 	}
 
-	private revertToWaiting(lobby: Lobby, removeIds: string[]): Lobby {
-		const players = lobby.players
-			.filter((p) => !removeIds.includes(p.playerId))
-			.map((p) => ({ ...p, ready: false }));
-		return { ...lobby, players, state: "WAITING", countdownStartedAt: null };
+	private idsWithout(lobby: Lobby, removeIds: readonly string[]): string[] {
+		return lobby.players.map((p) => p.playerId).filter((id) => !removeIds.includes(id));
 	}
 
-	/** Read, apply `change`, compare-and-set; retry on conflict. `change` may throw to refuse. */
-	private async transition(lobbyId: string, change: (lobby: Lobby) => Lobby): Promise<Lobby> {
+	/** `transition` for changes that always keep the lobby. */
+	private async transitionTo(lobbyId: string, change: (lobby: Lobby) => Lobby): Promise<Lobby> {
+		const next = await this.transition(lobbyId, change);
+		if (!next) throw new Error(`Lobby ${lobbyId}: unexpected delete`);
+		return next;
+	}
+
+	/**
+	 * Read, apply `change`, compare-and-set; retry on conflict. `change` may
+	 * throw to refuse, or return null to delete the lobby (dissolve). It can
+	 * run once per retry, each time on a fresh read; a value it captures for
+	 * the caller must be overwritten on every run, not appended to.
+	 */
+	private async transition(
+		lobbyId: string,
+		change: (lobby: Lobby) => Lobby | null,
+	): Promise<Lobby | null> {
 		const key = this.lobbyKey(lobbyId);
 		for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
 			const raw = await this.redis.get(key);
 			if (!raw) throw new Error(`Lobby ${lobbyId} not found`);
 			const next = change(JSON.parse(raw) as Lobby);
-			const written = await this.redis.eval(
-				CAS_SCRIPT,
-				1,
-				key,
-				raw,
-				JSON.stringify(next),
-				this.ttlFor(next.state),
-			);
+			const written =
+				next === null
+					? await this.redis.eval(CAS_DELETE_SCRIPT, 1, key, raw)
+					: await this.redis.eval(
+							CAS_SCRIPT,
+							1,
+							key,
+							raw,
+							JSON.stringify(next),
+							this.ttlFor(next.state),
+						);
 			if (written === 1) return next;
 		}
 		throw new Error(`Lobby ${lobbyId}: too many concurrent updates`);
