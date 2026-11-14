@@ -49,7 +49,7 @@ Since 8.23.0 PixiJS ships one `pixijs` agent skill inside the npm package at `no
 
 ## Where server-state interpolation hooks in
 
-This skill's rule: the WebSocket handler only writes snapshots; it never touches display objects. Keep `ClientGameLoop` running for ticks with `onRender` unset. Add one `app.ticker` callback at `UPDATE_PRIORITY.NORMAL` (after HIGH, before the LOW render) that calls `getInterpolationData()` and the snapshot bracket from `game-state-sync`, then writes `x`, `y`, `rotation` on the views. Spawn a view on the first snapshot that names an entity; despawn with `destroy({ children: true })`.
+This skill's rule: the WebSocket handler only writes snapshots; it never touches display objects. Never call `ClientGameLoop.start()`. Add one `app.ticker` callback at `UPDATE_PRIORITY.NORMAL` (after HIGH, before the LOW render) that calls `loop.step(performance.now())`, reads `loop.getRenderState()` and the snapshot bracket from `game-state-sync`, then writes `x`, `y`, `rotation` on the views. The ticker keeps calling it after a hidden tab, so call `loop.resetClock()` on return (`watchVisibility`). Spawn a view on the first snapshot that names an entity; despawn with `destroy({ children: true })`.
 
 ## Version traps (PixiJS 7 code from training data)
 

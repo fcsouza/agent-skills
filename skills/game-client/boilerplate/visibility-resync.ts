@@ -5,6 +5,8 @@
  * Works with any loop that has start() and stop(), such as ClientGameLoop
  * in game-state-sync: its start() resets the frame timestamp and the
  * accumulator, so the first frame back runs no burst of catch-up ticks.
+ * When an engine steps ClientGameLoop (step()), pass
+ * { stop() {}, start: () => loop.resetClock() } instead.
  *
  * If the page is already hidden when you call watchVisibility (opened in a
  * background tab), the loop is stopped at once and resyncs on first show.

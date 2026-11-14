@@ -17,7 +17,7 @@ The Phaser repository ships 28 agent skills under `skills/` (scenes, loading-ass
 
 - The `delta` Phaser passes to `update(time, delta)` is "a clamped and smoothed average value", in milliseconds. Smoothing is on by default (`fps.smoothStep`) (`src/core/TimeStep.js`). Never measure wall-clock time or align with the server from `delta`; use `time` or `performance.now()`. This last point is this skill's rule.
 - There is no fixed step in the core loop. Arcade Physics has one: `fixedStep` defaults to true, and `World.update` runs extra steps in a `while` loop to catch up (`src/physics/arcade/World.js`).
-- Hidden tab: `Game` listens for the hidden event, calls `loop.pause()`, and on return emits `RESUME` with the pause duration (`src/core/Game.js`). That pauses only Phaser's loop. `ClientGameLoop` runs its own, so still wrap it with `watchVisibility` from `boilerplate/visibility-resync.ts`.
+- Hidden tab: `Game` listens for the hidden event, calls `loop.pause()`, and on return emits `RESUME` with the pause duration (`src/core/Game.js`). That pauses Phaser's loop, which also stops `step()` calls. It does not resync with the server: still use `watchVisibility` from `boilerplate/visibility-resync.ts`, with `start` calling `loop.resetClock()`.
 - `fps.forceSetTimeOut` swaps rAF for `setTimeout` and can only be set in the game config (`src/core/TimeStep.js`).
 
 ## Scenes and cleanup
@@ -47,7 +47,7 @@ The Phaser repository ships 28 agent skills under `skills/` (scenes, loading-ass
 
 ## Where server-state interpolation hooks in
 
-Phaser owns the frame through its own rAF loop. This skill's rule: keep `ClientGameLoop` running for ticks with `onRender` unset, and in the game scene's `update(time, delta)` call `getInterpolationData()` and write `x`, `y`, `rotation` on each sprite once. Remote entities read the snapshot bracket from `game-state-sync`. Pick render time from `time`, never from summed `delta`.
+Phaser owns the frame through its own rAF loop. This skill's rule: never call `ClientGameLoop.start()`. In the game scene's `update(time, delta)`, call `loop.step(time)`, read `loop.getRenderState()`, and write `x`, `y`, `rotation` on each sprite once. Remote entities read the snapshot bracket from `game-state-sync`. Pick render time from `time`, never from summed `delta`.
 
 ## Version traps (Phaser 3 code from training data)
 

@@ -37,8 +37,7 @@ Load one reference file for the chosen stack and skip the others.
 - `requestAnimationFrame` follows the display rate, so a 120 Hz screen calls it twice as often as a 60 Hz one. Anything moved per frame moves by elapsed time, never a fixed amount.
 - Which loop owns the frame (this skill's rule):
   - Plain web: `ClientGameLoop` does. Set its `onRender(state, alpha)` and draw there.
-  <!-- controller: update after game-state-sync gains step() -->
-  - Phaser, PixiJS, Three.js, R3F: the engine runs its own frame loop. Keep `ClientGameLoop` running for ticks and leave `onRender` unset. In the engine's per-frame hook, before it renders, call `getInterpolationData()` and the snapshot bracket from `game-state-sync`, then write transforms onto display objects. Each reference file names the hook. This costs twice: `getInterpolationData()` deep-clones the state on every call, and two `requestAnimationFrame` callbacks run each frame in an order you do not control.
+  - Phaser, PixiJS, Three.js, R3F: the engine runs the only frame loop. Never call `ClientGameLoop.start()` and leave `onRender` unset. In the engine's per-frame hook, before it renders, call `loop.step(now)`: it runs the due fixed ticks and returns the alpha. Then read `loop.getRenderState()` (previous and current state by reference, no copy) and the snapshot bracket from `game-state-sync`, and write transforms onto display objects. Each reference file names the hook.
 - The renderer reads state and never writes it. The WebSocket handler writes server state into the loop (`handleServerUpdate`) and never touches display objects.
 
 ## Pause and resync when the tab is hidden
@@ -48,7 +47,7 @@ Most browsers stop `requestAnimationFrame` in a background tab, while the server
 1. On `visibilitychange` to hidden: stop the client loop, clear held input, suspend audio.
 2. On visible: do not replay the gap. Drop stale interpolation snapshots, request a full snapshot, then restart the loop. When the snapshot carrying the server tick arrives, align the tick with `syncTick`; `handleServerUpdate` already adopts the server's tick when the client is behind. `ClientGameLoop.start()` resets the frame clock and the accumulator, so the first frame back runs no burst of ticks.
 
-`boilerplate/visibility-resync.ts` does this for any loop with `start()` and `stop()`. Engine loops handle their own clocks: Phaser pauses its loop and emits `RESUME`, PixiJS does not pause its ticker itself (the browser throttles its frames), three.js `Timer.connect(document)` avoids the big delta. They do not resync with your server.
+`boilerplate/visibility-resync.ts` does this for any loop with `start()` and `stop()`. In engine-driven mode, pass it `{ stop() {}, start: () => loop.resetClock() }`: `resetClock()` makes the next `step()` start fresh, with no catch-up ticks. Engine loops handle their own clocks: Phaser pauses its loop and emits `RESUME`, PixiJS does not pause its ticker itself (the browser throttles its frames), three.js `Timer.connect(document)` avoids the big delta. They do not resync with your server.
 
 ## Input
 
