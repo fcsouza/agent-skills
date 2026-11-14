@@ -15,7 +15,7 @@ For client setup, Checkout Sessions and the API itself, use the `stripe-docs` sk
 3. Grant only from webhooks. The player may never load the success page.
 4. Grant inside the same database transaction that records the Stripe event id. A crash then leaves neither, and Stripe retries.
 5. A subscription period is granted once per invoice. Stripe's guide provisions on `checkout.session.completed` and again on each `invoice.paid`; both can name the first invoice, so the grant is unique on invoice id.
-6. A full refund or a dispute revokes what a one-time purchase granted. A partial refund, or a refund or dispute on a subscription payment, goes to a human: grants of subscription periods are keyed by invoice, not by payment intent.
+6. A full refund or a dispute revokes what a one-time purchase granted, down to a zero balance at most; a player who already spent the currency goes to a human with the shortfall. A partial refund, or a refund or dispute on a subscription payment, goes to a human: grants of subscription periods are keyed by invoice, not by payment intent.
 
 ## Steps
 

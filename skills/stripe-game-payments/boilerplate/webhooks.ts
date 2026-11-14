@@ -24,6 +24,11 @@ export interface PaymentTx {
    * Take back what a one-time purchase granted. Returns false when no grant
    * matches paymentIntentId (subscription payments, unknown payments).
    * Revoking an already revoked grant changes nothing and returns true.
+   * The player may have spent part of the grant. Never let the balance go
+   * below zero, or the `CHECK (amount >= 0)` from `postgres-game-schema`
+   * rolls back the whole event and Stripe retries it forever: subtract
+   * `LEAST(amount, granted)` and, when that is less than `granted`, call
+   * flagForReview with the shortfall in the same transaction.
    */
   revokeCurrency(input: {
     paymentIntentId: string;
