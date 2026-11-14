@@ -70,8 +70,16 @@ Regenerate:
 
 Keep session-scoped results (active dungeon state, nearby chunks) in a cache with a time to live (see `redis-game-patterns`).
 
-Store the generator version beside every seed:
+Use two kinds of row. Never put the seed and the data in the same row.
+
+Regenerated content: a seed and the generator version that reads it, no data. A generator change breaks old seeds, so the version says which generator to run.
 
 ```
-generated_content { id, seed, generator_version, content_type, data, created_at }
+regenerated_content { id, seed, generator_version, content_type, created_at }
+```
+
+Stored content: the data only, for content the player changed. It needs no seed and no generator.
+
+```
+stored_content { id, content_type, data, created_at }
 ```
