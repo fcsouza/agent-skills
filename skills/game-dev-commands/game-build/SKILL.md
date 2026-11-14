@@ -13,7 +13,6 @@ This command skips the `game-dev` index. The skill table in Phase 3 picks the sk
 ## Requires
 
 - `game-backend-architecture`
-- `game-design-fundamentals`
 - `quest-mission-design`
 - `quest-narrative-coherence`
 - `postgres-game-schema`
@@ -37,11 +36,11 @@ Load a skill from this list only when the Phase 3 table picks it. Before you app
 Do this before writing code.
 
 1. If `docs/mvp-first-draft.md` is missing, say: "Stopped: no MVP plan. Run `/game-architect` first, so the build follows one plan." Then stop.
-2. Read the plan. If the component matches an item in Section 10 (Out of Scope / Deferred), say "Deferred: [component] was deferred because [reason]. Building it now widens scope. Continue?" and wait.
+2. Read the plan. If the component matches an item in Section 10 (Out of Scope for MVP), say "Deferred: [component] was deferred because [reason]. Building it now widens scope. Continue?" and wait.
 3. Read `docs/build-registry.md`. If it is missing, copy the registry skeleton from `templates/build-registry.md`.
 4. If the component touches quests or story, read `docs/world-lore.md` and `docs/quest-registry.md`.
 
-`status`: read the registry, print a table of built, rebuilding, mocked and remaining components, build nothing, stop.
+`status`: before step 3, read the registry if it exists (do not create it), print a table of built, rebuilding, mocked and remaining components, build nothing, stop.
 
 ## Phase 1: Dependencies
 
@@ -52,7 +51,7 @@ Resolve the component's dependencies from the plan. For each one, check the regi
 
 List the mocks at the top of your output.
 
-**Component already `built` or `rebuilding`.** Stop and say: "[component] is built (docs/build-registry.md). To redo it, run `/game-build [component] --rebuild`." For `rebuilding`, say instead: "[component] has a rebuild in progress. Run `/game-build [component] --rebuild` to resume it." Regenerating would overwrite code other components import, so only `--rebuild` proceeds. With `--rebuild`:
+**Component already `built` or `rebuilding`.** Stop and say: "[component] is built (docs/build-registry.md). To redo it, run `/game-build [component] --rebuild`." For `rebuilding`, say instead: "[component] has a rebuild in progress. Run `/game-build [component] --rebuild` to resume it." Regenerating would overwrite code other components import, so only `--rebuild` proceeds. `--rebuild` on a component with no registry entry builds it as new. With `--rebuild`:
 1. List the components that depend on it (the registry entries whose "Depends on" names it) and tell the user they will need a re-check.
 2. Set its registry status to `rebuilding`, build as normal, and set it back to `built` in Phase 5.
 3. Keep its public exports and types unless the user asked to change them; flag any change you make.
@@ -116,7 +115,7 @@ Check the new content against `docs/world-lore.md` and `docs/quest-registry.md` 
 2. Run the component's tests with the Phase 3 command.
 3. Read both outputs. Fix failures that come from your code. If something fails and you cannot fix it, report it as it is; do not mark the component `built`.
 4. Run `bun run format` if the script exists.
-5. Read `templates/build-registry.md` when you write the entry. Add or update the entry in `docs/build-registry.md` in its entry format, and update the Summary counts.
+5. Read `templates/build-registry.md` when you write the entry. Add or update the entry in `docs/build-registry.md` in its entry format with `status: built` (this also ends a rebuild), and update the Summary counts.
 
 ## Phase 6: Report
 

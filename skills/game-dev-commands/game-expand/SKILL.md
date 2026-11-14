@@ -34,7 +34,7 @@ Run these checks first so the interview does not spec a feature the plan already
 **Check 1: deferred features.** Search Section 10 (Out of Scope for MVP) of `docs/mvp-first-draft.md` for the feature name. If found, output: `Warning: "[feature]" was deferred in Section 10. Original reason: "[text from plan]". Adding it now grows the MVP. MVP completion is [%]. Proceed? (confirm to continue)`. Wait for the user's confirmation. If not found, continue.
 
 **Check 2: already planned.** Search Section 9 (MVP Build Sequence) for the feature name.
-- In the plan and `built` in the registry: output "Stopped: [feature] is already built (see docs/build-registry.md). To change it, audit it with `/game-review`." and stop.
+- In the plan and `built` or `rebuilding` in the registry: output "Stopped: [feature] is already built (see docs/build-registry.md). To change it, audit it with `/game-review`." and stop.
 - In the plan and not built: output "Stopped: [feature] is already in the MVP plan (Section 9) and not built. Implement it with `/game-build [feature]` instead of re-planning." and stop.
 
 **Check 3: completion.** If MVP completion is below 50% and Check 1 did not already warn, output "Note: the MVP is [%] complete, below this command's 50% threshold for adding features. Confirm to proceed." Wait for confirmation. The 50% line is this command's own rule, not one from a skill.

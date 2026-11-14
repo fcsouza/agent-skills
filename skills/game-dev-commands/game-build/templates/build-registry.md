@@ -12,7 +12,7 @@ Managed by `/game-build`. Edit by hand only to fix a wrong entry.
 ## Summary
 
 - Total components planned: [from the MVP plan]
-- Built: 0 | Mocked: 0 | Remaining: 0
+- Built: 0 | Rebuilding: 0 | Mocked: 0 | Remaining: 0
 
 ## Components
 
