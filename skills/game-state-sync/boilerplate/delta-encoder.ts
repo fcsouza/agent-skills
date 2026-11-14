@@ -9,6 +9,10 @@ export interface BinaryDelta {
 	removalCount: number;
 }
 
+// Path segments that reach an object's prototype. A delta naming one could
+// write onto Object.prototype for every object in the process.
+const FORBIDDEN_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Encode the difference between two states as a minimal delta.
  * Handles nested objects, arrays, additions, and removals.
@@ -24,6 +28,12 @@ export function encodeDelta(
 
 	const prevKeys = new Set(Object.keys(prev));
 	const currentKeys = new Set(Object.keys(current));
+	for (const key of [...prevKeys, ...currentKeys]) {
+		// JSON.parse makes "__proto__" an own key; refuse it here too.
+		if (FORBIDDEN_SEGMENTS.has(key)) {
+			throw new Error(`Refusing state key "${key}" at "${prefix}"`);
+		}
+	}
 
 	// Detect additions and modifications
 	for (const key of currentKeys) {
@@ -207,6 +217,7 @@ export function fromBinaryDelta(binary: BinaryDelta): Delta {
 
 		const pathBytes = binary.buffer.slice(offset, offset + pathLen);
 		const path = decoder.decode(pathBytes);
+		parsePath(path); // throws on a prototype segment before we index by it
 		offset += pathLen;
 
 		const valueLen = view.getUint32(offset);
@@ -245,19 +256,19 @@ function setPath(
 
 	for (let i = 0; i < segments.length - 1; i++) {
 		const seg = segments[i];
+		// Step only into own properties; never follow an inherited one.
 		if (typeof seg === "number") {
 			if (!Array.isArray(current)) return;
-			if ((current as unknown[])[seg] === undefined) {
-				(current as unknown[])[seg] =
-					typeof segments[i + 1] === "number" ? [] : {};
+			if (!Object.hasOwn(current, seg) || current[seg] === undefined) {
+				current[seg] = typeof segments[i + 1] === "number" ? [] : {};
 			}
-			current = (current as unknown[])[seg];
+			current = current[seg];
 		} else {
-			const record = current as Record<string, unknown>;
-			if (record[seg] === undefined) {
-				record[seg] = typeof segments[i + 1] === "number" ? [] : {};
+			if (!isPlainObject(current)) return;
+			if (!Object.hasOwn(current, seg) || current[seg] === undefined) {
+				current[seg] = typeof segments[i + 1] === "number" ? [] : {};
 			}
-			current = record[seg];
+			current = current[seg];
 		}
 	}
 
@@ -279,13 +290,10 @@ function removePath(obj: Record<string, unknown>, path: string): void {
 
 	for (let i = 0; i < segments.length - 1; i++) {
 		const seg = segments[i];
-		if (typeof seg === "number") {
-			if (!Array.isArray(current)) return;
-			current = (current as unknown[])[seg];
-		} else {
-			current = (current as Record<string, unknown>)[seg];
-		}
-		if (current === undefined || current === null) return;
+		// Step only into own properties; never follow an inherited one.
+		if (typeof current !== "object" || current === null) return;
+		if (!Object.hasOwn(current, seg)) return;
+		current = (current as Record<string | number, unknown>)[seg];
 	}
 
 	const lastSeg = segments[segments.length - 1];
@@ -298,6 +306,10 @@ function removePath(obj: Record<string, unknown>, path: string): void {
 	}
 }
 
+/**
+ * Split a delta path into segments. Throws on a segment that reaches a
+ * prototype, so decodeDelta refuses the whole delta and returns nothing.
+ */
 function parsePath(path: string): (string | number)[] {
 	const segments: (string | number)[] = [];
 	const parts = path.split(".");
@@ -311,6 +323,12 @@ function parsePath(path: string): (string | number)[] {
 			segments.push(Number.parseInt(bracketMatch[2], 10));
 		} else {
 			segments.push(part);
+		}
+	}
+
+	for (const seg of segments) {
+		if (typeof seg === "string" && FORBIDDEN_SEGMENTS.has(seg)) {
+			throw new Error(`Refusing delta path "${path}": segment "${seg}"`);
 		}
 	}
 

@@ -136,6 +136,7 @@ Run the simulation at a fixed tick with an accumulator; render at display rate a
 - Floating-point results differ across compilers, operating systems and instruction sets. Lockstep needs fixed-point math or a deterministic physics engine. Server-authoritative sync tolerates the drift because the server's state wins.
 - A delta that names a key the client lacks means the client missed its baseline. Request a full snapshot.
 - `StateSyncEngine` stores state with `structuredClone`. Keep state to plain data: no class instances, functions or DOM nodes.
+- Treat every delta from the network as hostile, even from your own server. `delta-encoder.ts` refuses any path or key named `__proto__`, `constructor` or `prototype` and throws instead of applying the delta; keep that check if you change the path format.
 
 ### Bandwidth
 
