@@ -41,6 +41,7 @@
         "./skills/game-backend-architecture",
         "./skills/game-design-fundamentals",
         "./skills/game-economy-design",
+        "./skills/game-save-load",
         "./skills/game-state-sync",
         "./skills/gameplay-analytics",
         "./skills/level-design",
