@@ -97,9 +97,9 @@ START: Game Start
 
 ## Guidelines
 
-1. **Decision nodes** should have 2-4 options maximum. More than 4 overwhelms players.
-2. **Merge points** should feel natural, not forced. The world should reflect prior choices even after merging.
+1. **Decision nodes**: keep the option count low. Every option needs its own written result.
+2. **Merge points** cheapen earlier choices. Carry their effects past the merge in the world, dialogue and options.
 3. **Track variables**: Note which flags/variables each branch sets (e.g., `combat_reputation += 1`).
 4. **Test all paths**: Every branch combination must be playable start-to-finish.
-5. **Label endings clearly**: Use consistent naming (Ending A, B, C) and document how each is reached.
+5. **Label endings clearly**: Use consistent naming (Ending A, B, C) and document how each is reached. Prefer one ending shaped by tracked flags; separate endings should each be a full, different story.
 6. **Avoid dead ends**: Every node must lead somewhere. If a branch fails, redirect rather than terminate.

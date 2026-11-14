@@ -33,9 +33,9 @@ Use this template to plan each story beat in your game's narrative. One row per 
 
 ## Pacing Guidelines
 
-- **Act 1** (~25%): Setup, introduce characters, establish stakes, first player choice
-- **Act 2** (~50%): Escalation, complications, major choices, midpoint twist
-- **Act 3** (~25%): Climax, resolution, consequences of choices realized
-- Space high-tension beats with quieter moments for pacing
-- Each act should have at least one significant player choice
-- Track cumulative playtime per beat to ensure pacing targets
+- Act 1: setup, characters, stakes, first player choice.
+- Act 2: escalation, complications, major choices, midpoint turn.
+- Act 3: climax, resolution, consequences of choices shown.
+- Space high-tension beats with quieter moments.
+- Give each act at least one significant player choice.
+- Track cumulative playtime per beat against your own pacing target.
