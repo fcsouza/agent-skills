@@ -8,7 +8,12 @@ argument-hint: feature name or description (e.g. "clan system", "seasonal events
 
 ## Requires
 
-None. This command applies no skill. It reads the plan file named under Prerequisites.
+- `game-economy-design`
+- `quest-narrative-coherence`
+- `mmo-design`
+- `postgres-game-schema`
+
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`. Phase 3 picks which of these the feature touches.
 
 ## Prerequisites
 
@@ -32,7 +37,7 @@ Run these checks first so the interview does not spec a feature the plan already
 - In the plan and `built` in the registry: output "Stopped: [feature] is already built (see docs/build-registry.md). To change it, audit it with `/game-review`." and stop.
 - In the plan and not built: output "Stopped: [feature] is already in the MVP plan (Section 9) and not built. Implement it with `/game-build [feature]` instead of re-planning." and stop.
 
-**Check 3: completion.** If MVP completion is below 50% and Check 1 did not already warn, output "Note: the MVP is [%] complete. Finishing the core MVP first is usually cheaper. Confirm to proceed." Wait for confirmation.
+**Check 3: completion.** If MVP completion is below 50% and Check 1 did not already warn, output "Note: the MVP is [%] complete, below this command's 50% threshold for adding features. Confirm to proceed." Wait for confirmation. The 50% line is this command's own rule, not one from a skill.
 
 ## Phase 2: Scoped interview (at most 3 questions)
 
@@ -46,7 +51,7 @@ Do not ask about naming or code style. The topic skills already define those.
 
 ## Phase 3: Feature spec
 
-Where the feature touches another domain, point to the skill that owns it instead of writing the rules here: economy sinks and faucets to `game-economy-design`, quests and lore to `quest-narrative-coherence`, persistent multiplayer worlds to `mmo-design`, tables to `postgres-game-schema`.
+Where the feature touches another domain, apply the skill that owns it instead of writing the rules here: economy sinks and faucets to `game-economy-design`, quests and lore to `quest-narrative-coherence`, persistent multiplayer worlds to `mmo-design`, tables to `postgres-game-schema`.
 
 Produce this spec:
 
@@ -70,9 +75,9 @@ Produce this spec:
 ### Build sequence addition
 After: [existing component it depends on]
 Before: [existing component that could use it]
-1. [existing component]
-2. [new component A]  (new)
-3. [existing component that follows]
+3. [existing component]           (number unchanged)
+3a. [new component A]            (new)
+4. [existing component that follows]  (number unchanged)
 
 ### Section 10 updates
 [Sub-features to defer so the expansion stays small]
@@ -94,7 +99,7 @@ The complexity bands are this command's own sizing rule: they count new componen
 
    [full feature spec from Phase 3]
    ```
-2. Update Section 9. Insert the new components after their dependency. Do not renumber existing components.
+2. Update Section 9. Insert the new components after their dependency, numbered with a letter suffix (3a, 3b). Do not renumber existing components.
 3. Update Section 10 with the deferred sub-features from the spec.
 
 ## Phase 5: Output
