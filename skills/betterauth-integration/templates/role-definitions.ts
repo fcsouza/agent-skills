@@ -32,8 +32,8 @@ export const player = ac.newRole({
 
 // Keeps matches and chat clean: bans and unbans players, ends matches,
 // deletes messages, works the report queue. Cannot change roles or game config.
-// The admin plugin does not check the target's role: install `staffGuard`
-// (staff-guard.ts) so these user and session powers reach players only.
+// The admin plugin does not check the target's role: install the `staffGuard()`
+// plugin (staff-guard.ts) so these user and session powers reach players only.
 export const moderator = ac.newRole({
   user: ['list', 'get', 'ban'],
   // No session 'list': /admin/list-user-sessions returns session tokens.
@@ -60,18 +60,18 @@ export type GameRole = keyof typeof roles;
 
 type PermissionRequest = Parameters<typeof player.authorize>[0];
 
-const isGameRole = (name: string): name is GameRole => name in roles;
+const isGameRole = (name: string): name is GameRole => Object.hasOwn(roles, name);
 
 // Synchronous check against the matrix, for code that already holds the
 // session user. `user.role` is a comma-separated list when a user has several
-// roles. An unknown or missing role grants nothing.
+// roles. It splits without trimming, as the admin plugin does, so "player, moderator"
+// grants only player. An unknown or missing role grants nothing.
 export const can = (
   userRole: string | null | undefined,
   request: PermissionRequest,
 ): boolean =>
   (userRole ?? '')
     .split(',')
-    .map((name) => name.trim())
     .filter(isGameRole)
     .some((name) => roles[name].authorize(request).success);
 

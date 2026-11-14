@@ -24,7 +24,7 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
 
 1. Install the packages: `bun add better-auth @better-auth/drizzle-adapter`. Import the adapter with `import { drizzleAdapter } from '@better-auth/drizzle-adapter'`. If the project uses Drizzle Relations v2, import from `@better-auth/drizzle-adapter/relations-v2` instead.
 2. Add the admin plugin with the game roles from `templates/role-definitions.ts` (read when you set up roles or add a game permission): `admin({ ac, roles, defaultRole: 'player' })` on the server and `adminClient({ ac, roles })` on the client. Without `defaultRole: 'player'`, new users get the plugin's default role `user`, which the game matrix does not define, and every permission check fails.
-3. Pass `staffGuard` from `templates/staff-guard.ts` (read when you give moderators ban or session powers) as `hooks: { before: staffGuard }`. Better Auth takes one `before` hook; if the project has one already, call `guardStaffTargets(ctx)` inside it.
+3. Add the `staffGuard()` plugin from `templates/staff-guard.ts` (read when you give moderators ban or session powers) after `admin()`: `plugins: [admin({ ... }), staffGuard()]`. A plugin hook does not take the single user-level `hooks.before` slot, and its place relative to `bearer()` does not matter. If a project must call `guardStaffTargets(ctx)` from its own `hooks.before` instead, `await` it as the first statement, do not catch its error, and do not rewrite the body of `/admin/*` requests in any hook.
 4. Do not add a `role` field through `additionalFields`. The admin plugin adds `role` (plus `banned`, `banReason`, `banExpires`) to the user table.
 5. Generate the auth schema, then migrate it with Drizzle Kit. Better Auth's `migrate` command works only with its built-in Kysely adapter.
 
@@ -45,9 +45,13 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
 | admin | every admin-plugin action (including changing roles), every game action, update game config |
 
 - The admin plugin's endpoints check its own `user` and `session` resources. Unban checks `user: ['ban']`. Changing a role checks `user: ['set-role']`.
-- Moderators act on players only. The admin plugin's endpoints check the caller's permission, never the target's role, so a moderator with `user: ['ban']` could ban an admin. `staffGuard` denies by default: on every `/admin/*` path outside its allow list (`list-users`, `get-user`, `has-permission`, `stop-impersonating`), a caller who is not an admin must name a target user, and the target must not be a moderator or admin. It reads the target only from the field each endpoint reads (`sessionToken` for `revoke-user-session`, `userId` for the rest), coerces `userId` the way the endpoints do, and rejects a request whose target it cannot find.
+- Moderators act on players only. The admin plugin's endpoints check the caller's permission, never the target's role, so a moderator with `user: ['ban']` could ban an admin. `staffGuard` denies by default: on every `/admin/*` path outside its allow list (`list-users`, `get-user`, `has-permission`, `stop-impersonating`), a caller who is not an admin must name a target user whose every role is `player` (no role counts as the plugin's `defaultRole`). Any other role, a new staff role included, is refused.
+- The guard decides who is an admin the way the plugin does. It reads the caller from the session store, not the cookie cache, so a demotion takes effect at once. It splits roles on commas without trimming. It treats ids in the plugin's `adminUserIds` as admins when they call and as staff when they are the target. It reads a bearer-token caller the way the endpoint will.
+- The guard reads the target only from the field each endpoint reads (`sessionToken` for `revoke-user-session`, `userId` for the rest), coerces `userId` the way the endpoints do, and rejects a request whose target it cannot find. Server code that calls `auth.api.createUser({ body })` with no headers passes, as the plugin allows.
+- Hooks run for `auth.api.*` calls but not for writes through `internalAdapter`. Game code that acts on another user calls `auth.api.*` with the acting moderator's own request headers, never with an admin or service session and never through `internalAdapter`, or it applies the same player-only target check itself.
 - Do not give moderators `session: ['list']`. `/admin/list-user-sessions` returns each session's token, and a token is a login. Moderators revoke a player's sessions with `/admin/revoke-user-sessions`, which needs only `session: ['revoke']`.
-- `user.role` holds a comma-separated list when a user has several roles. The `can()` helper in the template splits it.
+- `user.role` holds a comma-separated list when a user has several roles. The `can()` helper in the template splits it without trimming, as the plugin does.
+- If the project adds user fields with `returned: false`, a moderator can still test their values through the `filterField` query of `/admin/list-users`.
 - Check a permission with `can(session.user.role, { chat: ['delete'] })` when you already hold the session, or with `auth.api.userHasPermission({ body: { userId, permissions } })` when you only have the id.
 - Ownership is not a role. A player edits their own profile or inventory because the session user id equals the owner id. Check that separately (`isOwner` in the template).
 - A ban through the admin plugin stops sign-in and revokes all of the player's sessions. The game server must close that player's open sockets itself, because the handshake check ran only once.
@@ -75,8 +79,8 @@ A direct `auth.api` call skips Better Auth's origin checks, even with the browse
 - Reading the role from a token issued at login. Read it from the current session so a demotion or ban takes effect.
 - A single `isAdmin` boolean instead of roles.
 - Leaving rate limits at their defaults for a public game. Better Auth's built-in limiter applies only to client requests, not to `auth.api` calls made by the server.
-- Giving moderators admin-plugin permissions without `staffGuard`. They can then ban or log out admins and each other.
-- Upgrading Better Auth without reviewing `staffGuard`. It denies by default, but its allow list and its reading of `userId` and `sessionToken` match 1.7.23. Check both against any admin endpoint a new version adds.
+- Giving moderators admin-plugin permissions without `staffGuard()`. They can then ban or log out admins and each other.
+- Upgrading Better Auth without reviewing `staffGuard`. It denies by default, but its allow list, its reading of `userId` and `sessionToken`, and its bearer handling match 1.7.23. Check both against any admin endpoint a new version adds.
 - Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
 ## Related skills
