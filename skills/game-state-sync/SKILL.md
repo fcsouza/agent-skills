@@ -121,7 +121,7 @@ Snap the simulation state to the server's. Smooth only the rendered position: re
 
 ### 7. Separate simulation from rendering on the client
 
-Run the simulation at a fixed tick with an accumulator; render at display rate and interpolate with the leftover fraction. `boilerplate/game-loop-client.ts` does this. The full client walkthrough (input sampling, prediction, dead reckoning, the loop) is in `references/client-architecture.md`.
+Run the simulation at a fixed tick with an accumulator; render at display rate and interpolate with the leftover fraction. `boilerplate/game-loop-client.ts` does this. With a rendering engine that runs its own frame loop (Phaser, PixiJS, three.js), never call `start()`: call `step(now)` from the engine's per-frame callback and draw from `getRenderState()`, so one loop drives both. `game-client` covers the per-engine wiring. The full client walkthrough (input sampling, prediction, dead reckoning, the loop) is in `references/client-architecture.md`.
 
 ### 8. Send each client only what it can see
 
@@ -164,7 +164,12 @@ Byte budget, second step: a priority accumulator, for when the visible set still
 - `boilerplate/state-sync.ts`: copy when you need the server or client engine. `StateSyncEngine` with tick, snapshot, delta, local prediction, reconciliation, rollback-and-replay, and interpolation over its own history.
 - `boilerplate/delta-encoder.ts`: copy when you send state diffs. `encodeDelta`, `decodeDelta`, `toBinaryDelta`, `fromBinaryDelta`, `deltaByteSize`, `deepEqual`.
 - `boilerplate/rollback-buffer.ts`: copy when you need tick-indexed history for rollback, acknowledged baselines or lag compensation. Ring buffer with `push`, `getAt`, `rollbackTo`, `getBracket`, `getRange`.
-- `boilerplate/game-loop-client.ts`: copy when you build the browser client. `ClientGameLoop` with a fixed timestep, input ring buffer, prediction and `handleServerUpdate` reconciliation. It reports staleness (`isExtrapolating`) but does no dead reckoning itself.
+- `boilerplate/game-loop-client.ts`: copy when you build the browser client. `ClientGameLoop` with a fixed timestep, input ring buffer, prediction and `handleServerUpdate` reconciliation. It reports staleness (`isExtrapolating`) but does no dead reckoning itself. Runs its own `requestAnimationFrame` loop (`start()`) or is stepped from an engine's frame callback (`step()`, `getRenderState()`, `resetClock()`).
 - `templates/sync-strategies.ts`: copy when you configure interpolation, prediction, rollback and bandwidth settings. Has action, turn-based and MMO presets. The presets do not configure area of interest; step 8 does.
 - `references/client-architecture.md`: read when you build the client side: input sampling, the prediction loop, dead reckoning and fixed-timestep rendering, with a sequence diagram.
 - `references/sources.md`: read when you need the talks and articles behind these rules.
+
+## Related skills
+
+- `game-backend-architecture`: the authoritative server loop and rooms these clients sync with.
+- `game-client`: the browser client that renders this state and feeds it input, on plain Canvas/WebGL, Phaser, PixiJS or Three.js.

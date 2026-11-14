@@ -39,6 +39,7 @@
         "./skills/elevenlabs-sound-music",
         "./skills/game-anti-cheat",
         "./skills/game-backend-architecture",
+        "./skills/game-client",
         "./skills/game-design-fundamentals",
         "./skills/game-economy-design",
         "./skills/game-localization",

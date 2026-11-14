@@ -171,4 +171,6 @@ socket.onmessage = (event) => {
 
 `syncTick` matters: reconciliation replays ticks by number, so the client must count the same ticks as the server. If an update arrives with a tick at or past the client's, or further behind than `inputBufferSize` ticks, the loop takes the server's state and tick instead of replaying.
 
-`onServerUpdate` is a notification hook only; reconciliation happens inside `handleServerUpdate`. `onRender` receives the current state and alpha; interpolating fields is the renderer's job, or call `getInterpolationData()` for the previous and current state.
+`onServerUpdate` is a notification hook only; reconciliation happens inside `handleServerUpdate`. `onRender` receives the current state and alpha; interpolating fields is the renderer's job, or call `getInterpolationData()` for the previous and current state (it deep-clones both).
+
+When a rendering engine owns the frame loop, skip `start()` and `onRender`. Call `loop.step(now)` from the engine's per-frame callback: it runs the same fixed ticks and returns the alpha. Then read `getRenderState()`, which returns the previous and current state by reference, and write transforms. Pass `step()` one time source (the rAF time or `performance.now()`, not both). When the tab is hidden, stop calling `step()` and call `resetClock()`; after the resync, call `resetClock()` again and resume. Engines such as Phaser resume their loop as soon as the tab shows, so gate `step()` behind a paused flag rather than relying on the engine to stop.

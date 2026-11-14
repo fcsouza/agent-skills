@@ -32,6 +32,10 @@ export class ClientGameLoop<
 	private config: GameLoopConfig;
 	private running = false;
 	private rafId = 0;
+	// Engine-driven mode: step() was called. Excludes start().
+	private externallyDriven = false;
+	// True until the first step() (or after resetClock()) seeds the clock.
+	private clockPending = true;
 
 	// Timing
 	private tickDuration: number;
@@ -76,6 +80,11 @@ export class ClientGameLoop<
 	 */
 	start(): void {
 		if (this.running) return;
+		if (this.externallyDriven) {
+			throw new Error(
+				'ClientGameLoop: step() already drives this loop; do not also call start()',
+			);
+		}
 		this.running = true;
 		this.previousTimestamp = performance.now();
 		this.accumulator = 0;
@@ -99,7 +108,22 @@ export class ClientGameLoop<
 	private loop(timestamp: number): void {
 		if (!this.running) return;
 
-		const dt = Math.min(timestamp - this.previousTimestamp, 250); // Cap spiral of death
+		const alpha = this.advance(timestamp);
+
+		// Render: interpolate between previous and current state
+		this.render(alpha);
+
+		this.rafId = requestAnimationFrame((ts) => this.loop(ts));
+	}
+
+	/**
+	 * Accumulate the time since the last call and run the fixed ticks it
+	 * covers. Shared by the self-driven loop and step(). Returns the alpha.
+	 */
+	private advance(timestamp: number): number {
+		// Cap spiral of death at 250 ms; a timestamp older than the last one
+		// adds nothing (callers must use one time source throughout).
+		const dt = Math.max(0, Math.min(timestamp - this.previousTimestamp, 250));
 		this.previousTimestamp = timestamp;
 		this.accumulator += dt;
 
@@ -109,11 +133,66 @@ export class ClientGameLoop<
 			this.accumulator -= this.tickDuration;
 		}
 
-		// Render: interpolate between previous and current state
-		const alpha = this.accumulator / this.tickDuration;
-		this.render(alpha);
+		return this.accumulator / this.tickDuration;
+	}
 
-		this.rafId = requestAnimationFrame((ts) => this.loop(ts));
+	/**
+	 * Engine-driven mode: advance the loop from the engine's own frame
+	 * callback (Phaser update, a PixiJS ticker, three.js setAnimationLoop,
+	 * R3F useFrame), so only one requestAnimationFrame loop runs. Pass the
+	 * frame timestamp in milliseconds from one time source: the rAF time or
+	 * performance.now(), never a mix. An earlier timestamp adds no time.
+	 * Runs the same fixed ticks and 250 ms cap as start() and returns the
+	 * render alpha. It does not call onRender or schedule a frame; read
+	 * getRenderState() and draw.
+	 *
+	 * Do not call start() when you use step(): step() throws while the
+	 * self-driven loop runs, and start() throws once step() has been used.
+	 * The first call (and the first after resetClock()) only seeds the clock
+	 * and returns 0.
+	 */
+	step(nowMs: number): number {
+		if (this.running) {
+			throw new Error(
+				'ClientGameLoop: start() already drives this loop; do not also call step()',
+			);
+		}
+		this.externallyDriven = true;
+		if (this.clockPending) {
+			this.clockPending = false;
+			this.previousTimestamp = nowMs;
+			this.accumulator = 0;
+			return 0;
+		}
+		return this.advance(nowMs);
+	}
+
+	/**
+	 * Engine-driven mode: forget the elapsed time so the next step() starts
+	 * fresh, with no catch-up ticks. Call it when the tab becomes visible
+	 * again, where the self-driven mode would call stop() and start().
+	 */
+	resetClock(): void {
+		this.clockPending = true;
+		this.accumulator = 0;
+	}
+
+	/**
+	 * Per-frame read for rendering. Returns the previous and current state by
+	 * reference (no copy) and the alpha of the last step or frame. Treat both
+	 * states as read-only, and do not keep them past the frame: the next tick
+	 * replaces them.
+	 */
+	getRenderState(): {
+		prev: Readonly<TState>;
+		current: Readonly<TState>;
+		alpha: number;
+	} {
+		return {
+			prev: this.prevState,
+			current: this.currentState,
+			alpha: this.accumulator / this.tickDuration,
+		};
 	}
 
 	/**
@@ -176,7 +255,7 @@ export class ClientGameLoop<
 	/**
 	 * Align the client's tick counter with the server's. Call it when the
 	 * room is joined (the server's join message carries its tick), before
-	 * start(): inputs are tagged with this counter, and reconciliation
+	 * start() or the first step(): inputs are tagged with this counter, and reconciliation
 	 * replays ticks by it, so both sides must count the same ticks.
 	 */
 	syncTick(serverTick: number): void {
@@ -262,6 +341,8 @@ export class ClientGameLoop<
 	/**
 	 * Get the current interpolation states for external renderers.
 	 * Useful if you need to interpolate specific fields outside the onRender callback.
+	 * Deep-clones both states (structuredClone) on every call; for per-frame
+	 * rendering use getRenderState(), which returns references.
 	 */
 	getInterpolationData(): {
 		prev: TState;
