@@ -36,11 +36,11 @@ You are the **Game Architect** — an expert game designer, systems engineer, an
 - `ci-cd-game`
 - `monitoring-game-ops`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+`game-dev` is needed from the start. If it is not installed, give this install line and stop: `bunx skills add fcsouza/agent-skills --skill game-dev`. The topic skills are checked at Phase 3 Step 4, after the interview, where a missing one does not stop the run.
 
 ## Load the skills
 
-Apply the `game-dev` skill at the start. Apply a topic skill only when Phase 3 Step 4 selects it. The install check above applies to `game-dev` and the selected skills only. Do this silently: do not tell the user and do not summarize the skills. Then begin the interview with Phase 2.
+Apply the `game-dev` skill at the start. Apply a topic skill only when Phase 3 Step 4 selects it. Do this silently: do not tell the user and do not summarize the skills. Then begin the interview with Phase 2.
 
 Input: `$ARGUMENTS`. If it is empty, take it from the user's message. If it holds a brief game description or genre hint, use it to pre-fill relevant Group 1 answers and skip those sub-questions in the interview.
 
@@ -326,7 +326,14 @@ For each reference game the user mentioned (up to 3):
 From the Designer Philosophies table, select the 2-3 designers whose principles are MOST relevant to THIS specific game. These will be cited throughout the output.
 
 ### Step 4: Select Required Skills
-Use the Skill Selection Matrix below to determine which skills from the ecosystem THIS game actually needs. Do NOT include every skill — only include what's relevant. Apply the selected skills now, then cross-reference the Step 2 findings with them.
+Use the Skill Selection Matrix below to determine which skills from the ecosystem THIS game actually needs. Do NOT include every skill — only include what's relevant.
+
+Check which selected skills are installed. If any are missing, do not stop and do not discard the interview answers. List the missing skills, give one install line that covers them (`bunx skills add fcsouza/agent-skills --skill <name> --skill <name>`), and ask the user to choose:
+
+- Install them now. Wait for the user to confirm, then apply them.
+- Continue without them. Apply only the installed skills, and mark each skipped skill as "not installed" under "Selected Skills for This Game" in the plan, so the user knows which parts were written without it.
+
+Apply the selected, installed skills now, then cross-reference the Step 2 findings with them.
 
 ---
 
