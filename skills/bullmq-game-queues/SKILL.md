@@ -100,5 +100,5 @@ BullMQ retries failed jobs and re-runs stalled ones, so any job can run more tha
 - `postgres-game-schema`: tables for idempotency keys, rewards and seasons.
 - `matchmaking-system`: the matching logic the matchmaking worker calls.
 - `stripe-game-payments`: purchases that enqueue reward jobs.
-- `game-backend-architecture`: where queues sit in the server.
+- `game-backend-architecture`: the game server, rooms and tick loop that enqueue jobs.
 - `monitoring-game-ops`: queue alerts and dashboards.

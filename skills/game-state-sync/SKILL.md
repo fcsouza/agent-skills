@@ -8,7 +8,7 @@ description: >-
 
 The server owns the game state. Clients send inputs, never results. Every technique below hides latency on top of that rule; none of them replaces it.
 
-Prerequisites: a server tick loop and authority model (`game-backend-architecture`). For fanning deltas out across several server processes, see `redis-game-patterns`.
+Prerequisites: a server tick loop and authority model (`game-backend-architecture`). For fanning deltas out across several server processes, see the fan-out section of `game-backend-architecture`.
 
 ## Pick a sync strategy
 
