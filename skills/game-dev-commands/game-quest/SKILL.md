@@ -28,7 +28,7 @@ Execute in this exact order:
 1. READ `docs/world-lore.md`
    - If it does NOT exist: output `⛔ Cannot proceed. docs/world-lore.md not found. Run the game-architect skill (/game-architect) first to generate the world foundation, or create docs/world-lore.md manually.` and stop.
 2. READ `docs/quest-registry.md`
-   - If it does NOT exist: create it from the registry template of the `quest-narrative-coherence` skill (templates/quest-registry.md in that skill). Keep its headers.
+   - If it does NOT exist: create it from the registry template of the `quest-narrative-coherence` skill (templates/quest-registry.md in that skill). Keep its headers. New quests go in the table under the `## Active Quests` heading.
 3. Apply the `quest-narrative-coherence` skill
 4. Apply the `quest-mission-design` skill
 5. READ `docs/mvp-first-draft.md` if it exists (for economy and progression context — optional)
@@ -154,7 +154,7 @@ Output the complete quest brief in GDD section format:
 
 ## Phase 5 — Register Quest
 
-Append the completed quest to `docs/quest-registry.md` in the registry format:
+Append the completed quest as a new row at the end of the table under the `## Active Quests` heading of `docs/quest-registry.md`, in the registry format. Do not add it to the Completed Quests or Planned Quests tables:
 
 ```markdown
 | [QID] | [Quest Name] | [Type] | [Giver NPC] | [Location] | [Factions Affected] | [Rewards Summary] | [Prerequisites] | [Story Arc] |
