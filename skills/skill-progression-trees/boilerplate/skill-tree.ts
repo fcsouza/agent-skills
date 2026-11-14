@@ -1,5 +1,5 @@
 // Verified against: drizzle-orm 0.45.4 (2026-11-14)
-import { and, eq, type TablesRelationalConfig } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -13,14 +13,22 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-// The caller passes its own Drizzle database (any Postgres driver, with or
-// without a relational schema) or a transaction. PgTransaction extends
-// PgDatabase, so both fit. The functions stay generic over the schema because
-// a database built with `{ schema }` is not assignable to the schema-less type.
-export type Db<
-  TFullSchema extends Record<string, unknown>,
-  TSchema extends TablesRelationalConfig,
-> = PgDatabase<PgQueryResultHKT, TFullSchema, TSchema>;
+// Any Drizzle Postgres database, the same shape as `GameDb` in the
+// `postgres-game-schema` skill's query-patterns.ts. A database built with or
+// without `{ schema }`, from any driver, fits, and so does a transaction
+// (PgTransaction extends PgDatabase).
+export type GameDb = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
+
+// Takes `cost` skill points from the player inside the unlock transaction.
+// Returns false when the player cannot pay; unlockNode then rolls back.
+// With `postgres-game-schema`:
+//   (tx, playerId, cost) => spendCurrency(tx, playerId, SKILL_CURRENCY, cost)
+// Its guarded UPDATE (`amount >= cost`) stops parallel unlocks overdrawing.
+export type SpendSkillPoints = (
+  tx: GameDb,
+  playerId: string,
+  cost: number,
+) => Promise<boolean>;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -34,8 +42,7 @@ export type UnlockResult = {
   reason?: string;
 };
 
-// Currency type for skill points in your wallet table (see the commented
-// currency code below).
+// Currency type for skill points in your wallet table.
 export const SKILL_CURRENCY = 'skill_points';
 
 // ─── Skill Nodes (Tree Definition) ──────────────────────────────────────────
@@ -76,6 +83,8 @@ export const playerSkills = pgTable(
     id: text('id')
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
+    // Add `.references(() => players.id, { onDelete: 'cascade' })` with your
+    // players table, so deleting a player deletes their unlocks.
     playerId: text('player_id').notNull(),
     nodeId: text('node_id')
       .notNull()
@@ -94,11 +103,8 @@ export const playerSkills = pgTable(
 
 // ─── Check Unlock Eligibility ───────────────────────────────────────────────
 
-export async function canUnlock<
-  TFullSchema extends Record<string, unknown>,
-  TSchema extends TablesRelationalConfig,
->(
-  db: Db<TFullSchema, TSchema>,
+export async function canUnlock(
+  db: GameDb,
   playerId: string,
   nodeId: string,
 ): Promise<UnlockResult> {
@@ -129,42 +135,25 @@ export async function canUnlock<
     };
   }
 
-  // Check skill points. Replace `currencies` with your wallet table.
-  // const [wallet] = await db
-  //   .select()
-  //   .from(currencies)
-  //   .where(
-  //     and(
-  //       eq(currencies.playerId, playerId),
-  //       eq(currencies.currencyType, SKILL_CURRENCY),
-  //     ),
-  //   );
-  //
-  // if (!wallet || wallet.amount < node.cost) {
-  //   return {
-  //     canUnlock: false,
-  //     reason: `Not enough skill points (need ${node.cost})`,
-  //   };
-  // }
+  // Skill points are checked by the guarded spend in unlockNode, not here:
+  // a balance read now can be stale by the time the unlock writes.
 
   return { canUnlock: true };
 }
 
 // ─── Unlock a Node ──────────────────────────────────────────────────────────
 
-export async function unlockNode<
-  TFullSchema extends Record<string, unknown>,
-  TSchema extends TablesRelationalConfig,
->(
-  db: Db<TFullSchema, TSchema>,
+export async function unlockNode(
+  db: GameDb,
   playerId: string,
   nodeId: string,
+  spend: SpendSkillPoints,
 ): Promise<void> {
   await db.transaction(async (tx) => {
     // The unique index on (player_id, node_id) rejects a duplicate unlock, and
     // the failed insert rolls back this transaction's deduction. Parallel
-    // unlocks of different nodes can both pass this check: guard the wallet
-    // update itself (see the deduction below).
+    // unlocks of different nodes can both pass this check; `spend` must guard
+    // the wallet update itself.
     const result = await canUnlock(tx, playerId, nodeId);
     if (!result.canUnlock) {
       throw new Error(`Cannot unlock node: ${result.reason}`);
@@ -178,23 +167,9 @@ export async function unlockNode<
       throw new Error('Cannot unlock node: Node does not exist');
     }
 
-    // Deduct skill points. Replace `currencies` with your wallet table. The
-    // `amount >= cost` condition stops an overdraft when unlocks run in
-    // parallel; throw if `.returning()` comes back empty.
-    // const spent = await tx
-    //   .update(currencies)
-    //   .set({ amount: sql`${currencies.amount} - ${node.cost}` })
-    //   .where(
-    //     and(
-    //       eq(currencies.playerId, playerId),
-    //       eq(currencies.currencyType, SKILL_CURRENCY),
-    //       gte(currencies.amount, node.cost),
-    //     ),
-    //   )
-    //   .returning({ id: currencies.id });
-    // if (spent.length === 0) {
-    //   throw new Error('Cannot unlock node: Not enough skill points');
-    // }
+    if (!(await spend(tx, playerId, node.cost))) {
+      throw new Error('Cannot unlock node: Not enough skill points');
+    }
 
     // Store the node as it was at unlock time, for audit after a balance patch.
     await tx.insert(playerSkills).values({
@@ -214,11 +189,8 @@ export async function unlockNode<
 
 // ─── Check One Unlock Row ───────────────────────────────────────────────────
 
-export async function hasUnlocked<
-  TFullSchema extends Record<string, unknown>,
-  TSchema extends TablesRelationalConfig,
->(
-  db: Db<TFullSchema, TSchema>,
+export async function hasUnlocked(
+  db: GameDb,
   playerId: string,
   nodeId: string,
 ): Promise<boolean> {
@@ -233,10 +205,7 @@ export async function hasUnlocked<
 
 // ─── Get Player Tree ────────────────────────────────────────────────────────
 
-export async function getPlayerTree<
-  TFullSchema extends Record<string, unknown>,
-  TSchema extends TablesRelationalConfig,
->(db: Db<TFullSchema, TSchema>, playerId: string) {
+export async function getPlayerTree(db: GameDb, playerId: string) {
   const allNodes = await db.select().from(skillNodes);
   const unlocked = await db
     .select({ nodeId: playerSkills.nodeId })
