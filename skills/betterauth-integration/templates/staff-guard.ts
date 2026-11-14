@@ -18,6 +18,7 @@ import {
   createAuthMiddleware,
   getAuthoritativeSessionFromCtx,
 } from 'better-auth/api';
+import { rolesOf } from './role-definitions';
 
 type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
@@ -66,12 +67,7 @@ const adminSettings = (ctx: HookContext) => {
   };
 };
 
-// Parse roles exactly as the admin plugin's hasPermission does:
-// `(role || defaultRole).split(',')`, with no trimming.
-const rolesOf = (user: object, defaultRole: string): string[] => {
-  const role = 'role' in user ? user.role : undefined;
-  return (typeof role === 'string' && role ? role : defaultRole).split(',');
-};
+const roleOf = (user: object): unknown => ('role' in user ? user.role : undefined);
 
 // Every before hook gets the request's original headers: in 1.7.23
 // (dist/api/dispatch.mjs, runBeforeHooks) header changes merge only after the
@@ -147,7 +143,7 @@ export const guardStaffTargets = async (ctx: HookContext): Promise<void> => {
   const { adminUserIds, defaultRole } = adminSettings(ctx);
   if (
     adminUserIds.includes(caller.user.id) ||
-    rolesOf(caller.user, defaultRole).includes('admin')
+    rolesOf(roleOf(caller.user), defaultRole).includes('admin')
   ) {
     return;
   }
@@ -159,7 +155,7 @@ export const guardStaffTargets = async (ctx: HookContext): Promise<void> => {
   if (
     !target ||
     adminUserIds.includes(target.id) ||
-    !rolesOf(target, defaultRole).every((name) => name === 'player')
+    !rolesOf(roleOf(target), defaultRole).every((name) => name === 'player')
   ) {
     return forbid();
   }

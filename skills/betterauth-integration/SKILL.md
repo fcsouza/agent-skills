@@ -50,10 +50,10 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
 - The guard reads the target only from the field each endpoint reads (`sessionToken` for `revoke-user-session`, `userId` for the rest), coerces `userId` the way the endpoints do, and rejects a request whose target it cannot find. Server code that calls `auth.api.createUser({ body })` with no headers passes, as the plugin allows.
 - Hooks run for `auth.api.*` calls but not for writes through `internalAdapter`. Game code that acts on another user calls `auth.api.*` with the acting moderator's own request headers, never with an admin or service session and never through `internalAdapter`, or it applies the same player-only target check itself.
 - Do not give moderators `session: ['list']`. `/admin/list-user-sessions` returns each session's token, and a token is a login. Moderators revoke a player's sessions with `/admin/revoke-user-sessions`, which needs only `session: ['revoke']`.
-- `user.role` holds a comma-separated list when a user has several roles. The `can()` helper in the template splits it without trimming, as the plugin does.
+- `user.role` holds a comma-separated list when a user has several roles. `rolesOf` in `role-definitions.ts` splits it without trimming, as the plugin does, and treats a missing role as `defaultRole`. `can()` and `staffGuard` both use it, so the two never read a role differently. Pass `can()` the same `defaultRole` you gave the plugin (it defaults to `player`).
 - If the project adds user fields with `returned: false`, a moderator can still test their values through the `filterField` query of `/admin/list-users`.
 - Check a permission with `can(session.user.role, { chat: ['delete'] })` when you already hold the session, or with `auth.api.userHasPermission({ body: { userId, permissions } })` when you only have the id.
-- Ownership is not a role. A player edits their own profile or inventory because the session user id equals the owner id. Check that separately (`isOwner` in the template).
+- Ownership is not a role. A player edits their own profile or inventory because the session user id equals the owner id. Check that separately: `session.user.id === ownerId`.
 - A ban through the admin plugin stops sign-in and revokes all of the player's sessions. The game server must close that player's open sockets itself, because the handshake check ran only once.
 
 ## WebSocket handshake

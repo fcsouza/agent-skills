@@ -62,20 +62,21 @@ type PermissionRequest = Parameters<typeof player.authorize>[0];
 
 const isGameRole = (name: string): name is GameRole => Object.hasOwn(roles, name);
 
+// The one role parser, shared with staff-guard.ts. It reads `user.role` the
+// way the admin plugin's hasPermission does: `(role || defaultRole).split(',')`,
+// no trimming, so "player, moderator" is "player" and " moderator".
+export const rolesOf = (role: unknown, defaultRole: string): string[] =>
+  (typeof role === 'string' && role ? role : defaultRole).split(',');
+
 // Synchronous check against the matrix, for code that already holds the
-// session user. `user.role` is a comma-separated list when a user has several
-// roles. It splits without trimming, as the admin plugin does, so "player, moderator"
-// grants only player. An unknown or missing role grants nothing.
+// session user. A missing role counts as `defaultRole`, as in the plugin; pass
+// the same value you gave admin({ defaultRole }). A role this file does not
+// define grants nothing.
 export const can = (
   userRole: string | null | undefined,
   request: PermissionRequest,
+  defaultRole = 'player',
 ): boolean =>
-  (userRole ?? '')
-    .split(',')
+  rolesOf(userRole, defaultRole)
     .filter(isGameRole)
     .some((name) => roles[name].authorize(request).success);
-
-// Ownership is not a role permission. A player edits their own profile,
-// inventory and settings because the session user id matches the owner id.
-export const isOwner = (sessionUserId: string, ownerId: string): boolean =>
-  sessionUserId === ownerId;
