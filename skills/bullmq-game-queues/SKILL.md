@@ -16,15 +16,7 @@ bun add bullmq ioredis
 
 BullMQ 6 connects with ioredis by default but lists it only as an optional peer dependency, so install it yourself (https://docs.bullmq.io/guide/connections). `redis-game-patterns` explains why the bundle uses ioredis.
 
-Then copy the files in this order:
-
-1. `templates/job-types.ts`: copy when you start. Queue names, job payload and result types, job names, the `Priority` enum.
-2. `templates/queue-config.ts`: copy when you start. Producer and worker connections, the shared key prefix, retries, rate limits, concurrency.
-3. `boilerplate/queues.ts`: copy when you add jobs from the game server. One typed `Queue` per domain plus `QueueEvents` for monitoring.
-4. `boilerplate/workers.ts`: copy when you write processors. One `Worker` per queue; replace the placeholder functions at the bottom.
-5. `boilerplate/scheduler.ts`: copy when you need daily rewards, season ends, timed events or periodic snapshots. It uses the queues from `queues.ts`, so `closeAllQueues()` closes them too.
-
-`references/sources.md`: read when you need the doc page and sentence behind a rule below.
+Then copy the files in the order numbered under Files.
 
 ## One queue per domain
 
@@ -77,12 +69,6 @@ BullMQ retries failed jobs and re-runs stalled ones, so any job can run more tha
 - Jobs that use up their retries move to the failed set, where `removeOnFail` keeps them at least 7 days. Alert on the `failed` event and inspect them there.
 - A CPU-heavy processor cannot renew its lock and its job is marked stalled and run again. Move heavy simulation out of the worker's event loop.
 
-## Pitfalls
-
-- Per-player rate limits do not belong in BullMQ: the worker `limiter` is global for the whole queue. Limit matchmaking requests per player at the API, with the rate limiter in `redis-game-patterns`.
-- Throwing to "retry later" in matchmaking re-runs the same payload with the same criteria after each backoff. If the search should widen over time, compute the range from `queuedAt` in the processor.
-- Use `QueueEvents` for dashboards and alerts. `worker.on(...)` sees only its own process.
-
 ## Checklist
 
 - [ ] `bullmq` and `ioredis` both in `package.json`.
@@ -93,6 +79,21 @@ BullMQ retries failed jobs and re-runs stalled ones, so any job can run more tha
 - [ ] Same `prefix` on queues, workers and queue events.
 - [ ] Alert on failed and stalled jobs (`monitoring-game-ops`).
 - [ ] All queues, workers and queue events closed on shutdown.
+
+## Pitfalls
+
+- Per-player rate limits do not belong in BullMQ: the worker `limiter` is global for the whole queue. Limit matchmaking requests per player at the API, with the rate limiter in `redis-game-patterns`.
+- Throwing to "retry later" in matchmaking re-runs the same payload with the same criteria after each backoff. If the search should widen over time, compute the range from `queuedAt` in the processor.
+- Use `QueueEvents` for dashboards and alerts. `worker.on(...)` sees only its own process.
+
+## Files
+
+1. `templates/job-types.ts`: copy when you start. Queue names, job payload and result types, job names, the `Priority` enum.
+2. `templates/queue-config.ts`: copy when you start. Producer and worker connections, the shared key prefix, retries, rate limits, concurrency.
+3. `boilerplate/queues.ts`: copy when you add jobs from the game server. One typed `Queue` per domain plus `QueueEvents` for monitoring.
+4. `boilerplate/workers.ts`: copy when you write processors. One `Worker` per queue; replace the placeholder functions at the bottom.
+5. `boilerplate/scheduler.ts`: copy when you need daily rewards, season ends, timed events or periodic snapshots. It uses the queues from `queues.ts`, so `closeAllQueues()` closes them too.
+- `references/sources.md`: read when you need the doc page and sentence behind a rule above.
 
 ## Related skills
 

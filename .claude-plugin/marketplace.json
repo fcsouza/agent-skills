@@ -6,8 +6,7 @@
   },
   "metadata": {
     "description": "Game development skills for AI agents — design, engineering, narrative, infrastructure, and React animations — plus Claude Code mods",
-    "version": "2.0.0",
-    "repository": "https://github.com/fcsouza/agent-skills"
+    "version": "2.0.0"
   },
   "renames": {
     "game-dev-design": "game-dev",

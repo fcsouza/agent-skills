@@ -15,8 +15,6 @@ description: >-
 
 Pairs players by skill from a Redis sorted set, widens the skill bracket as they wait, claims each pair atomically, and runs the lobby until the match ends.
 
-Related skills: `bullmq-game-queues` (queue and worker setup), `redis-game-patterns` (Redis client, presence), `postgres-game-schema` (rating and match history), `game-state-sync` (takes over once the match starts).
-
 ## Choose the rating system
 
 | System | Pick it when | What it tracks |
@@ -47,8 +45,8 @@ Persist ratings in Postgres after each match (`postgres-game-schema`) and cache 
 8. When the countdown ends, check every player's presence (WebSocket heartbeat). If all are there, the lobby goes IN_PROGRESS. If anyone dropped, the lobby is short of its match size, so it dissolves: `startMatch` deletes it, unmaps every player and returns the connected ones in `requeue`. Requeue them with their original `queuedAt` so their bracket stays wide. A leave before IN_PROGRESS dissolves the lobby the same way; `leaveLobby` returns the ids to requeue.
 9. On match end, mark the lobby COMPLETE, update ratings, and let the lobby expire after the results screen.
 
-Copy when building the queue: `boilerplate/matchmaker.ts` (`MatchmakingEngine`, `startMatchmaking`). It takes the ioredis client as a parameter.
-Copy when building the lobby: `boilerplate/lobby-manager.ts` (`LobbyManager`). It takes the same client.
+Build the queue from `boilerplate/matchmaker.ts`.
+Build the lobby from `boilerplate/lobby-manager.ts`.
 
 ```typescript
 import { Redis } from 'ioredis';
@@ -122,4 +120,15 @@ Check both in your own match data before you change anything: compare predicted 
 - Tuning by opinion: test what your players care about most (latency, skill, streaks or wait time) with match data before you change the weights.
 - Client choice: the boilerplate uses ioredis because the other skills do. Its README says it is in maintenance and recommends node-redis for new projects; the claim logic ports as is.
 
-Read when citing a number or claim from this skill: `references/sources.md`.
+## Files
+
+- `boilerplate/matchmaker.ts`: copy when building the queue (`MatchmakingEngine`, `startMatchmaking`). It takes the ioredis client as a parameter.
+- `boilerplate/lobby-manager.ts`: copy when building the lobby (`LobbyManager`). It takes the same client.
+- `references/sources.md`: read when citing a number or claim from this skill.
+
+## Related skills
+
+- `bullmq-game-queues` (queue and worker setup)
+- `redis-game-patterns` (Redis client, presence)
+- `postgres-game-schema` (rating and match history)
+- `game-state-sync` (takes over once the match starts)

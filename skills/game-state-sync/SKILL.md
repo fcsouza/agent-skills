@@ -139,16 +139,6 @@ Byte budget, second step: a priority accumulator, for when the visible set still
 - Give the client's own avatar a priority high enough to be in every packet.
 - Start from `bandwidth` in `templates/sync-strategies.ts`, then measure.
 
-## Files
-
-- `boilerplate/state-sync.ts`: copy when you need the server or client engine. `StateSyncEngine` with tick, snapshot, delta, local prediction, reconciliation, rollback-and-replay, and interpolation over its own history.
-- `boilerplate/delta-encoder.ts`: copy when you send state diffs. `encodeDelta`, `decodeDelta`, `toBinaryDelta`, `fromBinaryDelta`, `deltaByteSize`, `deepEqual`.
-- `boilerplate/rollback-buffer.ts`: copy when you need tick-indexed history for rollback, acknowledged baselines or lag compensation. Ring buffer with `push`, `getAt`, `rollbackTo`, `getBracket`, `getRange`.
-- `boilerplate/game-loop-client.ts`: copy when you build the browser client. `ClientGameLoop` with a fixed timestep, input ring buffer, prediction and `handleServerUpdate` reconciliation. It reports staleness (`isExtrapolating`) but does no dead reckoning itself.
-- `templates/sync-strategies.ts`: copy when you configure interpolation, prediction, rollback and bandwidth settings. Has action, turn-based and MMO presets. The presets do not configure area of interest; step 8 does.
-- `references/client-architecture.md`: read when you build the client side: input sampling, the prediction loop, dead reckoning and fixed-timestep rendering, with a sequence diagram.
-- `references/sources.md`: read when you need the talks and articles behind these rules.
-
 ## Pitfalls
 
 ### Desync
@@ -168,3 +158,13 @@ Byte budget, second step: a priority accumulator, for when the visible set still
 
 - If snapshots arrive late, the buffer runs dry and entities freeze or extrapolate. Lengthen the delay if this happens often.
 - Remote players render in the past, so without lag compensation shooters must lead their targets.
+
+## Files
+
+- `boilerplate/state-sync.ts`: copy when you need the server or client engine. `StateSyncEngine` with tick, snapshot, delta, local prediction, reconciliation, rollback-and-replay, and interpolation over its own history.
+- `boilerplate/delta-encoder.ts`: copy when you send state diffs. `encodeDelta`, `decodeDelta`, `toBinaryDelta`, `fromBinaryDelta`, `deltaByteSize`, `deepEqual`.
+- `boilerplate/rollback-buffer.ts`: copy when you need tick-indexed history for rollback, acknowledged baselines or lag compensation. Ring buffer with `push`, `getAt`, `rollbackTo`, `getBracket`, `getRange`.
+- `boilerplate/game-loop-client.ts`: copy when you build the browser client. `ClientGameLoop` with a fixed timestep, input ring buffer, prediction and `handleServerUpdate` reconciliation. It reports staleness (`isExtrapolating`) but does no dead reckoning itself.
+- `templates/sync-strategies.ts`: copy when you configure interpolation, prediction, rollback and bandwidth settings. Has action, turn-based and MMO presets. The presets do not configure area of interest; step 8 does.
+- `references/client-architecture.md`: read when you build the client side: input sampling, the prediction loop, dead reckoning and fixed-timestep rendering, with a sequence diagram.
+- `references/sources.md`: read when you need the talks and articles behind these rules.

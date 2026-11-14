@@ -10,12 +10,6 @@ The schema is the value of this skill. Install, driver setup, config and migrati
 
 Target the stable Drizzle line, `drizzle-orm` 0.45.x. The Drizzle docs install lines use `drizzle-orm@rc` and `drizzle-kit@rc`; pin the 0.45 versions instead (see "Drizzle 1.0" below).
 
-## Files
-
-- `boilerplate/schema.ts`: copy when starting a game database. Thirteen tables (players, characters, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members, processed events) and their enums.
-- `templates/entity-template.ts`: copy when adding a new game entity. Three patterns: an entity a player owns, a definition catalog with player instances, and an enum-driven timed entity.
-- `templates/query-patterns.ts`: read when writing queries against the schema: inventory join, leaderboard top N, event aggregation, JSONB filters, atomic currency credit, guarded spend, best-score upsert. Each function takes the database as its first argument (`GameDb`, any Drizzle Postgres database), so it works with whichever driver the project uses.
-
 ## Conventions
 
 Every table and query in a game project follows these. Other skills (`stripe-game-payments`, `gameplay-analytics`, `game-economy-design`) build on them.
@@ -68,6 +62,12 @@ Drizzle 1.0 is a release candidate (npm `rc` tag), not the `latest` tag. If a pr
 - **Filtering on a JSONB key in a hot path.** A GIN index on a `jsonb` column serves containment (`properties @> '{"key": "value"}'`), not `properties ->> 'key' = ...`. For a hot filter, query with `@>` against a GIN index, add an expression index on that key, or promote the key to a typed column.
 - **Forgetting soft-deleted players.** Leaderboard and guild queries join `players`; filter `isNull(players.deletedAt)` there too, as `templates/query-patterns.ts` does.
 - **Running migrations from two git worktrees at once.** Worktrees share one Neon database, so concurrent migrations conflict. Only one worktree runs migrations at a time. Use separate Neon branches for experimental schema work.
+
+## Files
+
+- `boilerplate/schema.ts`: copy when starting a game database. Thirteen tables (players, characters, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members, processed events) and their enums.
+- `templates/entity-template.ts`: copy when adding a new game entity. Three patterns: an entity a player owns, a definition catalog with player instances, and an enum-driven timed entity.
+- `templates/query-patterns.ts`: read when writing queries against the schema: inventory join, leaderboard top N, event aggregation, JSONB filters, atomic currency credit, guarded spend, best-score upsert. Each function takes the database as its first argument (`GameDb`, any Drizzle Postgres database), so it works with whichever driver the project uses.
 
 ## Related skills
 

@@ -6,13 +6,6 @@ description: >-
 
 # Skill and Progression Trees
 
-## Related skills
-
-- `game-design-fundamentals`: core loop and progression pacing.
-- `game-economy-design`: skill point income, costs and currency sinks.
-- `postgres-game-schema`: player and wallet tables, and `spendCurrency` for the guarded deduction.
-- `redis-game-patterns`: caching each player's unlocked node set.
-
 ## Core rules
 
 1. **Model a DAG, not a tree.** A node can have several prerequisites. Cycles break validation, so reject any admin write that creates one.
@@ -58,3 +51,10 @@ description: >-
 - `boilerplate/skill-tree.ts`: copy when building the backend. Drizzle tables, `canUnlock`, `unlockNode`, `hasUnlocked`, `getPlayerTree`, `detectCycles`, `findMissingPrerequisites`. The caller passes its own Drizzle database; the file imports no driver.
 - `templates/skill-tree-template.md`: copy when designing a new tree.
 - `references/sources.md`: read when you need the sources behind this skill.
+
+## Related skills
+
+- `game-design-fundamentals`: core loop and progression pacing.
+- `game-economy-design`: skill point income, costs and currency sinks.
+- `postgres-game-schema`: player and wallet tables, and `spendCurrency` for the guarded deduction.
+- `redis-game-patterns`: caching each player's unlocked node set.

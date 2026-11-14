@@ -23,8 +23,8 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
 ## Setup steps
 
 1. Install the packages: `bun add better-auth @better-auth/drizzle-adapter`. Import the adapter with `import { drizzleAdapter } from '@better-auth/drizzle-adapter'`. If the project uses Drizzle Relations v2, import from `@better-auth/drizzle-adapter/relations-v2` instead.
-2. Add the admin plugin with the game roles from `templates/role-definitions.ts` (read when you set up roles or add a game permission): `admin({ ac, roles, defaultRole: 'player' })` on the server and `adminClient({ ac, roles })` on the client. Without `defaultRole: 'player'`, new users get the plugin's default role `user`, which the game matrix does not define, and every permission check fails.
-3. Add the `staffGuard()` plugin from `templates/staff-guard.ts` (read when you give moderators ban or session powers) after `admin()`: `plugins: [admin({ ... }), staffGuard()]`. A plugin hook does not take the single user-level `hooks.before` slot, and its place relative to `bearer()` does not matter. If a project must call `guardStaffTargets(ctx)` from its own `hooks.before` instead, `await` it as the first statement, do not catch its error, and do not rewrite the body of `/admin/*` requests in any hook.
+2. Add the admin plugin with the game roles from `templates/role-definitions.ts`: `admin({ ac, roles, defaultRole: 'player' })` on the server and `adminClient({ ac, roles })` on the client. Without `defaultRole: 'player'`, new users get the plugin's default role `user`, which the game matrix does not define, and every permission check fails.
+3. Add the `staffGuard()` plugin from `templates/staff-guard.ts` after `admin()`: `plugins: [admin({ ... }), staffGuard()]`. A plugin hook does not take the single user-level `hooks.before` slot, and its place relative to `bearer()` does not matter. If a project must call `guardStaffTargets(ctx)` from its own `hooks.before` instead, `await` it as the first statement, do not catch its error, and do not rewrite the body of `/admin/*` requests in any hook.
 4. Do not add a `role` field through `additionalFields`. The admin plugin adds `role` (plus `banned`, `banReason`, `banExpires`) to the user table.
 5. Generate the auth schema, then migrate it with Drizzle Kit. Better Auth's `migrate` command works only with its built-in Kysely adapter.
 
@@ -85,13 +85,15 @@ A direct `auth.api` call skips Better Auth's origin checks, even with the browse
 - Cookie-only (stateless) deployments with no database. There the caller's role comes from the cookie, so a demotion takes effect only when the cookie cache expires.
 - Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
+## Files
+
+- `templates/role-definitions.ts`: read when you set up roles or add a game permission.
+- `templates/staff-guard.ts`: read when you give moderators ban or session powers.
+- `references/sources.md`: read when you need the documentation page behind a claim in this skill.
+
 ## Related skills
 
 - `postgres-game-schema` for the player tables that reference the auth user
 - `game-backend-architecture` for the server and the WebSocket endpoint
 - `redis-game-patterns` for game session state
 - `stripe-game-payments` for payments tied to an authenticated player
-
-## Reference files
-
-Read `references/sources.md` when you need the documentation page behind a claim in this skill.

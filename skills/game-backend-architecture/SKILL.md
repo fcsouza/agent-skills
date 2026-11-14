@@ -22,16 +22,6 @@ The boilerplate targets `elysia` 1.4.32. Use the `elysiajs` skill if it is insta
 5. Authenticate once, on the WebSocket upgrade, from the Better Auth session. The player id comes from that session for the life of the socket, never from a message.
 6. Default to 20 ticks per second. One tick then has a 50 ms budget for every room on the instance. Pick another rate per room when the genre needs it.
 
-## Files
-
-- `boilerplate/server.ts`: copy when wiring the server. It mounts the Better Auth handler, checks `Origin` and the session in `.derive()` on the upgrade, and routes WebSocket messages to the room manager.
-- `boilerplate/room-manager.ts`: copy when adding rooms. Read when plugging in game logic: `tickRoom` and `processAction` are the hooks.
-- `boilerplate/game-loop.ts`: copy when a room needs its tick loop; it needs no changes.
-- `boilerplate/fan-out.ts`: copy when you run more than one server instance.
-- `templates/message-types.ts`: copy when defining the client-server protocol; extend the unions with your game's messages.
-- `references/architecture.md`: read when you need the connection flow or room lifecycle as a diagram.
-- `references/sources.md`: read when you need the page behind a rule here.
-
 ## Wiring the server
 
 1. Define the protocol first in `templates/message-types.ts`. Every message is a member of a discriminated union on `type`. Client messages are one TypeBox schema, `clientMessage`; `ClientMessage` is derived from it with `Static`, and `server.ts` validates with it, so malformed messages are rejected before your code sees them and the type cannot drift from the check.
@@ -105,6 +95,16 @@ The client sends `ping`; the server answers `pong` with its time. On each ping, 
 - Destroying a room the moment it empties. Go through `closing`: stop the loop, persist, notify, then delete.
 - Reading the player id from a client message, or reading the session per message instead of once per upgrade.
 - Forgetting that the session check runs once. Ban and logout do not close sockets that are already open; use the `kick` fan-out message.
+
+## Files
+
+- `boilerplate/server.ts`: copy when wiring the server. It mounts the Better Auth handler, checks `Origin` and the session in `.derive()` on the upgrade, and routes WebSocket messages to the room manager.
+- `boilerplate/room-manager.ts`: copy when adding rooms. Read when plugging in game logic: `tickRoom` and `processAction` are the hooks.
+- `boilerplate/game-loop.ts`: copy when a room needs its tick loop; it needs no changes.
+- `boilerplate/fan-out.ts`: copy when you run more than one server instance.
+- `templates/message-types.ts`: copy when defining the client-server protocol; extend the unions with your game's messages.
+- `references/architecture.md`: read when you need the connection flow or room lifecycle as a diagram.
+- `references/sources.md`: read when you need the page behind a rule here.
 
 ## Related skills
 

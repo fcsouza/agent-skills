@@ -20,12 +20,12 @@ For client setup, Checkout Sessions and the API itself, use the `stripe-docs` sk
 ## Steps
 
 1. `bun add stripe`. Do not pass `apiVersion`: the SDK uses the version it was released with.
-2. Define the catalog. Copy when starting the store: `templates/product-catalog.ts`. Each product `id` is what Checkout metadata carries.
+2. Define the catalog in `templates/product-catalog.ts`. Each product `id` is what Checkout metadata carries.
 3. Create Checkout Sessions on the server (vendor docs). Set `metadata: { playerId, productId }` for one-time purchases and `subscription_data: { metadata: { playerId } }` for subscriptions. Pass an idempotency key on the create call so a retried request does not create a second session.
 4. Add the `processed_events` table from the `postgres-game-schema` skill: event id as primary key, a `kind` (`stripe_event`) and `created_at`. It is the idempotency table this skill and `bullmq-game-queues` share. Purchases need their own unique keys on your purchase and subscription-period tables: checkout session id for one-time grants, invoice id for subscription periods. That skill has no purchase tables; add them following its conventions.
-5. Copy when wiring the webhook endpoint: `boilerplate/webhooks.ts`. Implement its `PaymentStore` and `PaymentTx` against those tables, then call `handleStripeWebhook(rawBody, signatureHeader, { stripe, webhookSecret, store })` from your route and return its `Response`.
+5. Wire the webhook endpoint with `boilerplate/webhooks.ts`. Implement its `PaymentStore` and `PaymentTx` against those tables, then call `handleStripeWebhook(rawBody, signatureHeader, { stripe, webhookSecret, store })` from your route and return its `Response`.
 6. Keep `grantCurrency` short: write the purchase row and enqueue reward delivery with the `bullmq-game-queues` skill. Stripe wants a 2xx response before slow work.
-7. Read when designing the payment audit log: `templates/webhook-events.ts`. It holds the audit row type; log every handled event with player, product, amount and status.
+7. Design the payment audit log from `templates/webhook-events.ts`. It holds the audit row type; log every handled event with player, product, amount and status.
 8. Subscribe the endpoint to the events in `HANDLED_EVENT_TYPES` (`webhooks.ts`): `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`.
 
 ## How `webhooks.ts` handles each event
@@ -53,11 +53,16 @@ For client setup, Checkout Sessions and the API itself, use the `stripe-docs` sk
 - Missing `playerId` metadata means a bug in session creation. Flag it; do not throw.
 - Rate-limit purchases per player and turn on Radar for fraud (https://docs.stripe.com/radar).
 
+## Files
+
+- `templates/product-catalog.ts`: copy when starting the store.
+- `boilerplate/webhooks.ts`: copy when wiring the webhook endpoint.
+- `templates/webhook-events.ts`: read when designing the payment audit log. It holds the audit row type.
+- `references/sources.md`: read when checking a claim or a field path.
+
 ## Related skills
 
 - `postgres-game-schema`: inventory and currency tables, table conventions, and the `processed_events` idempotency table.
 - `betterauth-integration`: the authenticated player whose id goes in Checkout metadata.
 - `bullmq-game-queues`: reward delivery after the purchase is recorded.
 - `game-economy-design`: currency pricing and balance.
-
-Read when checking a claim or a field path: `references/sources.md`.

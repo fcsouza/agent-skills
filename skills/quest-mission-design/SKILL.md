@@ -32,7 +32,7 @@ A quest of any type can contain a choice. A choice is an objective, not a type.
 2. Pick the type from the list above.
 3. Design the objective tree (below).
 4. Set rewards. Check the scale against `game-economy-design` and against similar quests in the registry.
-5. Write the brief. Copy `templates/quest-template.md` when you start a brief.
+5. Write the brief. Write it from `templates/quest-template.md`.
 6. Apply `quest-narrative-coherence` step 5 to register the quest.
 
 ## Rules
@@ -48,7 +48,7 @@ A quest of any type can contain a choice. A choice is an objective, not a type.
 
 ## Objective tree
 
-Read `boilerplate/quest-system.ts` when you implement the tree and the quest state machine. It has the types, the transitions between states and the completion logic.
+`boilerplate/quest-system.ts` implements the tree and the quest state machine.
 
 ```
 Quest: [Name]
@@ -69,10 +69,15 @@ Quest: [Name]
 - An NPC who talks for minutes while the player does nothing.
 - A prerequisite the player cannot discover.
 
-## Related
+## Files
+
+- `templates/quest-template.md`: copy when you start a brief.
+- `boilerplate/quest-system.ts`: read when you implement the tree and the quest state machine. It has the types, the transitions between states and the completion logic.
+- `references/sources.md`: read when you need the support for the rules above.
+
+## Related skills
 
 - `quest-narrative-coherence`: the check and the registry.
-- `references/sources.md`: read when you need the support for the rules above.
 - `game-economy-design`: reward scale.
 - `worldbuilding`: world context for the setting.
 - `character-design-narrative`: NPC roles.
