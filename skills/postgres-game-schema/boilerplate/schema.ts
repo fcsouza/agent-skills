@@ -59,6 +59,9 @@ export const leaderboardPeriodEnum = pgEnum("leaderboard_period", [
 ]);
 
 // ─── Players ─────────────────────────────────────────────────────────────────
+// `level`, `xp` and `stats` below are for single-character games. When the
+// game has characters (next table), the character owns them and these three
+// columns go unused: delete them from `players`.
 
 export const players = pgTable(
 	"players",
@@ -89,6 +92,8 @@ export const players = pgTable(
 // The slot limit is a game rule: enforce it in code, not in the schema.
 // Wallets and inventory below still belong to the account (`playerId`). To
 // make them per character, see "Characters and ownership" in SKILL.md.
+// A character owns `level`, `xp` and `stats`. `players` has the same three
+// columns for single-character games; with characters, drop them there.
 
 export const characters = pgTable(
 	"characters",
@@ -99,9 +104,9 @@ export const characters = pgTable(
 		playerId: text("player_id")
 			.notNull()
 			.references(() => players.id, { onDelete: "cascade" }),
-		// Name scope: per shard. Every character on a shard needs a distinct
-		// name, and the same name may exist on another shard. For one global
-		// namespace, delete `shardId` and index `lower(name)` alone.
+		// Name scope: per shard. Every live character on a shard needs a
+		// distinct name, and the same name may exist on another shard. For one
+		// global namespace, delete `shardId` and index `lower(name)` alone.
 		shardId: text("shard_id").notNull().default("default"),
 		name: text("name").notNull(),
 		level: integer("level").notNull().default(1),
@@ -113,11 +118,12 @@ export const characters = pgTable(
 		deletedAt: timestamp("deleted_at"),
 	},
 	(table) => [
-		// Case-insensitive, so "Gandalf" and "gandalf" collide.
-		uniqueIndex("characters_shard_name_idx").on(
-			table.shardId,
-			sql`lower(${table.name})`,
-		),
+		// Case-insensitive, so "Gandalf" and "gandalf" collide. Partial: a
+		// soft-deleted character frees its name. To keep deleted names
+		// reserved, remove the `.where(...)`.
+		uniqueIndex("characters_shard_name_idx")
+			.on(table.shardId, sql`lower(${table.name})`)
+			.where(sql`${table.deletedAt} is null`),
 		index("characters_player_id_idx").on(table.playerId),
 	],
 );

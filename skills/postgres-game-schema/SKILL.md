@@ -33,9 +33,16 @@ Every table and query in a game project follows these. Other skills (`stripe-gam
 
 ## Characters and ownership
 
-`players` is the account, keyed to the auth user. `characters` holds the several characters one account owns, with a name unique per shard (`characters_shard_name_idx`; the comment in the schema says how to make it global). The slot limit is a game rule; check it in code.
+`players` is the account, keyed to the auth user. `characters` holds the several characters one account owns, with a name unique per shard among live characters (`characters_shard_name_idx` is a partial index on `deleted_at IS NULL`, so deleting a character frees its name; the schema comment says how to reserve names or make them global). The slot limit is a game rule; check it in code.
 
-The game decides whether wallets and inventory belong to the account or to a character. The schema ships them on the account (`playerId`). To move a table to characters, replace its `playerId` column with `characterId` referencing `characters.id` (keep `onDelete: "cascade"`), repoint its indexes, and keep the `CHECK (amount >= 0)` and the guarded `spendCurrency` as they are. A game can also keep both columns and use the character one for per-character rows.
+When the game has characters, the character owns `level`, `xp` and `stats`, and you delete those three columns from `players`. A single-character game skips `characters` and keeps them on `players`.
+
+The game decides whether wallets and inventory belong to the account or to a character. The schema ships them on the account (`playerId`). To move a table to characters:
+1. Replace its `playerId` column with `characterId` referencing `characters.id` (keep `onDelete: "cascade"`), and repoint its indexes.
+2. Keep the `CHECK (amount >= 0)` and the guarded `spendCurrency` as they are.
+3. In `templates/query-patterns.ts`, change `spendCurrency`, `addCurrency` (including its `ON CONFLICT` target), `getPlayerCurrencies` and the inventory queries to take `characterId` and filter on it. They filter by `playerId` today, so they read and spend the wrong wallet until you do.
+
+A game can also keep both columns and use the character one for per-character rows.
 
 Guild membership stays one guild per player, since a guild is a permanent group and short-lived parties live outside this table. To allow several guilds, see the comment on `guild_members_player_idx`. Alts also need game rules (gear transfer, risk diversion) that no table enforces.
 
