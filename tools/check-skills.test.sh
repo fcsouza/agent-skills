@@ -1041,6 +1041,131 @@ printf -- '---\nname: game-build\ndescription: Build.\n---\n# Build\n' \
   >"$FX/skills/game-dev-commands/game-build/SKILL.md"
 expect_fail X1 "directory arg with a leading ./ runs the command rules" ./skills/game-dev-commands/game-build/
 
+# ---------------------------------------------------------------- E1
+# e1_fixture: marketplace lists demo and the index skill game-dev; evals/game-dev
+# holds a trigger case for demo and one negative case naming both.
+e1_fixture() {
+  new_fixture
+  mkdir -p "$FX/skills/game-dev"
+  printf -- '---\nname: game-dev\ndescription: Index.\n---\n# Index\n\n## Route\n\n| Need | Skill |\n|---|---|\n| demo | `demo` |\n' \
+    >"$FX/skills/game-dev/SKILL.md"
+  printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/game-dev","./skills/demo"]}]}' \
+    >"$FX/.claude-plugin/marketplace.json"
+  link_readme skills/game-dev
+  e1_trigger demo
+  e1_negative a "(?:demo|game-dev)"
+}
+
+# e1_trigger <name>: a complete trigger case, a prompt and one grader.
+e1_trigger() {
+  mkdir -p "$FX/evals/game-dev/trigger-$1/graders"
+  printf 'Prompt.\n' >"$FX/evals/game-dev/trigger-$1/prompt.md"
+  printf -- '---\ntype: tool_used\n---\n' >"$FX/evals/game-dev/trigger-$1/graders/skill-used.md"
+}
+
+# e1_negative <case> <alternation>: write a negative grader with that alternation.
+e1_negative() {
+  mkdir -p "$FX/evals/game-dev/trigger-negative-$1/graders"
+  printf -- "---\ntype: tool_used\ninput_match: '\"skill\"\\\\s*:\\\\s*\"(?:[\\\\w-]+:)?%s\"'\nmin: 0\n---\n" "$2" \
+    >"$FX/evals/game-dev/trigger-negative-$1/graders/no-game-skill.md"
+}
+
+e1_fixture
+expect_pass "E1 clean eval tree"
+
+new_fixture
+expect_pass "E1 skipped without evals/game-dev"
+
+e1_fixture
+rm -r "$FX/evals/game-dev/trigger-demo"
+expect_fail E1 "missing trigger case for a skill"
+if [[ $OUT == *"evals/game-dev/trigger-demo"* ]]; then
+  report 1 "E1 names the trigger directory to create"
+else
+  report 0 "E1 names the trigger directory to create" "$OUT"
+fi
+
+e1_fixture
+expect_pass "E1 asks no trigger case for the index skill"
+
+e1_fixture
+e1_negative a "(?:demo)"
+expect_fail E1 "negative grader omits the index skill"
+if [[ $OUT == *"trigger-negative-a/graders/no-game-skill.md"* && $OUT == *"game-dev"* ]]; then
+  report 1 "E1 names the grader file and the missing skill"
+else
+  report 0 "E1 names the grader file and the missing skill" "$OUT"
+fi
+
+e1_fixture
+e1_negative a "(?:game-dev-foo|demo)"
+expect_fail E1 "game-dev is not satisfied by game-dev-foo"
+
+e1_fixture
+e1_negative a "(?:demo-two|game-dev)"
+expect_fail E1 "demo is not satisfied by demo-two"
+
+e1_fixture
+e1_negative a "(demo|game-dev)"
+expect_pass "E1 accepts alternatives bounded by parentheses"
+
+e1_fixture
+e1_negative "b c" "(?:game-dev)"
+expect_fail E1 "negative grader in a directory with a space is checked"
+
+e1_fixture
+rm -r "$FX/evals/game-dev/trigger-demo"
+mkdir "$FX/evals/game-dev/trigger-demo"
+expect_fail E1 "empty trigger directory"
+
+e1_fixture
+rm -r "$FX/evals/game-dev/trigger-demo/graders"
+expect_fail E1 "trigger case without graders"
+
+e1_fixture
+rm "$FX/evals/game-dev/trigger-demo/prompt.md"
+expect_fail E1 "trigger case without prompt.md or case.yaml"
+
+e1_fixture
+mv "$FX/evals/game-dev/trigger-demo/prompt.md" "$FX/evals/game-dev/trigger-demo/case.yaml"
+expect_pass "E1 accepts case.yaml in place of prompt.md"
+
+e1_fixture
+mv "$FX/evals/game-dev/trigger-negative-a/graders/no-game-skill.md" "$FX/evals/game-dev/trigger-negative-a/graders/renamed.md"
+expect_fail E1 "negative case with a renamed grader"
+
+e1_fixture
+rm -r "$FX/evals/game-dev/trigger-negative-a/graders"
+expect_fail E1 "negative case with no grader"
+
+e1_fixture
+printf -- "---\ntype: tool_used\ninput_match: >-\n  (?:demo|game-dev)\n---\n" \
+  >"$FX/evals/game-dev/trigger-negative-a/graders/no-game-skill.md"
+expect_fail E1 "multi-line input_match"
+if [[ $(count_lines E1) == 1 && $OUT == *"no single-line input_match"* ]]; then
+  report 1 "E1 reports a multi-line input_match once"
+else
+  report 0 "E1 reports a multi-line input_match once" "$OUT"
+fi
+
+e1_fixture
+e1_negative a "(?:xdemo|game-dev)"
+expect_fail E1 "left boundary: xdemo does not satisfy demo"
+
+e1_fixture
+expect_pass "E1 --only E1 passes on a clean tree" --only E1
+
+e1_fixture
+rm -r "$FX/evals/game-dev/trigger-demo"
+expect_fail E1 "--only E1 reports a failure" --only E1
+run_lint --only N1
+if [[ $CODE == 0 && $OUT != *"FAIL E1"* ]]; then
+  report 1 "--only N1 skips E1"
+else
+  report 0 "--only N1 skips E1" "exit=$CODE
+$OUT"
+fi
+
 # ---------------------------------------------------------------- summary
 printf '\n%s passed, %s failed\n' "$PASSED" "$FAILED"
 if [[ $FAILED -gt 0 ]]; then

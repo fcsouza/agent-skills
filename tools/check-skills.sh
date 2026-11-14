@@ -35,8 +35,11 @@
 #   O1 closing sections in order: Pitfalls, Files, Related skills, after every
 #      other `## ` heading; Related, Cross-references, Reference files and
 #      Citations are named Related skills / Files
+#   E1 with evals/game-dev present: every marketplace skill but the index has a
+#      trigger-<name>/ case, and every trigger-negative-*/graders/no-game-skill.md
+#      names every marketplace skill, game-dev included, in its input_match
 #   Z1 with --final, no .content-pending file remains
-ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 O1 Z1"
+ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 O1 E1 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
 # Directories under skills/ that the game-dev set leaves out.
 EXCLUDED="claude-agent-sdk database-performance-tuning foundry-vtt-module-dev foundry-vtt-system-dev nuvemshop-sdk openclaw-genie react-animations"
@@ -560,6 +563,53 @@ check_p1() {
   done < <(p1_files)
 }
 
+# E1: eval coverage. Runs only when evals/game-dev exists. A skill name counts
+# in input_match as a whole alternative: after `|`, `(` or `(?:`, before `|`,
+# `)` or the end of the line, so game-dev is not met by game-dev-foo.
+check_e1() {
+  local evals="$ROOT/evals/game-dev" dir name file rel line case_dir
+  local names=() hit
+  [[ -d $evals ]] || return 0
+  for dir in "${SKILLS[@]}"; do
+    names+=("$(basename "$dir")")
+  done
+  for name in "${names[@]}"; do
+    [[ $name == game-dev ]] && continue
+    case_dir="$evals/trigger-$name"
+    if [[ ! -d $case_dir ]]; then
+      fail E1 "evals/game-dev/trigger-$name" "no trigger case for '$name'; create evals/game-dev/trigger-$name/"
+      continue
+    fi
+    [[ -f $case_dir/prompt.md || -f $case_dir/case.yaml ]] ||
+      fail E1 "evals/game-dev/trigger-$name" "has neither prompt.md nor case.yaml"
+    hit=0
+    for file in "$case_dir"/graders/*.md; do
+      [[ -f $file ]] && hit=1
+    done
+    ((hit)) || fail E1 "evals/game-dev/trigger-$name" "has no graders/*.md"
+  done
+  # Each trigger-negative-* directory needs graders/no-game-skill.md. The check
+  # works on the text of the input_match line: a name moved into another group
+  # of the regex still passes.
+  while IFS= read -r -d '' case_dir; do
+    file="$case_dir/graders/no-game-skill.md"
+    rel="${file#"$ROOT"/}"
+    if [[ ! -f $file ]]; then
+      fail E1 "$rel" "negative case has no graders/no-game-skill.md"
+      continue
+    fi
+    line="$(grep -m1 '^input_match:[[:space:]]*[^[:space:]>|]' "$file" | tr -d '\r')"
+    if [[ -z $line ]]; then
+      fail E1 "$rel" "no single-line input_match in that file"
+      continue
+    fi
+    for name in "${names[@]}"; do
+      printf '%s\n' "$line" | grep -qE -- "([|(]|\(\?:)$name([|)]|\$)" ||
+        fail E1 "$rel" "input_match does not name '$name'"
+    done
+  done < <(find "$evals" -maxdepth 1 -type d -name 'trigger-negative-*' -print0)
+}
+
 check_z1() {
   local file
   ((FINAL)) || return 0
@@ -634,6 +684,7 @@ if ((REPO_LEVEL)); then
   check_m1
   ((${#SKILLS[@]})) && check_m2
   check_p1
+  check_e1
   check_z1
 fi
 
