@@ -723,6 +723,147 @@ new_fixture
 printf -- '---\nname: demo\ndescription: >-\n  Does things.\n  Triggers: a, b.\n---\nBody\n' >"$(skill_md)"
 expect_fail C5 "Triggers: on the second line of a wrapped description"
 
+# ---------------------------------------------------------------- O1
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Pitfalls
+- One.
+
+## Files
+- \`references/a.md\`: read when stuck.
+
+## Related skills
+- \`demo\`: itself."
+mkdir -p "$FX/skills/demo/references"
+printf 'x\n' >"$FX/skills/demo/references/a.md"
+expect_pass "O1 canonical closing order"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Pitfalls
+- One."
+expect_pass "O1 Pitfalls alone"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Related skills
+- x
+
+## Pitfalls
+- One."
+expect_fail O1 "Related skills before Pitfalls"
+
+new_fixture
+write_skill demo "d" "## Pitfalls
+- One.
+
+## Steps
+Do it."
+expect_fail O1 "body section after Pitfalls"
+
+new_fixture
+write_skill demo "d" "## Files
+- x
+
+## Steps
+Do it.
+
+## Pitfalls
+- One."
+expect_fail O1 "Files before a body section"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Pitfalls
+- One.
+
+## Related skills
+- x
+
+## Files
+- y"
+expect_fail O1 "Files after Related skills"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Related
+- x"
+expect_fail O1 "Related heading names Related skills"
+case $OUT in *"Related skills"*) report 1 "O1 message names the canonical heading" ;; *) report 0 "O1 message names the canonical heading" "$OUT" ;; esac
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Cross-references
+- x"
+expect_fail O1 "Cross-references heading"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Reference files
+- x"
+expect_fail O1 "Reference files heading"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Citations
+- x"
+expect_fail O1 "Citations heading"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+\`\`\`
+## Related
+## Pitfalls
+\`\`\`
+
+## Pitfalls
+- One."
+expect_pass "O1 ignores headings inside code fences"
+
+new_fixture
+mkdir -p "$FX/skills/game-dev-commands/game-build"
+printf -- '---\nname: game-build\ndescription: Build.\n---\n# Build\n\n## Requires\n- `demo`\n\n## Rules\nx\n\n## Related\nx\n' \
+  >"$FX/skills/game-dev-commands/game-build/SKILL.md"
+printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/game-dev-commands/game-build"]}]}' \
+  >"$FX/.claude-plugin/marketplace.json"
+link_readme skills/game-dev-commands/game-build
+expect_pass "O1 skips commands"
+
+new_fixture
+mkdir -p "$FX/skills/game-dev"
+printf -- '---\nname: game-dev\ndescription: Index.\n---\n# Index\n\n## Related\nx\n\n## Route\n| a | `demo` |\n' \
+  >"$FX/skills/game-dev/SKILL.md"
+printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/game-dev","./skills/demo"]}]}' \
+  >"$FX/.claude-plugin/marketplace.json"
+link_readme skills/game-dev
+expect_pass "O1 skips the game-dev index"
+
+new_fixture
+write_skill demo "d" "## Pitfalls
+- One.
+
+## Steps
+Do it."
+expect_fail O1 "directory arg runs O1" skills/demo
+
 # ---------------------------------------------------------------- .content-pending and Z1
 new_fixture
 {

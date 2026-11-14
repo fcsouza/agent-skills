@@ -32,8 +32,11 @@
 #   C3 every bullet in references/sources.md has an https:// link
 #   C4 a .ts file with a third-party import starts with a "Verified against" line
 #   C5 description has no "Triggers:" list
+#   O1 closing sections in order: Pitfalls, Files, Related skills, after every
+#      other `## ` heading; Related, Cross-references, Reference files and
+#      Citations are named Related skills / Files
 #   Z1 with --final, no .content-pending file remains
-ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
+ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 O1 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
 # Directories under skills/ that the game-dev set leaves out.
 EXCLUDED="claude-agent-sdk database-performance-tuning foundry-vtt-module-dev foundry-vtt-system-dev nuvemshop-sdk openclaw-genie react-animations"
@@ -328,6 +331,46 @@ check_c5() {
   [[ $desc == *"Triggers:"* ]] && fail C5 "$1/SKILL.md" "description contains 'Triggers:'"
 }
 
+# O1: the closing sections of a topic skill come last and in one order:
+# `## Pitfalls`, `## Files`, `## Related skills`. Commands and the index have
+# their own layout and are skipped. Headings inside code fences do not count.
+check_o1() {
+  local dir=$1 n name canon
+  case $dir in skills/game-dev | skills/game-dev-commands/*) return 0 ;; esac
+  unfenced "$ROOT/$dir/SKILL.md" | awk '/^## / { sub(/\r$/, ""); sub(/^## +/, ""); sub(/[ \t]+$/, ""); print NR "\t" $0 }' >"$TMP/o1-headings"
+  local last_body=0 prev_rank=0 prev_name="" rank
+  while IFS=$'\t' read -r n name; do
+    canon=""
+    case $name in
+      Related) canon="Related skills" ;;
+      Cross-references) canon="Related skills" ;;
+      "Reference files" | Citations) canon="Files" ;;
+    esac
+    if [[ -n $canon ]]; then
+      fail O1 "$dir/SKILL.md" "line $n: heading '$name' is named '$canon'"
+      name=$canon
+    fi
+    case $name in
+      Pitfalls) rank=1 ;;
+      Files) rank=2 ;;
+      "Related skills") rank=3 ;;
+      *) rank=0 ;;
+    esac
+    if ((rank == 0)); then
+      ((n > last_body)) && last_body=$n
+      if ((prev_rank > 0)); then
+        fail O1 "$dir/SKILL.md" "line $n: '## $name' comes after '## $prev_name'; Pitfalls, Files and Related skills close the file"
+      fi
+    else
+      if ((rank < prev_rank)); then
+        fail O1 "$dir/SKILL.md" "line $n: '## $name' comes after '## $prev_name'; the order is Pitfalls, Files, Related skills"
+      fi
+      prev_rank=$rank
+      prev_name=$name
+    fi
+  done <"$TMP/o1-headings"
+}
+
 check_skill() {
   local dir=$1
   if [[ ! -f $ROOT/$dir/SKILL.md ]]; then
@@ -348,6 +391,7 @@ check_skill() {
     check_c3 "$dir"
     check_c4 "$dir"
     check_c5 "$dir"
+    check_o1 "$dir"
   fi
 }
 
