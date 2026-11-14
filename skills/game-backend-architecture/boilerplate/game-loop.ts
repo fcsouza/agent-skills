@@ -1,22 +1,26 @@
 type TickCallback = (dt: number) => void;
 
+// Fixed-timestep loop after Glenn Fiedler, "Fix Your Timestep!": real time
+// fills an accumulator and the simulation drains it in equal dt steps.
 export class GameLoop {
-	private tickRate: number;
-	private tickDuration: number;
+	private readonly tickDuration: number;
+	private readonly onTick: TickCallback;
+	// Longest real-time gap fed into one pass. Fiedler's example clamps the
+	// frame time at 0.25 s; longer stalls are dropped instead of replayed,
+	// which stops the spiral of death (more catch-up steps, falling further behind).
+	private readonly maxFrameTime = 250;
 	private accumulator = 0;
 	private lastTime = 0;
 	private running = false;
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private speedMultiplier = 1;
-	private onTick: TickCallback;
-	private maxAccumulator: number;
 
-	constructor(tickRate: number, onTick: TickCallback) {
-		this.tickRate = tickRate;
+	constructor(
+		private readonly tickRate: number,
+		onTick: TickCallback,
+	) {
 		this.tickDuration = 1000 / tickRate;
 		this.onTick = onTick;
-		// Cap at 1 second of accumulated time to prevent spiral of death
-		this.maxAccumulator = 1000;
 	}
 
 	start() {
@@ -64,14 +68,15 @@ export class GameLoop {
 		if (!this.running) return;
 
 		const currentTime = performance.now();
-		const deltaTime = (currentTime - this.lastTime) * this.speedMultiplier;
+		// Clamp real elapsed time first, then scale it for fast-forward.
+		const frameTime =
+			Math.min(currentTime - this.lastTime, this.maxFrameTime) *
+			this.speedMultiplier;
 		this.lastTime = currentTime;
-
-		// Overflow protection: cap accumulated time
-		this.accumulator += Math.min(deltaTime, this.maxAccumulator);
+		this.accumulator += frameTime;
 
 		while (this.accumulator >= this.tickDuration) {
-			// dt in seconds for game logic
+			// Game logic always sees the same dt, in seconds.
 			this.onTick(this.tickDuration / 1000);
 			this.accumulator -= this.tickDuration;
 		}

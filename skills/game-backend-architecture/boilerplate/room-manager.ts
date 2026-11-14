@@ -10,7 +10,7 @@ export type RoomStatus = "created" | "active" | "closing" | "closed";
 export interface RoomConfig {
 	maxPlayers: number;
 	tickRate: number;
-	metadata: Record<string, unknown>;
+	metadata?: Record<string, unknown>;
 }
 
 export interface QueuedAction {
@@ -19,10 +19,9 @@ export interface QueuedAction {
 	timestamp: number;
 }
 
-interface PlayerSocket {
-	send: (data: string | ServerMessage) => void;
-	subscribe: (channel: string) => void;
-	unsubscribe: (channel: string) => void;
+// The one socket method the room manager calls. Elysia's `ws` satisfies it.
+export interface PlayerSocket {
+	send(data: string): unknown;
 }
 
 export interface Room {
@@ -62,7 +61,7 @@ export class RoomManager {
 			gameLoop: new GameLoop(config.tickRate, (dt) => this.tickRoom(id, dt)),
 			tick: 0,
 			createdAt: Date.now(),
-			metadata: config.metadata,
+			metadata: config.metadata ?? {},
 		};
 
 		this.rooms.set(id, room);
@@ -224,8 +223,7 @@ export class RoomManager {
 		if (!room || room.status !== "active") return;
 
 		// Process queued actions
-		while (room.actionQueue.length > 0) {
-			const queued = room.actionQueue.shift()!;
+		for (const queued of room.actionQueue.splice(0)) {
 			this.processAction(room, queued);
 		}
 

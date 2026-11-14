@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // Client → Server Messages
+// The player id never travels in a message: the server takes it from the
+// session it checked on the WebSocket upgrade.
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
-	| { type: "auth"; token: string }
 	| { type: "join_room"; roomId: string }
 	| { type: "leave_room"; roomId: string }
 	| {
@@ -20,8 +21,7 @@ export type ClientMessage =
 
 export type ServerMessage =
 	// Connection
-	| { type: "connected"; serverTime: number; message: string }
-	| { type: "auth_success"; playerId: string; serverTime: number }
+	| { type: "connected"; playerId: string; serverTime: number }
 
 	// Room lifecycle
 	| {
