@@ -1,129 +1,64 @@
 ---
 name: postgres-game-schema
 description: >-
-  Use when designing game database schemas, player data models, inventory systems, or working with Drizzle ORM and PostgreSQL for games. Triggers: database, schema, Drizzle, players, inventory, leaderboards, game data.
+  Genre-agnostic PostgreSQL schema and table conventions for games, written with Drizzle ORM: players, sessions, items, inventory, events, leaderboards, achievements, currencies, social relations and guilds. Use when a game needs a database table, a player data model, inventory or currency storage, a leaderboard table, or any database code that must follow the project's schema conventions.
 ---
 
 # PostgreSQL Game Schema
 
-## Purpose
+The schema is the value of this skill. Install, driver setup, config and migrations come from the vendor: use the `neon-drizzle` skill if it is installed, otherwise https://orm.drizzle.team/docs/get-started.
 
-Genre-agnostic database schema design for games using Drizzle ORM + PostgreSQL.
+Target the stable Drizzle line, `drizzle-orm` 0.45.x. The Drizzle docs install lines use `drizzle-orm@rc` and `drizzle-kit@rc`; pin the 0.45 versions instead (see "Drizzle 1.0" below).
 
-## When to Use
+## Files
 
-Trigger: database schema, game database, Drizzle schema, players table, inventory, leaderboards, sessions, events, entity system, game data model
+- `boilerplate/schema.ts`: copy when starting a game database. Twelve tables (players, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members, processed events) and their enums.
+- `templates/entity-template.ts`: copy when adding a new game entity. Three patterns: an entity a player owns, a definition catalog with player instances, and an enum-driven timed entity.
+- `templates/query-patterns.ts`: read when writing queries against the schema: inventory join, leaderboard top N, event aggregation, JSONB filters, atomic currency credit, guarded spend, best-score upsert. Each function takes the database as its first argument (`GameDb`, any Drizzle Postgres database), so it works with whichever driver the project uses.
 
-## Prerequisites
+## Conventions
 
-None — this is a foundational skill.
+Every table and query in a game project follows these. Other skills (`stripe-game-payments`, `gameplay-analytics`, `game-economy-design`) build on them.
 
-## Core Principles
+- **Naming.** Tables are plural snake_case (`item_definitions`). Columns are snake_case in SQL and camelCase in TypeScript: `playerId: text("player_id")`. Indexes are named `<table>_<columns>_idx`.
+- **IDs.** `text("id").primaryKey().$defaultFn(() => crypto.randomUUID())`. Player-facing identifiers are never auto-increment integers; sequential ids let anyone enumerate players and items.
+- **Timestamps.** `timestamp(...).notNull().defaultNow()`. Entity and catalog tables (`players`, `item_definitions`, `guilds`) carry `createdAt` and `updatedAt`; append-only and state rows carry the time that matters (`events.createdAt`, `sessions.startedAt`, `guild_members.joinedAt`). Give a new mutable table both columns. Set `updatedAt` in every update; a column default fills it only on insert.
+- **Soft delete.** `players` has `deletedAt: timestamp("deleted_at")`; a deleted player keeps their rows for history. Every read that returns players, including joins, filters `isNull(players.deletedAt)`. Add `deletedAt` to a new entity when its history matters (`templates/entity-template.ts` pattern 1).
+- **JSONB.** Typed columns for anything you filter, sort, join or sum. `jsonb(...).$type<...>().default({})` for per-genre extras: `stats`, `baseStats`, `properties`, `metadata`. Never add genre columns (`swordDamage`) to core tables. Use `jsonb`, not `json`: PostgreSQL stores `jsonb` decomposed, processes it faster and can index it.
+- **Enums.** `pgEnum` for fixed sets that code switches on (rarity, guild role, leaderboard period). Plain `text` for open sets designers extend (event type, currency type).
+- **Foreign keys.** `onDelete: "cascade"` from player-owned rows to `players`. Analytics rows (`events`) use `onDelete: "set null"` so history survives. Catalog references (`itemDefinitionId`) have no cascade.
+- **Indexes.** Index the owner key (`playerId`) of every player-owned table. Add a composite index for each common filter, leading with the owner: `events (playerId, type)`, `leaderboards (category, period, score)`. Put a unique index on every natural key an upsert targets (`currencies (playerId, currencyType)`): PostgreSQL infers the `ON CONFLICT` target from a unique index.
+- **Money and currency.** Integer amounts, never read-modify-write. Credit with the atomic `amount = amount + n` upsert (`addCurrency` in `templates/query-patterns.ts`). Debit with `spendCurrency`: one `UPDATE ... WHERE amount >= cost`, and it reports failure when no row was updated, so two parallel spends cannot overdraw. The `currencies` table also has `CHECK (amount >= 0)`, so a debit that bypasses the guard fails instead of going negative.
+- **Idempotency.** `processed_events` holds one row per external event or job already applied (a Stripe event id, a reward job key), with `id` as the primary key, a `kind` and `created_at`. Insert it in the same transaction as the change it guards; a primary-key conflict means the change already happened. `stripe-game-payments` and `bullmq-game-queues` use this table.
 
-> Sid Meier: "A game is a series of interesting decisions."
-> Richard Garfield: "The best game systems are elegant rule systems — minimal components that compose into complex behaviors."
+## Procedure
 
-1. **Schema must be game-type agnostic** — never assume RPG, MMO, or idle
-2. **Use JSONB for extensible data** (stats, properties, metadata)
-3. **Timestamps everywhere** (createdAt, updatedAt) for audit trails
-4. **Soft deletes over hard deletes** for game data
-5. **Enum types for fixed categories** (rarity, status, role)
-6. **Composite indexes** for common query patterns
-7. **Foreign keys with cascading deletes** where appropriate
-8. **Versioned schema migrations** with drizzle-kit
+1. Copy `boilerplate/schema.ts` into the project's schema module. Delete tables the game does not need.
+2. Add game entities from `templates/entity-template.ts`, following the conventions above.
+3. Generate and apply migrations with drizzle-kit as the Drizzle docs describe. Change the schema file first, then generate; never hand-write migration SQL.
+4. Write queries in the style of `templates/query-patterns.ts`, with the database passed in.
 
-## Step-by-Step Instructions
+## Drizzle 1.0
 
-### 1. Install Dependencies
+Drizzle 1.0 is a release candidate (npm `rc` tag), not the `latest` tag. If a project moves to it, these parts change (https://orm.drizzle.team/docs/v0-v1-changes):
+- `relations()` is replaced by `defineRelations()`, passed to the client as `drizzle({ client, relations })`. The relational query API v1 (`db.query` with a `schema` option) is removed.
+- `drizzle({ casing })` moves to a table-level API (`snakeCase.table(...)`).
+- Migration folders drop `journal.json`; running `drizzle-kit up` upgrades the migration table.
+- `drizzle-orm/pg-core` exports `PgAsyncDatabase` and no `PgDatabase`, so the `GameDb` type in `templates/query-patterns.ts` must be redone.
 
-```bash
-bun add drizzle-orm @neondatabase/serverless
-bun add -d drizzle-kit
-```
+## Pitfalls
 
-### 2. Configure Drizzle
+- **One JSON blob for all game state.** Normalize into tables; keep JSONB for the extensible fields only.
+- **Missing composite index.** "A player's events of type X" needs `events (playerId, type)`, not two single-column indexes. Add the composite index with the query that needs it.
+- **Filtering on a JSONB key in a hot path.** A GIN index on a `jsonb` column serves containment (`properties @> '{"key": "value"}'`), not `properties ->> 'key' = ...`. For a hot filter, query with `@>` against a GIN index, add an expression index on that key, or promote the key to a typed column.
+- **Forgetting soft-deleted players.** Leaderboard and guild queries join `players`; filter `isNull(players.deletedAt)` there too, as `templates/query-patterns.ts` does.
+- **Running migrations from two git worktrees at once.** Worktrees share one Neon database, so concurrent migrations conflict. Only one worktree runs migrations at a time. Use separate Neon branches for experimental schema work.
 
-Create `drizzle.config.ts` at the project root. See `boilerplate/migrations.ts` for the full config pattern.
+## Related skills
 
-### 3. Define Schemas
+- `redis-game-patterns` for cached leaderboards and presence.
+- `bullmq-game-queues` for async event processing.
+- `betterauth-integration` for auth tables.
+- `database-performance-tuning` for slow queries.
 
-Start with the core tables in `boilerplate/schema.ts`. These cover players, sessions, inventory, items, events, leaderboards, achievements, currencies, social relations, guilds, and guild members.
-
-Extend with custom entities using `templates/entity-template.ts`.
-
-### 4. Generate Migrations
-
-```bash
-bunx drizzle-kit generate
-```
-
-### 5. Run Migrations
-
-```bash
-bunx drizzle-kit migrate
-```
-
-### 6. Query Data
-
-See `templates/query-patterns.ts` for common query patterns including inventory lookups, leaderboard queries, event aggregation, and JSONB filtering.
-
-## Code Examples
-
-### Player with JSONB stats
-
-```typescript
-import { players } from './schema';
-
-await db.insert(players).values({
-  username: 'player1',
-  email: 'player1@example.com',
-  displayName: 'Player One',
-  stats: { health: 100, speed: 10 },
-  metadata: { tutorial_completed: true },
-});
-```
-
-### Flexible item definitions
-
-```typescript
-await db.insert(itemDefinitions).values({
-  name: 'Rare Artifact',
-  type: 'equipment',
-  rarity: 'rare',
-  baseStats: { power: 25, durability: 100 },
-  metadata: { description: 'A mysterious artifact', tradeable: true },
-  stackable: false,
-});
-```
-
-See `boilerplate/schema.ts` for full table definitions and `templates/query-patterns.ts` for advanced queries.
-
-## Cross-References
-
-- `bullmq-game-queues` for async event processing
-- `redis-game-patterns` for cached queries
-- `betterauth-integration` for auth tables
-- `game-economy-design` for economy schemas
-
-## Pitfalls & Anti-Patterns
-
-- **Don't store game state as a single JSON blob** — use normalized tables with JSONB for extensible fields only
-- **Don't use auto-increment IDs for player-facing identifiers** — use UUIDs or nanoid to prevent enumeration
-- **Don't skip indexes on frequently queried columns** — especially playerId, category, type, and createdAt
-- **Don't hardcode genre-specific columns in core tables** — use JSONB metadata instead of adding `swordDamage` or `spellPower` columns
-- **Don't use hard deletes** — always soft delete with `deletedAt` timestamps so game history is preserved
-- **Don't forget composite indexes** — queries like "player's inventory filtered by type" need `(playerId, type)` indexes
-- **Don't run migrations from two git worktrees at once** — worktrees share one Neon database, so concurrent migrations conflict. Only one worktree runs migrations at a time. Use separate Neon branches for experimental schema work.
-
-## Designer Philosophy
-
-**Sid Meier:** Schema should enable "interesting decisions" — flexible enough that any game mechanic can be modeled without schema changes. A well-designed JSONB column lets designers iterate on game mechanics without migrations.
-
-**Richard Garfield:** Elegant schemas have minimal tables that compose into complex behaviors. Eleven core tables can model inventory, progression, social, economy, and analytics for any genre.
-
-## Sources
-
-- [Drizzle ORM Documentation](https://orm.drizzle.team)
-- [PostgreSQL JSONB Best Practices](https://www.postgresql.org/docs/current/datatype-json.html)
-- Game Database Design Patterns (GDC talks on scalable game backends)
-- [Neon Serverless PostgreSQL](https://neon.tech/docs)
+Verified citations are in `references/sources.md`; read it when checking where a claim comes from.

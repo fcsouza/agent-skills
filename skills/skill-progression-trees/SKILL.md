@@ -1,127 +1,60 @@
 ---
 name: skill-progression-trees
 description: >-
-  Use when designing or implementing skill trees, talent trees, ability progression systems, or unlock graphs. Triggers: skill tree, talent tree, ability tree, progression system, unlock, prestige, node, skill points.
+  Covers the design and server-side build of game skill trees as prerequisite graphs: node types, cost curves, respec, prestige, and unlock validation in Postgres with Drizzle. Use when a game needs a skill tree, talent tree, ability unlock graph, passive bonus web or prestige layer, or when building its unlock and respec endpoints.
 ---
 
-# Skill & Progression Trees
+# Skill and Progression Trees
 
-## Purpose
+## Related skills
 
-DAG-based progression systems for any game genre — skill trees, talent trees, ability unlocks, passive stat graphs, and prestige layers. Covers data modeling, server-authoritative validation, cost scaling, and respec mechanics.
+- `game-design-fundamentals`: core loop and progression pacing.
+- `game-economy-design`: skill point income, costs and currency sinks.
+- `postgres-game-schema`: player and wallet tables, and `spendCurrency` for the guarded deduction.
+- `redis-game-patterns`: caching each player's unlocked node set.
 
-## When to Use
+## Core rules
 
-Trigger: skill tree, talent tree, ability tree, progression system, unlock system, prestige, node graph, skill points, ability unlock, passive tree, talent build, respec, skill reset
+1. **Model a DAG, not a tree.** A node can have several prerequisites. Cycles break validation, so reject any admin write that creates one.
+2. **Validate unlocks on the server.** Never trust a client unlock request. Check prerequisites and currency on the server, and write the deduction and the unlock row in one transaction.
+3. **Snapshot the node at unlock time.** Store its prerequisites, cost, effects and tier on the unlock row. After a balance patch you can still audit what the player bought.
+4. **Scale cost by tier.** Flat costs make late nodes cheap as income grows. Use `cost = baseCost * tier^exponent` and tune the exponent against player income per tier.
+5. **Always offer a respec.** Free with a cooldown, or paid in soft currency.
+6. **Store effects as data.** Keep effects in JSONB (`{ "stat": "attack", "modifier": "+10%" }`) and apply them on the server. A balance change then needs a data update, not a deploy.
+7. **Reveal nodes progressively.** Show a node once its prerequisites are met, so new players are not faced with the whole tree.
 
-## Prerequisites
+## Procedure
 
-- `game-design-fundamentals` — core loop and reward system knowledge
-- `postgres-game-schema` — player and currency data models
-- `game-economy-design` — cost balancing and currency integration
+1. **Classify every node:** active (player-triggered ability), passive (always-on bonus), unlock (gate to content or a mechanic), prestige (bonus that survives a reset).
+2. **Fill in the design doc.** Copy `templates/skill-tree-template.md` when starting a new tree; it holds the cost table, respec policy, prestige rules and the balance checklist.
+3. **Create the tables.** Copy `boilerplate/skill-tree.ts` when building the backend. It defines `skill_nodes` (tree definition, prerequisites as a JSONB array of node IDs) and `player_skills` (one row per unlock, unique on player and node, with the snapshot).
+4. **Build the unlock endpoint.** `POST /skills/unlock/:nodeId` calls `unlockNode(db, playerId, nodeId, spend)`, which runs the eligibility check, the deduction and the insert in one transaction. `spend` is required, so the deduction cannot be left out: pass `(tx, playerId, cost) => spendCurrency(tx, playerId, SKILL_CURRENCY, cost)` with the guarded `spendCurrency` from `postgres-game-schema`. It returns false when the player cannot pay, and `unlockNode` rolls back. Add the foreign key from `player_skills.player_id` to your players table with `onDelete: 'cascade'` (the file marks the spot).
+5. **Cache the unlocked set.** If tree reads load the database, cache each player's unlocked node IDs and delete the cache entry after an unlock or respec commits.
+6. **Build the respec endpoint.** `POST /skills/respec`: charge the fee or check the cooldown, delete the player's `player_skills` rows except prestige nodes (they survive a reset by definition), refund the points spent on the deleted nodes, and invalidate the cache, all in one transaction except the cache delete.
+7. **Run the health checks on every admin write.** `detectCycles` returns each prerequisite cycle; `findMissingPrerequisites` returns prerequisites that point at deleted nodes. Reject the write if either is non-empty.
 
-## Core Principles
+## Endpoints
 
-> Chris Taylor (Supreme Commander): "A good tech tree gives the player the illusion of infinite choice while keeping every path viable."
-> Will Wright (The Sims, Spore): "Emergent systems arise when simple rules interact — skill trees should compose, not prescribe."
-> Jonathan Blow (Braid, The Witness): "Every unlock should feel like a genuine insight, not a checkbox."
+| Endpoint | Method | Does |
+|----------|--------|------|
+| `/skills/tree` | GET | Full tree with the player's unlock status per node (`getPlayerTree`) |
+| `/skills/unlock/:nodeId` | POST | Validates prerequisites and cost, deducts, inserts, in one transaction |
+| `/skills/respec` | POST | Charges the fee, deletes the player's unlocks, refunds points |
 
-1. **DAG not tree** — prerequisites form a directed acyclic graph; cycles break validation, break rollback, break everything. Enforce acyclicity at admin write time.
-2. **Server-authoritative unlock validation** — never trust client unlock requests. Validate prerequisites, currency, and cooldowns server-side before writing.
-3. **Prerequisite snapshot for rollback** — store the full prerequisite state at unlock time. If a respec or patch changes the graph, you can audit what was valid when the player unlocked it.
-4. **Cost scaling follows exponential curve** — flat costs make endgame nodes trivially cheap relative to player income. Use `cost = baseCost * tier^exponent` (typically exponent 1.5-2.0).
-5. **Respec is player-friendly** — always provide a reset mechanism. Free with cooldown, or paid with soft currency. Never lock players into permanent bad choices.
-6. **Effects are data, not code** — store effects as JSONB (`{ "stat": "attack", "modifier": "+10%" }`). Apply server-side. Enables hot reload, A/B testing, and balance patches without deploys.
-7. **Progressive reveal** — don't show all nodes at once. Reveal nodes as prerequisites are met. Reduces overwhelm and creates discovery moments (Jonathan Blow).
+## Pitfalls
 
-## Step-by-Step Instructions
+- **Unlock state on the client.** Trivial to edit and it drifts from the server.
+- **Trusting the eligibility check alone under concurrency.** Two parallel requests can both pass it. The unique index on (player, node) rejects a duplicate unlock, and the failed insert rolls back that transaction's deduction. Requests for different nodes are not covered: the `spend` you pass must guard the wallet update itself, as `spendCurrency` in `postgres-game-schema` does with `WHERE amount >= cost` and a check that it updated one row.
+- **Chaining `.where()` in Drizzle.** A plain select allows one `.where()`; a second call is a type error, and the builder stores only the last condition. Combine conditions with `and(...)`.
+- **A driver without transactions.** Drizzle's `neon-http` driver throws `No transactions support in neon-http driver` from `transaction()`. Use a driver with interactive transactions for `unlockNode` and respec.
+- **No respec.** A bad early choice locks the build for good.
+- **Flat costs.** Late nodes become trivially cheap as income grows.
+- **No cycle check.** One circular prerequisite makes every node in the loop unreachable.
+- **Effects in code.** Every balance change needs a deploy.
+- **Whole tree visible at once.** Overwhelms new players.
 
-### 1. Define Node Categories
-Classify every node: active skills (abilities the player triggers), passive stats (always-on bonuses), unlocks (gates to content or mechanics), prestige (post-endgame reset bonuses).
+## Files
 
-### 2. Model the DAG
-Use an adjacency list stored in JSONB. Each node has a `prerequisites` array of node IDs. Validate acyclicity on every admin write.
-
-### 3. Write Drizzle Schema
-Create `skill_nodes` (tree definition) and `player_skills` (player state) tables. See boilerplate for full implementation.
-
-### 4. Implement Unlock API
-Endpoint: `POST /skills/unlock/:nodeId`. Flow: check prerequisites met, check currency available, atomic transaction (deduct currency + insert player_skills + snapshot).
-
-### 5. Cache Unlocked Nodes
-Store unlocked node IDs in Redis per player session. Invalidate on unlock or respec. Tree lookups are frequent — database per-request is too slow.
-
-### 6. Add Respec Endpoint
-Endpoint: `POST /skills/respec`. Flow: deduct respec fee (or check cooldown), delete all player_skills rows, refund skill points to player wallet, invalidate Redis cache.
-
-### 7. Add Tree Health Checks
-Admin-only utilities: cycle detection (DFS on prerequisite graph), orphaned node detection (nodes with prerequisites referencing deleted nodes), unreachable node detection.
-
-## Drizzle Schema
-
-```typescript
-// skill_nodes — defines the tree structure (admin-managed)
-export const skillNodes = pgTable("skill_nodes", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  description: text("description"),
-  category: text("category").notNull(), // 'active' | 'passive' | 'unlock' | 'prestige'
-  tier: integer("tier").notNull().default(1),
-  prerequisites: jsonb("prerequisites").$type<string[]>().default([]),
-  cost: integer("cost").notNull().default(1),
-  effects: jsonb("effects").$type<Record<string, unknown>[]>().default([]),
-  isVisible: boolean("is_visible").notNull().default(true),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-// player_skills — tracks which nodes each player has unlocked
-export const playerSkills = pgTable("player_skills", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  playerId: text("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  nodeId: text("node_id").notNull().references(() => skillNodes.id),
-  unlockedAt: timestamp("unlocked_at").notNull().defaultNow(),
-  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().default({}),
-});
-```
-
-## API Patterns
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/skills/tree` | GET | Full tree with player unlock status per node |
-| `/skills/unlock/:nodeId` | POST | Unlock node — validates prerequisites, deducts cost, atomic write |
-| `/skills/respec` | POST | Full reset — deducts fee, deletes player_skills, refunds points |
-
-## Cross-References
-
-- `game-economy-design` — cost balancing, currency sinks for skill points
-- `postgres-game-schema` — player and currency table schemas
-- `redis-game-patterns` — caching unlocked node sets per session
-- `game-design-fundamentals` — core loop integration and progression pacing
-
-## Pitfalls & Anti-Patterns
-
-- **"Client-side tree state"** — storing unlock state in the client; trivially hackable, desync guaranteed
-- **"No respec mechanic"** — players who make bad choices quit; always provide a reset path
-- **"Flat cost curves"** — every node costs the same; endgame nodes become trivially cheap as income scales
-- **"Missing cycle detection"** — one circular prerequisite creates infinite loops in validation; enforce DAG at write time
-- **"Hardcoded effects"** — effects baked into code instead of JSONB data; every balance change requires a deploy
-- **"All nodes visible"** — showing the entire tree upfront overwhelms new players and spoils discovery
-
-## Designer Philosophy
-
-**Chris Taylor** (Supreme Commander, Total Annihilation): Tech trees should give players the feeling of building toward something powerful. Every branch should feel like it opens new strategic possibilities. If a player looks at two branches and one is obviously better, the tree has failed.
-
-**Will Wright** (The Sims, SimCity, Spore): The best progression systems are ones where simple rules interact to create emergent builds. Don't design 50 unique abilities — design 10 composable ones that combine in 50 ways.
-
-**Jonathan Blow** (Braid, The Witness): Unlocking a skill should feel like understanding something new, not like filling a progress bar. If the player doesn't feel smarter or more capable after an unlock, the node is wasted.
-
-## Sources
-
-- "Designing Tech Trees and Progression Systems" — GDC 2016, Chris Taylor
-- "The Art of Game Design" — Jesse Schell, Chapters on Skill and Chance
-- "Balancing Ability Systems in Multiplayer Games" — GDC 2019
-- "Emergent Gameplay from Simple Systems" — Will Wright, GDC Classic
-- "Player Agency in Progression Design" — GDC 2020
+- `boilerplate/skill-tree.ts`: copy when building the backend. Drizzle tables, `canUnlock`, `unlockNode`, `hasUnlocked`, `getPlayerTree`, `detectCycles`, `findMissingPrerequisites`. The caller passes its own Drizzle database; the file imports no driver.
+- `templates/skill-tree-template.md`: copy when designing a new tree.
+- `references/sources.md`: read when you need the sources behind this skill.

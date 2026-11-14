@@ -1,40 +1,28 @@
 /**
  * Audio state machine for games.
  * Manages adaptive music, SFX, voice, and ambient layers with crossfade transitions.
+ * Plays through HTMLAudioElement. Volumes are set with `element.volume`, which
+ * iOS Safari ignores (MDN compat data), so on iOS the crossfade, ducking,
+ * sliders and mute have no audible effect.
  */
 
-type GameAudioState =
-	| "menu"
-	| "exploration"
-	| "combat"
-	| "boss"
-	| "social"
-	| "idle";
-
-interface AudioLayer {
-	music: number;
-	sfx: number;
-	voice: number;
-	ambient: number;
+interface MusicTrack {
+	src: string;
+	// false for stingers (victory, defeat) that play once.
+	loop: boolean;
 }
 
-interface TransitionConfig {
-	duration: number;
-}
-
-interface AudioConfig {
-	tracks: Record<GameAudioState, string>;
-	ambient: Partial<Record<GameAudioState, string>>;
-	volumes: Record<GameAudioState, AudioLayer>;
-	transitions: Partial<
-		Record<`${GameAudioState}->${GameAudioState}`, TransitionConfig>
-	>;
-	defaultTransitionDuration: number;
+/** S is the game's own union of audio states. All durations are in ms. */
+interface AudioConfig<S extends string> {
+	music: Partial<Record<S, MusicTrack>>;
+	ambient: Partial<Record<S, string>>;
+	transitionsMs: Partial<Record<`${S}->${S}`, number>>;
+	defaultTransitionMs: number;
 	preload: string[];
 }
 
-interface AudioManagerState {
-	currentState: GameAudioState | null;
+interface AudioManagerState<S extends string> {
+	currentState: S | null;
 	masterVolume: number;
 	musicVolume: number;
 	sfxVolume: number;
@@ -46,14 +34,16 @@ interface AudioManagerState {
 
 const AUDIO_PREFS_KEY = "game_audio_prefs";
 
-class AudioManager {
-	private readonly config: AudioConfig;
-	private state: AudioManagerState;
+class AudioManager<S extends string> {
+	private readonly config: AudioConfig<S>;
+	private state: AudioManagerState<S>;
 	private musicElement: HTMLAudioElement | null = null;
+	private fadingOut: HTMLAudioElement | null = null;
+	private fadeTimer: ReturnType<typeof setInterval> | null = null;
 	private ambientElement: HTMLAudioElement | null = null;
 	private preloadedAudio: Map<string, HTMLAudioElement> = new Map();
 
-	constructor(config: AudioConfig) {
+	constructor(config: AudioConfig<S>) {
 		this.config = config;
 		this.state = {
 			currentState: null,
@@ -70,10 +60,13 @@ class AudioManager {
 	}
 
 	/**
-	 * Unlock audio on mobile devices. Call on first user interaction (tap/click).
-	 * Plays a silent WAV to satisfy iOS/Android autoplay restrictions.
+	 * Call once at startup. Browsers block playback until the user interacts
+	 * with the page; touchend, click and keydown count as user activation,
+	 * touchstart does not. On the first such event this plays a silent WAV and,
+	 * if that succeeds, starts the music and ambient that were blocked.
 	 */
 	unlockMobile(): void {
+		const events = ["touchend", "click", "keydown"] as const;
 		const unlock = () => {
 			const audio = new Audio();
 			audio.src =
@@ -83,16 +76,20 @@ class AudioManager {
 				.then(() => {
 					audio.pause();
 					this.state.unlocked = true;
-					document.removeEventListener("touchstart", unlock);
-					document.removeEventListener("click", unlock);
+					for (const event of events) {
+						document.removeEventListener(event, unlock);
+					}
+					this.musicElement?.play().catch(() => {});
+					this.ambientElement?.play().catch(() => {});
 				})
 				.catch(() => {
 					// Still locked, retry on next interaction
 				});
 		};
 
-		document.addEventListener("touchstart", unlock, { once: false });
-		document.addEventListener("click", unlock, { once: false });
+		for (const event of events) {
+			document.addEventListener(event, unlock);
+		}
 	}
 
 	/**
@@ -116,20 +113,17 @@ class AudioManager {
 	 * Transition to a new game audio state.
 	 * Crossfades music and switches ambient based on config.
 	 */
-	transition(newState: GameAudioState): void {
+	transition(newState: S): void {
 		const previousState = this.state.currentState;
 		if (previousState === newState) return;
 
-		const transitionKey = previousState
-			? (`${previousState}->${newState}` as const)
-			: null;
-
 		const duration =
-			transitionKey && this.config.transitions[transitionKey]
-				? this.config.transitions[transitionKey]?.duration
-				: this.config.defaultTransitionDuration;
+			(previousState === null
+				? undefined
+				: this.config.transitionsMs[`${previousState}->${newState}`]) ??
+			this.config.defaultTransitionMs;
 
-		const musicTrack = this.config.tracks[newState];
+		const musicTrack = this.config.music[newState];
 		if (musicTrack) {
 			this.crossfadeMusic(musicTrack, duration);
 		}
@@ -142,7 +136,6 @@ class AudioManager {
 		}
 
 		this.state.currentState = newState;
-		this.savePrefs();
 	}
 
 	/**
@@ -162,14 +155,11 @@ class AudioManager {
 		audio.volume = this.effectiveVolume("voice");
 
 		if (this.musicElement && duckMusic > 0) {
-			const originalVolume = this.musicElement.volume;
-			this.musicElement.volume = originalVolume * (1 - duckMusic);
-
-			audio.addEventListener("ended", () => {
-				if (this.musicElement) {
-					this.musicElement.volume = originalVolume;
-				}
-			});
+			// Duck from the configured level, not the element's current volume,
+			// which is still near 0 while a crossfade is fading the track in.
+			this.musicElement.volume =
+				this.effectiveVolume("music") * (1 - duckMusic);
+			audio.addEventListener("ended", () => this.applyVolumes());
 		}
 
 		audio.play().catch(() => {});
@@ -209,38 +199,57 @@ class AudioManager {
 		this.savePrefs();
 	}
 
-	getState(): Readonly<AudioManagerState> {
+	getState(): Readonly<AudioManagerState<S>> {
 		return { ...this.state };
 	}
 
-	private crossfadeMusic(src: string, duration: number): void {
+	private crossfadeMusic(track: MusicTrack, durationMs: number): void {
+		// A transition during a running fade: drop the track that was fading out.
+		if (this.fadeTimer) {
+			clearInterval(this.fadeTimer);
+			this.fadeTimer = null;
+			this.fadingOut?.pause();
+			this.fadingOut = null;
+		}
+
 		const targetVolume = this.effectiveVolume("music");
-
-		const newAudio = new Audio(src);
-		newAudio.volume = 0;
-		newAudio.loop = true;
-		newAudio.play().catch(() => {});
-
 		const oldAudio = this.musicElement;
+		const oldStart = oldAudio?.volume ?? 0;
+
+		// Reuse the element preload() created, unless it is still playing.
+		const cached = this.preloadedAudio.get(track.src);
+		const newAudio =
+			cached && cached !== oldAudio ? cached : new Audio(track.src);
+		newAudio.currentTime = 0;
+		newAudio.loop = track.loop;
+		newAudio.volume = 0;
+		newAudio.play().catch(() => {});
+		this.musicElement = newAudio;
+		this.fadingOut = oldAudio;
+
 		const steps = 30;
-		const stepDuration = (duration * 1000) / steps;
 		let step = 0;
 
-		const interval = setInterval(() => {
+		const finish = () => {
+			if (this.fadeTimer) clearInterval(this.fadeTimer);
+			this.fadeTimer = null;
+			oldAudio?.pause();
+			this.fadingOut = null;
+			newAudio.volume = targetVolume;
+		};
+
+		if (durationMs <= 0) {
+			finish();
+			return;
+		}
+
+		this.fadeTimer = setInterval(() => {
 			step++;
 			const progress = step / steps;
-
-			if (oldAudio) {
-				oldAudio.volume = targetVolume * (1 - progress);
-			}
+			if (oldAudio) oldAudio.volume = oldStart * (1 - progress);
 			newAudio.volume = targetVolume * progress;
-
-			if (step >= steps) {
-				clearInterval(interval);
-				oldAudio?.pause();
-				this.musicElement = newAudio;
-			}
-		}, stepDuration);
+			if (step >= steps) finish();
+		}, durationMs / steps);
 	}
 
 	private playAmbient(src: string): void {
@@ -323,10 +332,4 @@ class AudioManager {
 }
 
 export { AudioManager };
-export type {
-	GameAudioState,
-	AudioLayer,
-	TransitionConfig,
-	AudioConfig,
-	AudioManagerState,
-};
+export type { MusicTrack, AudioConfig, AudioManagerState };

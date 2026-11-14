@@ -1,3 +1,4 @@
+// Verified against: bullmq 6.7.6 (2026-11-14)
 // ============================================================
 // Queue Definitions — Typed BullMQ Queues for Game Systems
 // ============================================================
@@ -16,69 +17,74 @@ import {
 	type RewardJobData,
 	type RewardJobResult,
 } from "../templates/job-types";
-import { createQueueOptions, redisConnection } from "../templates/queue-config";
+import {
+	createQueueEventsOptions,
+	createQueueOptions,
+} from "../templates/queue-config";
 
 // ============================================================
 // Matchmaking Queue
 // Find opponents, create game sessions
-// Priority: CRITICAL — players are actively waiting
+// Players are actively waiting
 // ============================================================
 
 export const matchmakingQueue = new Queue<
 	MatchmakingJobData,
 	MatchmakingJobResult
->(QUEUE_NAMES.MATCHMAKING, createQueueOptions(QUEUE_NAMES.MATCHMAKING));
+>(QUEUE_NAMES.MATCHMAKING, createQueueOptions());
 
 // ============================================================
 // Game Event Queue
 // Process game events: action resolution, state changes, outcomes
-// Priority: HIGH — affects active gameplay
+// Affects active gameplay
 // ============================================================
 
 export const gameEventQueue = new Queue<GameEventJobData, GameEventJobResult>(
 	QUEUE_NAMES.GAME_EVENT,
-	createQueueOptions(QUEUE_NAMES.GAME_EVENT),
+	createQueueOptions(),
 );
 
 // ============================================================
 // Reward Queue
 // Distribute rewards: daily login, achievements, quest completion
-// Priority: NORMAL — important but not time-critical
+// Important but not time-critical; must be idempotent
 // ============================================================
 
 export const rewardQueue = new Queue<RewardJobData, RewardJobResult>(
 	QUEUE_NAMES.REWARD,
-	createQueueOptions(QUEUE_NAMES.REWARD),
+	createQueueOptions(),
 );
 
 // ============================================================
 // Notification Queue
 // Push notifications, in-game mail, alerts
-// Priority: LOW — informational, can be slightly delayed
+// Informational, can be slightly delayed
 // ============================================================
 
 export const notificationQueue = new Queue<
 	NotificationJobData,
 	NotificationJobResult
->(QUEUE_NAMES.NOTIFICATION, createQueueOptions(QUEUE_NAMES.NOTIFICATION));
+>(QUEUE_NAMES.NOTIFICATION, createQueueOptions());
 
 // ============================================================
 // Analytics Queue
 // Event tracking, metrics, telemetry
-// Priority: BACKGROUND — never block gameplay for analytics
+// Own queue, so analytics never blocks gameplay jobs
 // ============================================================
 
 export const analyticsQueue = new Queue<AnalyticsJobData, AnalyticsJobResult>(
 	QUEUE_NAMES.ANALYTICS,
-	createQueueOptions(QUEUE_NAMES.ANALYTICS),
+	createQueueOptions(),
 );
 
 // ============================================================
 // Queue Events — For monitoring and logging
+// QueueEvents sees events from every worker on the queue (worker.on only sees
+// its own process) and reads a Redis stream, so events survive disconnects.
 // ============================================================
 
 export const createQueueEvents = (queueName: string) =>
-	new QueueEvents(queueName, { connection: redisConnection });
+	new QueueEvents(queueName, createQueueEventsOptions());
 
 export const matchmakingEvents = createQueueEvents(QUEUE_NAMES.MATCHMAKING);
 export const gameEventEvents = createQueueEvents(QUEUE_NAMES.GAME_EVENT);

@@ -1,3 +1,4 @@
+// Verified against: drizzle-orm 0.45.4 (2026-11-14)
 /**
  * Reusable entity table template.
  *
@@ -146,6 +147,7 @@ export const timedEntities = pgTable(
 		expiresAt: timestamp("expires_at"),
 		completedAt: timestamp("completed_at"),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => [
 		index("timed_entities_player_id_idx").on(table.playerId),

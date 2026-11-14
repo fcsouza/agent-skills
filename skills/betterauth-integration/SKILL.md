@@ -1,153 +1,97 @@
 ---
 name: betterauth-integration
 description: >-
-  Use when implementing authentication, login flows, OAuth, JWT sessions, or role-based access control (RBAC) for games with BetterAuth. Triggers: auth, login, OAuth, JWT, roles, permissions, RBAC.
+  Covers the game-specific layer of Better Auth: player, moderator and admin roles, session checks on game routes and WebSocket handshakes, and keeping the auth session apart from the game session. Use when a game needs player login, moderator or admin powers, or authenticated real-time connections, and the project uses Better Auth.
 ---
 
-# BetterAuth Integration
+# Better Auth for games
 
-## Purpose
+Use the `better-auth-best-practices` skill if it is installed, otherwise https://www.better-auth.com/docs. This skill covers only what a game adds on top: the role matrix, the WebSocket handshake, and the split between who a player is and which match they are in.
 
-Auth flows, session management, OAuth, JWT, RBAC for game players/admins/mods using BetterAuth with Elysia + Drizzle ORM.
+## Requires
 
-## When to Use
+- `postgres-game-schema`
 
-Trigger: auth, authentication, login, signup, OAuth, JWT, session, RBAC, roles, permissions, player auth, admin auth, moderator, BetterAuth
+## Decisions
 
-## Prerequisites
+1. Every game endpoint and every WebSocket connection checks a Better Auth session. Derive the user id from the session, never from the request body or params.
+2. Use Better Auth sessions, not JWTs, for players. A session lives in the database, so a ban or logout revokes it.
+3. Use three roles: player, moderator, admin. They come from the admin plugin, not from a custom user field.
+4. Keep the auth session ("who you are") apart from the game session ("which match or room you are in"). A logged-in player may be in no match.
+5. Do not write password hashing. Better Auth hashes passwords with scrypt.
 
-- `postgres-game-schema` (for user tables)
+## Setup steps
 
-## Core Principles
+1. Install the packages: `bun add better-auth @better-auth/drizzle-adapter`. Import the adapter with `import { drizzleAdapter } from '@better-auth/drizzle-adapter'`. If the project uses Drizzle Relations v2, import from `@better-auth/drizzle-adapter/relations-v2` instead.
+2. Add the admin plugin with the game roles from `templates/role-definitions.ts` (read when you set up roles or add a game permission): `admin({ ac, roles, defaultRole: 'player' })` on the server and `adminClient({ ac, roles })` on the client. Without `defaultRole: 'player'`, new users get the plugin's default role `user`, which the game matrix does not define, and every permission check fails.
+3. Add the `staffGuard()` plugin from `templates/staff-guard.ts` (read when you give moderators ban or session powers) after `admin()`: `plugins: [admin({ ... }), staffGuard()]`. A plugin hook does not take the single user-level `hooks.before` slot, and its place relative to `bearer()` does not matter. If a project must call `guardStaffTargets(ctx)` from its own `hooks.before` instead, `await` it as the first statement, do not catch its error, and do not rewrite the body of `/admin/*` requests in any hook.
+4. Do not add a `role` field through `additionalFields`. The admin plugin adds `role` (plus `banned`, `banReason`, `banExpires`) to the user table.
+5. Generate the auth schema, then migrate it with Drizzle Kit. Better Auth's `migrate` command works only with its built-in Kysely adapter.
 
-> "Security is not a feature. It's a foundation." — OWASP
-> "Trust is the currency of multiplayer games." — Raph Koster
+   ```bash
+   bunx auth@latest generate
+   bunx drizzle-kit generate
+   bunx drizzle-kit migrate
+   ```
 
-1. **Auth is not optional** — every game endpoint must be authenticated
-2. **Role-based access: player, moderator, admin** with escalating privileges
-3. **Session tokens over JWTs for web games** — stateful > stateless for games (revocable, server-controlled)
-4. **OAuth for social login** — Discord, Google, GitHub, Twitch are standard for gamers
-5. **Rate limit auth endpoints aggressively** — prevent brute force and credential stuffing
-6. **Never store passwords** — BetterAuth handles hashing with bcrypt/argon2
-7. **Separate game sessions from auth sessions** — auth session = "who you are", game session = "what room you're in"
+6. Mount the Better Auth handler in the game server and guard routes. For Elysia, follow https://www.better-auth.com/docs/integrations/elysia, and use the `elysiajs` skill if it is installed for the Elysia version the project runs.
 
-## Step-by-Step Instructions
+## Role matrix
 
-### 1. Install Dependencies
+| Role | May do |
+|---|---|
+| player | join and create matches, send chat, file reports |
+| moderator | player actions; list and view users; ban, unban and revoke all sessions of players only; end matches, delete chat, read and resolve reports, read game config and analytics |
+| admin | every admin-plugin action (including changing roles), every game action, update game config |
 
-```bash
-bun add better-auth drizzle-orm @neondatabase/serverless
-bun add -d drizzle-kit @types/bun
-```
+- The admin plugin's endpoints check its own `user` and `session` resources. Unban checks `user: ['ban']`. Changing a role checks `user: ['set-role']`.
+- Moderators act on players only. The admin plugin's endpoints check the caller's permission, never the target's role, so a moderator with `user: ['ban']` could ban an admin. `staffGuard` denies by default: on every `/admin/*` path outside its allow list (`list-users`, `get-user`, `has-permission`, `stop-impersonating`), a caller who is not an admin must name a target user whose every role is `player` (no role counts as the plugin's `defaultRole`). Any other role, a new staff role included, is refused.
+- The guard decides who is an admin the way the plugin does. It reads the caller from the session store, not the cookie cache, so a demotion takes effect at once. It splits roles on commas without trimming. It treats ids in the plugin's `adminUserIds` as admins when they call and as staff when they are the target. It reads a bearer-token caller the way the endpoint will.
+- The guard reads the target only from the field each endpoint reads (`sessionToken` for `revoke-user-session`, `userId` for the rest), coerces `userId` the way the endpoints do, and rejects a request whose target it cannot find. Server code that calls `auth.api.createUser({ body })` with no headers passes, as the plugin allows.
+- Hooks run for `auth.api.*` calls but not for writes through `internalAdapter`. Game code that acts on another user calls `auth.api.*` with the acting moderator's own request headers, never with an admin or service session and never through `internalAdapter`, or it applies the same player-only target check itself.
+- Do not give moderators `session: ['list']`. `/admin/list-user-sessions` returns each session's token, and a token is a login. Moderators revoke a player's sessions with `/admin/revoke-user-sessions`, which needs only `session: ['revoke']`.
+- `user.role` holds a comma-separated list when a user has several roles. `rolesOf` in `role-definitions.ts` splits it without trimming, as the plugin does, and treats a missing role as `defaultRole`. `can()` and `staffGuard` both use it, so the two never read a role differently. Pass `can()` the same `defaultRole` you gave the plugin (it defaults to `player`).
+- If the project adds user fields with `returned: false`, a moderator can still test their values through the `filterField` query of `/admin/list-users`.
+- Check a permission with `can(session.user.role, { chat: ['delete'] })` when you already hold the session, or with `auth.api.userHasPermission({ body: { userId, permissions } })` when you only have the id.
+- Ownership is not a role. A player edits their own profile or inventory because the session user id equals the owner id. Check that separately: `session.user.id === ownerId`.
+- A ban through the admin plugin stops sign-in and revokes all of the player's sessions. The game server must close that player's open sockets itself, because the handshake check ran only once.
 
-### 2. Configure BetterAuth
+## WebSocket handshake
 
-Create the auth instance with Drizzle adapter, OAuth providers, and custom user fields. See `boilerplate/auth-setup.ts` for the complete configuration.
-
-### 3. Add Auth Middleware to Elysia
-
-Mount the BetterAuth handler and add session/role middleware to your Elysia app. See `boilerplate/auth-middleware.ts` for `requireAuth`, `requireRole`, and `optionalAuth` patterns.
-
-### 4. Define Roles and Permissions
-
-Set up the RBAC system with role enums and permission maps. See `templates/role-definitions.ts` for the full type definitions and permission matrix.
-
-### 5. Mount Auth Routes
-
-Add standard auth routes (signup, login, logout, OAuth, session, admin). See `templates/auth-routes.ts` for the route patterns.
-
-### 6. Generate Auth Tables
-
-BetterAuth manages its own tables. Run migrations after setup:
-
-```bash
-bunx drizzle-kit generate
-bunx drizzle-kit migrate
-```
-
-### 7. Protect Game Endpoints
-
-Apply middleware to all game routes:
+Validate the session once, when the client upgrades the connection, from the upgrade request's headers.
 
 ```typescript
-import { requireAuth, requireRole } from './auth-middleware';
-
-app
-  .use(requireAuth)
-  .get('/api/game/state', ({ user }) => getGameState(user.id))
-  .use(requireRole('admin'))
-  .delete('/api/game/reset', () => resetGame());
-```
-
-## Code Examples
-
-### Basic auth check in a route
-
-```typescript
-import { auth } from './auth-setup';
-
-app.get('/api/me', async ({ headers }) => {
-  const session = await auth.api.getSession({ headers });
-  if (!session) return { error: 'Not authenticated' };
-  return { user: session.user };
+const session = await auth.api.getSession({
+  headers: request.headers,
+  query: { disableCookieCache: true },
 });
+if (!session) return new Response('Unauthorized', { status: 401 });
+// Store session.user.id and session.user.role on the socket; never read them from client messages.
 ```
 
-### Protecting a WebSocket connection
+`disableCookieCache: true` makes the server read the session from the database. With `session.cookieCache` enabled and no such flag, a revoked session can pass until the cache cookie expires.
 
-```typescript
-// Validate session before upgrading to WebSocket
-app.ws('/ws', {
-  async beforeHandle({ headers }) {
-    const session = await auth.api.getSession({ headers });
-    if (!session) throw new Error('Unauthorized');
-  },
-  // ... ws handlers
-});
-```
+A direct `auth.api` call skips Better Auth's origin checks, even with the browser's headers. Reject an upgrade whose `Origin` header is not in your trusted origins before you read the session.
 
-### Checking role before an action
+## Pitfalls
 
-```typescript
-import { hasPermission } from './role-definitions';
+- Trusting a user id or role sent by the client.
+- Reading the role from a token issued at login. Read it from the current session so a demotion or ban takes effect.
+- A single `isAdmin` boolean instead of roles.
+- Leaving rate limits at their defaults for a public game. Better Auth's built-in limiter applies only to client requests, not to `auth.api` calls made by the server.
+- Giving moderators admin-plugin permissions without `staffGuard()`. They can then ban or log out admins and each other.
+- Upgrading Better Auth without reviewing `staffGuard`. It denies by default, but its allow list, its reading of `userId` and `sessionToken`, and its bearer handling match 1.7.23. Check both against any admin endpoint a new version adds.
+- Turning a custom header into the session cookie in another hook. `staffGuard` reads the caller only from cookies or `bearer()`, so it refuses those callers until you replay that hook the way it replays `bearer()`.
+- Cookie-only (stateless) deployments with no database. There the caller's role comes from the cookie, so a demotion takes effect only when the cookie cache expires.
+- Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
-app.delete('/api/players/:id/ban', async ({ user, params }) => {
-  if (!hasPermission(user.role, 'users', 'ban')) {
-    return { error: 'Insufficient permissions' };
-  }
-  await banPlayer(params.id, user.id);
-  return { banned: true };
-});
-```
+## Related skills
 
-See `boilerplate/auth-setup.ts` and `boilerplate/auth-middleware.ts` for full implementation patterns.
+- `postgres-game-schema` for the player tables that reference the auth user
+- `game-backend-architecture` for the server and the WebSocket endpoint
+- `redis-game-patterns` for game session state
+- `stripe-game-payments` for payments tied to an authenticated player
 
-## Cross-References
+## Reference files
 
-- `postgres-game-schema` for user/player table schemas
-- `game-backend-architecture` for Elysia server setup and route structure
-- `redis-game-patterns` for session caching and rate limiting
-- `stripe-game-payments` for authenticated payment flows
-
-## Pitfalls & Anti-Patterns
-
-- **Don't roll your own password hashing** — BetterAuth handles this with battle-tested algorithms; never store plaintext or MD5
-- **Don't use JWTs as the sole session mechanism for web games** — they can't be revoked server-side; use BetterAuth's session tokens with cookie storage
-- **Don't skip rate limiting on auth endpoints** — `/auth/login` and `/auth/signup` are prime brute force targets; limit to 5-10 attempts per minute
-- **Don't store roles in the JWT/token** — always fetch the current role from the database to ensure role changes take effect immediately
-- **Don't use a single "admin" boolean** — use a proper role enum (player/moderator/admin) so permissions can be granularly assigned
-- **Don't mix auth sessions with game sessions** — a player can be logged in (auth session) without being in a match (game session); these are separate concerns
-- **Don't trust client-sent user IDs** — always derive the user identity from the server-validated session, never from request body/params
-- **Don't forget CORS configuration** — OAuth redirects and cookie-based sessions require correct origin settings
-
-## Designer Philosophy
-
-Security enables trust; trust enables social gameplay. When players know their accounts are safe, they invest more in the game — socially, economically, and emotionally. Authentication is invisible when done right: players log in once, stay logged in, and never think about it again. Every friction point in auth is a player lost.
-
-## Sources
-
-- [BetterAuth Documentation](https://www.better-auth.com/docs)
-- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
-- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
-- [Elysia Documentation](https://elysiajs.com)
-- [Drizzle ORM Documentation](https://orm.drizzle.team)
+Read `references/sources.md` when you need the documentation page behind a claim in this skill.

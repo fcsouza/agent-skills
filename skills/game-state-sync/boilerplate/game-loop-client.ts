@@ -174,11 +174,26 @@ export class ClientGameLoop<
 	}
 
 	/**
+	 * Align the client's tick counter with the server's. Call it when the
+	 * room is joined (the server's join message carries its tick), before
+	 * start(): inputs are tagged with this counter, and reconciliation
+	 * replays ticks by it, so both sides must count the same ticks.
+	 */
+	syncTick(serverTick: number): void {
+		this.currentTick = serverTick;
+	}
+
+	/**
 	 * Handle an authoritative state update from the server.
 	 * Performs server reconciliation:
-	 * 1. Accept server state as ground truth
+	 * 1. Accept server state (at serverTick) as ground truth
 	 * 2. Discard acknowledged inputs
-	 * 3. Replay unacknowledged inputs on top of server state
+	 * 3. Re-simulate every tick from serverTick + 1 to the current tick the way
+	 *    tick() ran it: that tick's unacknowledged input (applyInput), then
+	 *    onTick. Ticks with no input still step, or idle physics would snap
+	 *    back on every update. Client and server must count ticks the same
+	 *    way (syncTick). If the client is behind the server, or further ahead
+	 *    than the input buffer covers, it takes the server's state and tick.
 	 */
 	handleServerUpdate(
 		serverState: TState,
@@ -192,18 +207,36 @@ export class ClientGameLoop<
 		// Notify callback
 		this.onServerUpdate?.(serverState, serverTick);
 
-		if (!this.applyInput) return;
+		const applyInput = this.applyInput;
+		if (!applyInput) return;
 
-		// Start from authoritative server state
 		let reconciledState = structuredClone(serverState);
-
-		// Replay unacknowledged inputs
 		const unacknowledged = this.getUnacknowledgedInputs(lastProcessedSequence);
+
+		// Inputs the server has not processed although their tick has passed
+		// on the server: apply them first so they are not lost.
 		for (const buffered of unacknowledged) {
-			reconciledState = this.applyInput(reconciledState, buffered.input);
+			if (buffered.tick <= serverTick) {
+				reconciledState = applyInput(reconciledState, buffered.input);
+			}
+		}
+		const ahead = this.currentTick - serverTick;
+		if (ahead <= 0 || ahead > this.config.inputBufferSize) {
+			this.currentTick = serverTick;
+			this.currentState = reconciledState;
+			return;
+		}
+		for (let tick = serverTick + 1; tick <= this.currentTick; tick++) {
+			for (const buffered of unacknowledged) {
+				if (buffered.tick === tick) {
+					reconciledState = applyInput(reconciledState, buffered.input);
+				}
+			}
+			if (this.onTick) {
+				reconciledState = this.onTick(reconciledState, tick);
+			}
 		}
 
-		// Update local state to reconciled result
 		this.currentState = reconciledState;
 	}
 

@@ -1,372 +1,154 @@
 ---
 name: game-state-sync
 description: >-
-  Use when implementing client-server state synchronization, delta compression, optimistic updates, rollback netcode, or real-time game state reconciliation. Triggers: state sync, netcode, delta, rollback, interpolation, prediction.
+  Keeps a multiplayer game's world consistent between an authoritative server and its clients: choosing a sync strategy (dumb client, lockstep, snapshot interpolation, client prediction with server reconciliation, lag compensation), plus TypeScript boilerplate for delta encoding, a rollback history buffer and a fixed-timestep client loop. Use when a multiplayer game feels laggy on input, shows remote players stuttering or teleporting, drifts out of sync between clients, or sends too much state per tick.
 ---
 
 # Game State Sync
 
-## Purpose
+The server owns the game state. Clients send inputs, never results. Every technique below hides latency on top of that rule; none of them replaces it.
 
-Client-server state reconciliation, delta compression, optimistic updates, and rollback for multiplayer games.
+Prerequisites: a server tick loop and authority model (`game-backend-architecture`). For fanning deltas out across several server processes, see the fan-out section of `game-backend-architecture`.
 
-## When to Use
+## Pick a sync strategy
 
-Trigger: state sync, client-server, delta compression, optimistic updates, rollback, netcode, lag compensation, snapshot, interpolation, reconciliation
+Decide this first. Most games combine rows: prediction for the local player, interpolation for everyone else, lag compensation for hits.
 
-## Prerequisites
+| Game situation | Strategy | Cost and limits | Boilerplate |
+|---|---|---|---|
+| Turn-based or slow (strategy, cards, board games) | Dumb client: send input, wait for the server's new state, render it | Input lag equals round-trip time. Fine when turns are slow | Not needed; skip prediction |
+| Your own avatar in a real-time game | Client prediction plus server reconciliation: apply input locally, tag it with a sequence number, replay unacknowledged inputs on each server state | Mispredictions cause corrections; smooth small ones, snap large ones | `StateSyncEngine.reconcile`, `ClientGameLoop.handleServerUpdate` |
+| Other players whose speed and direction change instantly (shooters) | Entity interpolation: render them in the past, between two received snapshots | They appear about one interpolation period behind. Source defaults to 100 ms | `RollbackBuffer.getBracket` over received snapshots |
+| Entities with predictable motion (vehicles, ships) | Dead reckoning: extrapolate from last speed and heading, correct on the next update | Wrong when motion changes. Cap how long you extrapolate | Pattern only, see `references/client-architecture.md` |
+| Hit detection against entities shown in the past | Lag compensation: the server rewinds the world to the shooter's view time and tests the hit there | A target can be hit just after reaching cover | Not implemented; use `RollbackBuffer` for the history |
+| 2-4 players, simulation you can make deterministic | Deterministic lockstep: send inputs only | Bandwidth independent of object count. Everyone waits for the slowest player's input; float differences break it | Not implemented |
+| Physics-heavy co-op with no competitive stakes | Distributed authority with state synchronization: each player owns the objects it touches | Less secure; only for non-competitive play | Not implemented |
 
-- `game-backend-architecture` — server loop, tick system, authority model
-- `redis-game-patterns` — pub/sub for cross-server state distribution
+The preset values in `templates/sync-strategies.ts` (tick rates, byte budgets, buffer sizes) are starting points to measure against, not benchmarks.
 
-## Core Principles
+## Procedure
 
-1. **Server is authoritative** — client predicts, server confirms or corrects. Never trust the client.
-2. **Delta compression** — send only what changed, not full state. Reduces bandwidth by 80-95% in typical games.
-3. **Optimistic updates** — apply input locally for instant feedback, revert if server disagrees.
-4. **Snapshot + interpolation** — render smoothly between discrete server updates by interpolating between two known states.
-5. **Rollback** — maintain a history buffer to rewind and replay when the server corrects a misprediction.
-6. **Tick-aligned** — all state changes happen at discrete tick boundaries. No floating-point time drift.
-7. **Bandwidth budget** — target < 10KB/s per player for typical games. Monitor and alert on spikes.
+### 1. Define the state shape
 
-## Step-by-Step
-
-### 1. Define Your State Shape
-
-Use a generic type parameter so the sync engine works with any game state. Keep state flat where possible — deep nesting increases delta computation cost.
+Keep entities in `Record<id, entity>`, not arrays. An insert into an array shifts every later index and the whole tail diffs as changed.
 
 ```typescript
-// Your game defines the shape, the engine stays generic
-interface MyGameState {
-  players: Record<string, PlayerState>;
-  projectiles: Record<string, ProjectileState>;
-  world: WorldState;
+interface MyGameState extends Record<string, unknown> {
+  tick: number;
+  players: Record<string, { x: number; y: number; vx: number; vy: number }>;
 }
 ```
 
-### 2. Set Up the Sync Engine
+### 2. Run the authoritative server loop
 
 ```typescript
-import { StateSyncEngine } from './state-sync';
+import { StateSyncEngine, type PlayerInput } from './state-sync';
 
-const engine = new StateSyncEngine<MyGameState>({
-  tickRate: 20,           // 20 ticks/second = 50ms per tick
-  snapshotInterval: 3,    // snapshot every 3 ticks
-  historyLength: 64,      // keep 64 ticks of history (~3.2s at 20Hz)
-  interpolationDelay: 2,  // render 2 ticks behind for smooth interpolation
+const engine = new StateSyncEngine<MyGameState>(initialState, {
+  tickRate: 20,
+  snapshotInterval: 1,
+  historyLength: 64,
+  interpolationDelay: 2,
 });
+
+// Each server tick. With snapshotInterval: 1, tick() already stores this
+// tick in the history; snapshot() replaces that entry (the buffer keeps one
+// entry per tick) and returns { tick, state, timestamp } to send.
+engine.tick((state, tick) => simulate(applyInputs(state, pendingInputs), tick));
+const snap = engine.snapshot();
 ```
 
-### 3. Client Prediction Loop
+Send each client the new state as a delta (step 3), with the sequence number of the last input processed for that client.
 
-On the client, apply inputs immediately without waiting for server confirmation.
+### 3. Encode deltas against what the client has acknowledged
 
-```typescript
-// Client sends input + applies locally
-const input: PlayerInput = { tick: currentTick, actions: getLocalInputs() };
-engine.applyLocalInput(input);
-sendToServer(input);
+Over an unreliable transport such as UDP, encode each client's delta against the last snapshot that client acknowledged, not against the previous tick. A client that lost the previous packet cannot apply a delta built on it. Keep a per-client acknowledged tick and a history of sent snapshots (`RollbackBuffer`). Send a full snapshot on join and after sustained packet loss.
 
-// When server state arrives, reconcile
-onServerState((serverState, serverTick) => {
-  engine.reconcile(serverState, serverTick);
-});
-```
-
-### 4. Server Authority Loop
-
-Server processes all inputs, advances the simulation, and broadcasts deltas.
-
-```typescript
-// Server tick
-const previousState = engine.snapshot();
-processAllInputs(pendingInputs);
-advanceSimulation(tickDelta);
-const currentState = engine.snapshot();
-
-// Generate and broadcast delta
-const delta = engine.generateDelta(previousState, currentState);
-if (delta) {
-  broadcastToClients(delta, currentTick);
-}
-```
-
-### 5. Delta Compression
-
-Use the delta encoder for bandwidth-efficient state transfer.
+Over WebSocket, deltas against the previous tick are safe: WebSocket runs on TCP, which delivers every message in order, so the client always holds the previous state. This is what `game-backend-architecture` does. Resend a full snapshot when a client reconnects.
 
 ```typescript
 import { encodeDelta, decodeDelta } from './delta-encoder';
 
-// Server: compute minimal diff
-const delta = encodeDelta(previousState, currentState);
-
-// Client: reconstruct from base + delta
-const reconstructed = decodeDelta(lastKnownState, delta);
+const delta = encodeDelta(ackedBaseline, currentState); // server, per client
+const next = decodeDelta(ackedBaseline, delta);          // client, same baseline
 ```
 
-### 6. Rollback on Misprediction
+`toBinaryDelta` only frames the JSON delta in a byte buffer. It does not compress. Quantize floats yourself if bandwidth matters.
 
-When server state diverges from client prediction, roll back and replay.
+### 4. Predict and reconcile on the client
+
+`clientTick` is your own counter, advanced once per fixed step (step 7). `applyLocalInput` does not advance the engine's tick.
+
+```typescript
+let sequence = 0;
+const input: PlayerInput = { tick: clientTick, playerId, actions, sequence: ++sequence };
+engine.applyLocalInput(input, applyInput); // predict now
+send(input);
+
+// On each authoritative state from the server
+const result = engine.reconcile(serverState, serverTick, lastProcessedSequence, applyInput);
+if (result.corrected) startCorrectionSmoothing();
+```
+
+`reconcile` discards inputs up to `lastProcessedSequence` and replays the rest on top of the server state. Keep irreversible outcomes (death, item pickup) until the server confirms them.
+
+### 5. Interpolate everyone else
+
+Store the snapshots you receive, keyed by server tick, and render remote entities a fixed delay behind the newest one. Make the delay span at least two snapshot intervals, so one lost snapshot still leaves two to interpolate between. A longer delay survives more consecutive losses at the cost of latency.
 
 ```typescript
 import { RollbackBuffer } from './rollback-buffer';
 
-const buffer = new RollbackBuffer<MyGameState>(64);
+const received = new RollbackBuffer<MyGameState>(32);
+received.push(serverTick, serverState); // on each server snapshot
 
-// Store every tick
-buffer.push(currentTick, currentState);
-
-// On server correction at tick N
-const correctedState = buffer.rollbackTo(serverTick);
-// Replay all inputs from serverTick to currentTick
-replayInputs(correctedState, serverTick, currentTick);
-```
-
-### 7. Snapshot Interpolation (Visual Smoothing)
-
-Render between two known server states for smooth visuals even at low tick rates.
-
-```typescript
-// Keep two recent server snapshots
-const renderTick = currentTick - interpolationDelay;
-const prev = buffer.getAt(Math.floor(renderTick));
-const next = buffer.getAt(Math.ceil(renderTick));
-const alpha = renderTick % 1;
-
-// Interpolate positions, rotations, etc.
-const renderState = interpolate(prev, next, alpha);
-```
-
-## Code Examples
-
-See boilerplate files:
-
-- `boilerplate/state-sync.ts` — Core `StateSyncEngine` class with prediction, reconciliation, and snapshot management
-- `boilerplate/delta-encoder.ts` — Deep object diff with `encodeDelta` / `decodeDelta` and binary encoding option
-- `boilerplate/rollback-buffer.ts` — Ring buffer with `push`, `getAt`, `rollbackTo` for memory-efficient history
-
-## Client Architecture
-
-The sections above cover the server-authoritative sync model. This section covers the client-side architecture that complements it: input handling, prediction, dead reckoning, and visual smoothing.
-
-### Input Handling
-
-Collect raw inputs (keyboard, mouse, gamepad) at display frame rate, then sample them at the simulation tick rate. Use a ring buffer to queue inputs for sending to the server.
-
-```typescript
-// Collect at display FPS, sample at tick rate
-const rawInputs: RawInput[] = [];
-
-// In your render loop (60+ FPS)
-function onFrame() {
-  rawInputs.push(captureCurrentInput());
-}
-
-// In your tick loop (e.g., 20 Hz)
-function onTick(tickId: number) {
-  const sampled = sampleInputs(rawInputs, tickId);
-  rawInputs.length = 0; // Clear after sampling
-  inputBuffer.push({ tickId, input: sampled });
-  sendToServer({ tickId, input: sampled });
+// Each render frame. estimatedServerTick is fractional, from your clock sync.
+const renderTick = estimatedServerTick - delayTicks;
+const { before, after } = received.getBracket(renderTick);
+if (before && after) {
+  const alpha = (renderTick - before.tick) / (after.tick - before.tick);
+  render(lerpEntities(before.state, after.state, alpha));
 }
 ```
 
-Key rules:
-- Never drop inputs. If the tick rate is lower than the frame rate, merge intermediate inputs (e.g., combine multiple mouse deltas).
-- Tag every input with its tick ID so the server can process inputs in tick order.
-- Keep the ring buffer sized to at least `RTT / tickDuration * 2` entries for replay during rollback.
+Do not use `engine.getInterpolationStates` for this on the client: it reads the engine's own history, which holds the local player's predicted states.
 
-### Client-Side Prediction Loop
+When both ends are missing for longer than your extrapolation cap, freeze the entity and mark it stale. Source caps extrapolation at 0.25 s.
 
-Apply inputs locally before waiting for server confirmation. This gives the player instant feedback while the server validates.
+### 6. Correct mispredictions
 
-```typescript
-// Apply locally, then send to server
-const input = captureTickInput(currentTick);
+Snap the simulation state to the server's. Smooth only the rendered position: reduce small errors gradually and correct large ones fast, since a slow correction of a large jump disorients players.
 
-// Predict: apply to local state immediately
-localState = applyInput(localState, input);
-inputBuffer.push({ tick: currentTick, input, predictedState: localState });
+### 7. Separate simulation from rendering on the client
 
-// Send to server for authoritative processing
-sendToServer(input);
-```
+Run the simulation at a fixed tick with an accumulator; render at display rate and interpolate with the leftover fraction. `boilerplate/game-loop-client.ts` does this. The full client walkthrough (input sampling, prediction, dead reckoning, the loop) is in `references/client-architecture.md`.
 
-The prediction is "optimistic" — it assumes the server will agree. When the server sends its authoritative state, the client reconciles by replaying unacknowledged inputs on top of the server state (see Rollback section above).
+## Files
 
-### Input Buffer
-
-Store the last N inputs with their tick ID for replay during server reconciliation. The buffer must be large enough to cover the round-trip time to the server.
-
-```typescript
-interface BufferedInput<TInput> {
-  tick: number;
-  input: TInput;
-  predictedState: GameState;
-}
-
-class InputRingBuffer<TInput> {
-  private buffer: (BufferedInput<TInput> | null)[];
-  private head = 0;
-  private capacity: number;
-
-  constructor(capacity: number) {
-    this.capacity = capacity;
-    this.buffer = new Array(capacity).fill(null);
-  }
-
-  push(entry: BufferedInput<TInput>): void {
-    this.buffer[this.head] = entry;
-    this.head = (this.head + 1) % this.capacity;
-  }
-
-  getInputsSince(tick: number): BufferedInput<TInput>[] {
-    const results: BufferedInput<TInput>[] = [];
-    for (let i = 0; i < this.capacity; i++) {
-      const entry = this.buffer[i];
-      if (entry && entry.tick >= tick) results.push(entry);
-    }
-    return results.sort((a, b) => a.tick - b.tick);
-  }
-
-  clear(): void {
-    this.buffer.fill(null);
-    this.head = 0;
-  }
-}
-```
-
-### Dead Reckoning
-
-When no server update has arrived for an entity, extrapolate its position based on the last known velocity and acceleration. This prevents entities from "freezing" during packet loss.
-
-```typescript
-interface EntitySnapshot {
-  position: { x: number; y: number };
-  velocity: { x: number; y: number };
-  lastUpdateTick: number;
-}
-
-function deadReckon(
-  entity: EntitySnapshot,
-  currentTick: number,
-  tickDuration: number,
-): { x: number; y: number } {
-  const elapsed = (currentTick - entity.lastUpdateTick) * tickDuration;
-  return {
-    x: entity.position.x + entity.velocity.x * elapsed,
-    y: entity.position.y + entity.velocity.y * elapsed,
-  };
-}
-```
-
-Key rules:
-- Cap extrapolation time (e.g., max 500ms). Beyond that, the entity is stale — show a visual indicator.
-- When the server update finally arrives, blend from the dead-reckoned position to the corrected position over 2-3 frames to avoid snapping.
-- For non-linear motion (e.g., turning vehicles), include angular velocity in the snapshot.
-
-### Visual Smoothing
-
-Separate the render loop from the game logic loop. The game logic runs at a fixed tick rate, while rendering runs at the display refresh rate and interpolates between the previous and current game states.
-
-```typescript
-// Fixed timestep game loop with interpolated rendering
-let previous = performance.now();
-let accumulator = 0;
-const tickDuration = 1000 / TICK_RATE; // e.g., 50ms for 20Hz
-
-let prevState = initialState;
-let currState = initialState;
-
-function loop(timestamp: number) {
-  const dt = timestamp - previous;
-  previous = timestamp;
-  accumulator += dt;
-
-  // Fixed timestep: advance simulation in discrete steps
-  while (accumulator >= tickDuration) {
-    prevState = currState;
-    currState = simulateTick(currState);
-    accumulator -= tickDuration;
-  }
-
-  // Render: interpolate between prev and current state
-  const alpha = accumulator / tickDuration;
-  render(interpolate(prevState, currState, alpha));
-
-  requestAnimationFrame(loop);
-}
-```
-
-This separation ensures:
-- Game logic is deterministic and tick-aligned (no frame rate dependency)
-- Rendering is smooth at any refresh rate (60Hz, 120Hz, 144Hz)
-- Visual positions are always between two valid game states — no overshoot artifacts
-
-### Client Game Loop
-
-See `boilerplate/game-loop-client.ts` for a full TypeScript implementation of the client game loop that combines all the above concepts: fixed timestep, input sampling, client-side prediction, server reconciliation, and `requestAnimationFrame`-based rendering.
-
-```typescript
-import { ClientGameLoop } from './game-loop-client';
-
-const gameLoop = new ClientGameLoop({
-  tickRate: 20,
-  inputBufferSize: 128,
-  interpolationDelay: 2,
-  maxExtrapolationMs: 500,
-});
-
-gameLoop.onTick = (state, tick) => {
-  // Your game simulation step
-  return applyPhysics(applyInputs(state, getLocalInput()));
-};
-
-gameLoop.onRender = (state, alpha) => {
-  // Your rendering code
-  renderer.draw(state, alpha);
-};
-
-gameLoop.onServerUpdate = (serverState, serverTick) => {
-  // Automatic reconciliation + input replay
-};
-
-gameLoop.start();
-```
-
-## Cross-References
-
-- **game-backend-architecture** — Server tick loop, authority model, input processing pipeline. The sync engine sits on top of the game loop.
-- **redis-game-patterns** — Redis pub/sub for distributing state deltas across multiple server instances. Use sorted sets for leaderboard state that doesn't need tick-aligned sync.
+- `boilerplate/state-sync.ts`: copy when you need the server or client engine. `StateSyncEngine` with tick, snapshot, delta, local prediction, reconciliation, rollback-and-replay, and interpolation over its own history.
+- `boilerplate/delta-encoder.ts`: copy when you send state diffs. `encodeDelta`, `decodeDelta`, `toBinaryDelta`, `fromBinaryDelta`, `deltaByteSize`, `deepEqual`.
+- `boilerplate/rollback-buffer.ts`: copy when you need tick-indexed history for rollback, acknowledged baselines or lag compensation. Ring buffer with `push`, `getAt`, `rollbackTo`, `getBracket`, `getRange`.
+- `boilerplate/game-loop-client.ts`: copy when you build the browser client. `ClientGameLoop` with a fixed timestep, input ring buffer, prediction and `handleServerUpdate` reconciliation. It reports staleness (`isExtrapolating`) but does no dead reckoning itself.
+- `templates/sync-strategies.ts`: copy when you configure interpolation, prediction, rollback and bandwidth settings. Has action, turn-based and MMO presets.
+- `references/client-architecture.md`: read when you build the client side: input sampling, the prediction loop, dead reckoning and fixed-timestep rendering, with a sequence diagram.
+- `references/sources.md`: read when you need the talks and articles behind these rules.
 
 ## Pitfalls
 
-### Desync Bugs
-- **Floating-point determinism** — Different platforms compute slightly different float results. Use fixed-point arithmetic for physics or quantize values before comparison.
-- **Input ordering** — Process inputs in tick order, not arrival order. Late inputs get applied to the correct historical tick via rollback.
-- **Missing state** — If delta references a state key the client doesn't have, the client must request a full sync. Track state versions to detect gaps.
+### Desync
 
-### Bandwidth Explosion
-- **Array diffs are expensive** — Prefer `Record<id, entity>` over arrays. Array index shifts cause the entire array to diff as changed.
-- **Unchanged nested objects** — Use reference equality checks before deep-diffing. If `prev.players === current.players`, skip the diff entirely.
-- **High-frequency state** — Position updates at 60Hz for 100 players = ~600 updates/tick. Batch and compress. Use spatial partitioning to only send nearby entities.
+- Floating-point results differ across compilers, operating systems and instruction sets. Lockstep needs fixed-point math or a deterministic physics engine. Server-authoritative sync tolerates the drift because the server's state wins.
+- A delta that names a key the client lacks means the client missed its baseline. Request a full snapshot.
+- Delta paths join keys with `.`, so a state key that contains a dot (`"x.y"`) decodes as a nested `x.y` path and the old key stays. Keep dots out of state keys.
+- `StateSyncEngine` stores state with `structuredClone`. Keep state to plain data: no class instances, functions or DOM nodes.
+- Treat every delta from the network as hostile, even from your own server. `delta-encoder.ts` refuses any path or key named `__proto__`, `constructor` or `prototype` and throws instead of applying the delta; keep that check if you change the path format.
 
-### Interpolation Jitter
-- **Clock drift** — Sync client clock to server via periodic time samples. Use a rolling average, not a single RTT measurement.
-- **Buffer underrun** — If server packets arrive late, interpolation has no target state. Buffer at least 2 ticks ahead. Increase buffer on packet loss detection.
-- **Teleporting entities** — If delta between snapshots is too large (entity moved > threshold), snap instead of interpolate to avoid visual artifacts.
+### Bandwidth
 
-## Designer Philosophy
+- Compare by reference before deep-diffing. If `prev.players === current.players`, skip the subtree.
+- When the packet is full, send the most important entities first and let the rest wait their turn; a priority accumulator keeps low-priority entities from starving.
 
-> "A simulation that maintains consistency enables emergent gameplay — players can reason about the world because the world behaves predictably."
-> — Will Wright
+### Interpolation jitter
 
-State sync exists to maintain the illusion that all players share the same consistent simulation. The closer your sync gets to true consistency, the more emergent and surprising gameplay becomes, because players can trust the world's rules.
-
-## Sources
-
-- **GDC Talks**: "Overwatch Gameplay Architecture and Netcode" (Tim Ford, GDC 2017), "Rocket League Physics and Networking" (Jared Cone, GDC 2018)
-- **Valve Source Engine**: [Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — authoritative server, client prediction, entity interpolation, lag compensation
-- **Glenn Fiedler**: [Networked Physics](https://gafferongames.com/post/networked_physics_in_virtual_reality/), [State Synchronization](https://gafferongames.com/post/state_synchronization/), [Snapshot Interpolation](https://gafferongames.com/post/snapshot_interpolation/)
-- **Gabriel Gambetta**: [Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — client prediction, server reconciliation, entity interpolation series
+- If snapshots arrive late, the buffer runs dry and entities freeze or extrapolate. Lengthen the delay if this happens often.
+- Remote players render in the past, so without lag compensation shooters must lead their targets.

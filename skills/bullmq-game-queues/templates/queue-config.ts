@@ -1,65 +1,65 @@
+// Verified against: bullmq 6.7.6 (2026-11-14)
 // ============================================================
 // Queue Configuration Template — BullMQ + Redis
 // ============================================================
 
-import type { QueueOptions, WorkerOptions } from "bullmq";
-import type { RedisOptions } from "ioredis";
+import type {
+	QueueEventsOptions,
+	QueueOptions,
+	RedisOptions,
+	WorkerOptions,
+} from "bullmq";
 import { QUEUE_NAMES, type QueueName } from "./job-types";
 
 // ============================================================
-// Redis Connection
+// Redis Connections
+// BullMQ creates ioredis connections from these options by default.
+// Never set ioredis `keyPrefix`; BullMQ uses its own `prefix` option.
 // ============================================================
 
-export const redisConnection: RedisOptions = {
+const redisBase: RedisOptions = {
 	host: process.env.REDIS_HOST ?? "localhost",
 	port: Number(process.env.REDIS_PORT ?? 6379),
 	password: process.env.REDIS_PASSWORD,
 	db: Number(process.env.REDIS_DB ?? 0),
-	maxRetriesPerRequest: null, // Required by BullMQ
-	enableReadyCheck: false,
 };
 
+// Producers (game API handlers that enqueue) fail fast when Redis is down,
+// so the player gets an error instead of a hung request.
+export const producerConnection: RedisOptions = {
+	...redisBase,
+	maxRetriesPerRequest: 1,
+};
+
+// Workers retry Redis commands until Redis is back. BullMQ throws if an
+// ioredis client passed to a worker has any other value.
+export const workerConnection: RedisOptions = {
+	...redisBase,
+	maxRetriesPerRequest: null,
+};
+
+// One prefix shared by every Queue, Worker and QueueEvents. A QueueEvents
+// without it listens on the default `bull` prefix and hears nothing.
+export const QUEUE_PREFIX = "game";
+
 // ============================================================
-// Default Retry Strategy — Exponential Backoff
+// Retry Strategy — Exponential Backoff
+// Waits 2^(attempts - 1) * delay ms before each retry: 1s, 2s, 4s, 8s.
 // ============================================================
 
 export const defaultRetryStrategy = {
 	attempts: 5,
 	backoff: {
 		type: "exponential" as const,
-		delay: 1_000, // 1s base, then 2s, 4s, 8s, 16s
-	},
-};
-
-export const criticalRetryStrategy = {
-	attempts: 10,
-	backoff: {
-		type: "exponential" as const,
-		delay: 500,
-	},
-};
-
-export const lowPriorityRetryStrategy = {
-	attempts: 3,
-	backoff: {
-		type: "exponential" as const,
-		delay: 5_000,
+		delay: 1_000,
 	},
 };
 
 // ============================================================
-// Dead Letter Queue Config
-// ============================================================
-
-export const DEAD_LETTER_QUEUE = "dead-letter";
-
-export const deadLetterConfig = {
-	queueName: DEAD_LETTER_QUEUE,
-	maxRetries: 0, // Don't retry in DLQ — manual inspection only
-};
-
-// ============================================================
-// Rate Limiter Config Per Queue
+// Rate Limits
+// A worker limiter is global per queue, shared by all workers and players.
+// Use it for an external provider's send limit, never for per-player abuse:
+// limit players at the API before you enqueue.
 // ============================================================
 
 export interface RateLimitConfig {
@@ -67,16 +67,14 @@ export interface RateLimitConfig {
 	duration: number; // ms
 }
 
-export const rateLimiters: Record<QueueName, RateLimitConfig> = {
-	[QUEUE_NAMES.MATCHMAKING]: { max: 5, duration: 10_000 }, // 5 per 10s per player
-	[QUEUE_NAMES.GAME_EVENT]: { max: 100, duration: 1_000 }, // 100 per second
-	[QUEUE_NAMES.REWARD]: { max: 10, duration: 60_000 }, // 10 per minute
-	[QUEUE_NAMES.NOTIFICATION]: { max: 20, duration: 60_000 }, // 20 per minute
-	[QUEUE_NAMES.ANALYTICS]: { max: 1_000, duration: 1_000 }, // 1000 per second
+export const rateLimiters: Partial<Record<QueueName, RateLimitConfig>> = {
+	[QUEUE_NAMES.NOTIFICATION]: { max: 20, duration: 60_000 }, // set to your push provider's limit
 };
 
 // ============================================================
-// Concurrency Settings Per Queue
+// Concurrency Per Queue
+// This, not job priority, keeps matchmaking ahead of analytics:
+// each domain has its own queue and its own worker capacity.
 // ============================================================
 
 export const concurrencySettings: Record<QueueName, number> = {
@@ -88,54 +86,37 @@ export const concurrencySettings: Record<QueueName, number> = {
 };
 
 // ============================================================
-// Queue Options Factory
+// Options Factories
 // ============================================================
 
-export const createQueueOptions = (queueName: QueueName): QueueOptions => ({
-	connection: redisConnection,
-	prefix: `game:queue:${queueName}`,
+export const createQueueOptions = (): QueueOptions => ({
+	connection: producerConnection,
+	prefix: QUEUE_PREFIX,
 	defaultJobOptions: {
 		attempts: defaultRetryStrategy.attempts,
 		backoff: defaultRetryStrategy.backoff,
 		removeOnComplete: {
-			age: 24 * 60 * 60, // 24 hours
+			age: 24 * 60 * 60, // seconds: keep 24 hours
 			count: 1_000,
 		},
+		// Failed jobs stay in the failed set for at least 7 days: inspect and retry them there.
 		removeOnFail: {
-			age: 7 * 24 * 60 * 60, // 7 days
+			age: 7 * 24 * 60 * 60,
 		},
 	},
 });
 
-// ============================================================
-// Worker Options Factory
-// ============================================================
-
-export const createWorkerOptions = (queueName: QueueName): WorkerOptions => ({
-	connection: redisConnection,
-	prefix: `game:queue:${queueName}`,
-	concurrency: concurrencySettings[queueName],
-	limiter: rateLimiters[queueName],
-	stalledInterval: 30_000, // Check for stalled jobs every 30s
-	maxStalledCount: 2, // Mark as failed after 2 stalls
-	lockDuration: 60_000, // 60s lock per job
+export const createQueueEventsOptions = (): QueueEventsOptions => ({
+	connection: redisBase,
+	prefix: QUEUE_PREFIX,
 });
 
-// ============================================================
-// Environment-Specific Overrides
-// ============================================================
-
-export const isDevelopment = process.env.NODE_ENV === "development";
-
-export const devOverrides: Partial<WorkerOptions> = {
-	concurrency: 1,
-	limiter: { max: 1_000, duration: 1_000 },
-};
-
-export const getWorkerOptions = (queueName: QueueName): WorkerOptions => {
-	const base = createWorkerOptions(queueName);
-	if (isDevelopment) {
-		return { ...base, ...devOverrides };
-	}
-	return base;
-};
+export const getWorkerOptions = (queueName: QueueName): WorkerOptions => ({
+	connection: workerConnection,
+	prefix: QUEUE_PREFIX,
+	concurrency: concurrencySettings[queueName],
+	limiter: rateLimiters[queueName],
+	stalledInterval: 30_000,
+	maxStalledCount: 2,
+	lockDuration: 60_000,
+});

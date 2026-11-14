@@ -1,5 +1,8 @@
+// Verified against: drizzle-orm 0.45.4 (2026-11-14)
+import { sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -257,8 +260,23 @@ export const currencies = pgTable(
 			table.playerId,
 			table.currencyType,
 		),
+		// Last line of defence: a debit that skipped spendCurrency's guard
+		// fails instead of leaving a negative balance.
+		check("currencies_amount_nonnegative", sql`${table.amount} >= 0`),
 	],
 );
+
+// ─── Processed Events (idempotency) ──────────────────────────────────────────
+// One row per external event or job already applied: a Stripe event id, a
+// reward job's idempotency key. Insert the row in the same transaction as the
+// change it guards; a conflict on the primary key means "already done", so
+// skip the change. `stripe-game-payments` and `bullmq-game-queues` use it.
+
+export const processedEvents = pgTable("processed_events", {
+	id: text("id").primaryKey(),
+	kind: text("kind").notNull(), // "stripe_event", "reward", ...
+	createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 // ─── Social Relations ────────────────────────────────────────────────────────
 

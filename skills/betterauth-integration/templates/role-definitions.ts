@@ -1,150 +1,82 @@
-// ---------------------------------------------------------------------------
-// Roles
-// ---------------------------------------------------------------------------
+// Verified against: better-auth 1.7.23 (2026-11-14)
+// Game roles for the Better Auth admin plugin: player, moderator, admin.
+// Pass `ac` and `roles` to admin() on the server and adminClient() on the client,
+// and set `defaultRole: 'player'`, or new users get the plugin's default role "user",
+// which this file does not define.
+import { createAccessControl } from 'better-auth/plugins/access';
+import {
+  adminAc,
+  defaultStatements,
+} from 'better-auth/plugins/admin/access';
 
-export const ROLES = ["player", "moderator", "admin"] as const;
-export type Role = (typeof ROLES)[number];
+// Resources and the actions a role may take on them. `user` and `session` come
+// from the admin plugin; its endpoints check them (unban checks user "ban",
+// role changes check user "set-role").
+export const statement = {
+  ...defaultStatements,
+  match: ['join', 'create', 'end'],
+  chat: ['send', 'delete'],
+  report: ['create', 'read', 'resolve'],
+  gameConfig: ['read', 'update'],
+  analytics: ['read'],
+} as const;
 
-// ---------------------------------------------------------------------------
-// Actions
-// ---------------------------------------------------------------------------
+export const ac = createAccessControl(statement);
 
-export const ACTIONS = [
-	"read",
-	"create",
-	"update",
-	"delete",
-	"ban",
-	"unban",
-	"promote",
-	"demote",
-	"manage",
-] as const;
-export type Action = (typeof ACTIONS)[number];
+// Plays, chats, reports others. No admin-plugin permissions.
+export const player = ac.newRole({
+  match: ['join', 'create'],
+  chat: ['send'],
+  report: ['create'],
+});
 
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
+// Keeps matches and chat clean: bans and unbans players, ends matches,
+// deletes messages, works the report queue. Cannot change roles or game config.
+// The admin plugin does not check the target's role: install the `staffGuard()`
+// plugin (staff-guard.ts) so these user and session powers reach players only.
+export const moderator = ac.newRole({
+  user: ['list', 'get', 'ban'],
+  // No session 'list': /admin/list-user-sessions returns session tokens.
+  session: ['revoke'],
+  match: ['join', 'create', 'end'],
+  chat: ['send', 'delete'],
+  report: ['create', 'read', 'resolve'],
+  gameConfig: ['read'],
+  analytics: ['read'],
+});
 
-export const RESOURCES = [
-	"own_profile",
-	"own_inventory",
-	"own_settings",
-	"users",
-	"game_sessions",
-	"chat",
-	"reports",
-	"game_config",
-	"analytics",
-	"roles",
-] as const;
-export type Resource = (typeof RESOURCES)[number];
+// Everything the admin plugin allows (including set-role), plus all game actions.
+export const admin = ac.newRole({
+  ...adminAc.statements,
+  match: ['join', 'create', 'end'],
+  chat: ['send', 'delete'],
+  report: ['create', 'read', 'resolve'],
+  gameConfig: ['read', 'update'],
+  analytics: ['read'],
+});
 
-// ---------------------------------------------------------------------------
-// Permission Map
-// ---------------------------------------------------------------------------
+export const roles = { player, moderator, admin };
+export type GameRole = keyof typeof roles;
 
-type PermissionMap = Record<Role, Record<Resource, readonly Action[]>>;
+type PermissionRequest = Parameters<typeof player.authorize>[0];
 
-export const PERMISSIONS: PermissionMap = {
-	player: {
-		own_profile: ["read", "update"],
-		own_inventory: ["read", "create", "update", "delete"],
-		own_settings: ["read", "update"],
-		users: ["read"],
-		game_sessions: ["read", "create"],
-		chat: ["read", "create"],
-		reports: ["create"],
-		game_config: [],
-		analytics: [],
-		roles: [],
-	},
+const isGameRole = (name: string): name is GameRole => Object.hasOwn(roles, name);
 
-	moderator: {
-		own_profile: ["read", "update"],
-		own_inventory: ["read", "create", "update", "delete"],
-		own_settings: ["read", "update"],
-		users: ["read", "ban", "unban"],
-		game_sessions: ["read", "create", "delete"],
-		chat: ["read", "create", "delete"],
-		reports: ["read", "create", "update"],
-		game_config: ["read"],
-		analytics: ["read"],
-		roles: [],
-	},
+// The one role parser, shared with staff-guard.ts. It reads `user.role` the
+// way the admin plugin's hasPermission does: `(role || defaultRole).split(',')`,
+// no trimming, so "player, moderator" is "player" and " moderator".
+export const rolesOf = (role: unknown, defaultRole: string): string[] =>
+  (typeof role === 'string' && role ? role : defaultRole).split(',');
 
-	admin: {
-		own_profile: ["read", "update"],
-		own_inventory: ["read", "create", "update", "delete"],
-		own_settings: ["read", "update"],
-		users: [
-			"read",
-			"create",
-			"update",
-			"delete",
-			"ban",
-			"unban",
-			"promote",
-			"demote",
-		],
-		game_sessions: ["read", "create", "update", "delete", "manage"],
-		chat: ["read", "create", "update", "delete"],
-		reports: ["read", "create", "update", "delete"],
-		game_config: ["read", "update", "manage"],
-		analytics: ["read", "manage"],
-		roles: ["read", "update", "promote", "demote"],
-	},
-};
-
-// ---------------------------------------------------------------------------
-// Permission Checks
-// ---------------------------------------------------------------------------
-
-export const hasPermission = (
-	role: Role | string,
-	resource: Resource,
-	action: Action,
-): boolean => {
-	const validRole = ROLES.includes(role as Role) ? (role as Role) : "player";
-	const allowed = PERMISSIONS[validRole]?.[resource];
-	return allowed?.includes(action) ?? false;
-};
-
-export const hasAnyPermission = (
-	role: Role | string,
-	resource: Resource,
-	actions: Action[],
-): boolean => {
-	return actions.some((action) => hasPermission(role, resource, action));
-};
-
-export const hasAllPermissions = (
-	role: Role | string,
-	resource: Resource,
-	actions: Action[],
-): boolean => {
-	return actions.every((action) => hasPermission(role, resource, action));
-};
-
-// ---------------------------------------------------------------------------
-// Resource Ownership
-// ---------------------------------------------------------------------------
-
-export const isOwnResource = (
-	resource: Resource,
-): resource is "own_profile" | "own_inventory" | "own_settings" => {
-	return resource.startsWith("own_");
-};
-
-export const canAccessResource = (
-	role: Role | string,
-	resource: Resource,
-	action: Action,
-	isOwner: boolean,
-): boolean => {
-	// If it's an "own_" resource, the user must be the owner
-	if (isOwnResource(resource) && !isOwner) {
-		return false;
-	}
-	return hasPermission(role, resource, action);
-};
+// Synchronous check against the matrix, for code that already holds the
+// session user. A missing role counts as `defaultRole`, as in the plugin; pass
+// the same value you gave admin({ defaultRole }). A role this file does not
+// define grants nothing.
+export const can = (
+  userRole: string | null | undefined,
+  request: PermissionRequest,
+  defaultRole = 'player',
+): boolean =>
+  rolesOf(userRole, defaultRole)
+    .filter(isGameRole)
+    .some((name) => roles[name].authorize(request).success);

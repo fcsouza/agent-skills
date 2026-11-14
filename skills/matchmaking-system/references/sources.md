@@ -1,0 +1,22 @@
+# Sources
+
+Each line was opened on the date shown. A claim in `SKILL.md` or the boilerplate that is not listed here has no source; treat it as a tunable default.
+
+## Rating systems and matchmaking design
+
+- Josh Menke, "Matchmaking for Engagement: Lessons from 'Halo 5'" (GDC 2020) - https://gdcvault.com/play/1026621/Matchmaking-for-Engagement-Lessons-from - supports: which matchmaking factor matters most (latency, skill, streaks, wait time) is a question to test with data, and some common best practices turn out not to matter - checked 2026-11-14
+- Josh Menke, "Significantly Improving your Skill System with TrueSkill Through Time" (GDC 2018 presentation slides; the year comes from the URL path, the slides do not print it) - https://media.gdcvault.com/gdc2018/presentations/Menke_Josh_Significantly_Improving_your.pdf - supports: Elo needs more matches to converge and tight matchmaking; Glicko needs fewer and is not naturally adapted to teams or draws; TrueSkill needs fewer still and is designed for teams and draws; new players won 44% of their first game against a 49% prediction; matching them lower without changing their rating gives opponents the wrong update, and starting them lower shifts the population down; TrueSkill Through Time learns the starting rating, per-mode learning curve and a per-party-size offset inside the model; party of four won 58% against a 53% prediction ("Party Size Example"); verify each extension against match data - checked 2026-11-14
+- Mark E. Glickman, "Example of the Glicko-2 system" (Boston University, March 22, 2022) - https://www.glicko.net/glicko/glicko2.pdf - supports: every player has rating, RD and volatility; unrated players start at 1500, RD 350, volatility 0.06; RD increases in a rating period where the player does not compete; 95% interval is rating plus or minus twice the RD; tau between 0.3 and 1.2; works best with 10-15 games per player per rating period - checked 2026-11-14
+- Microsoft Research, "TrueSkill Ranking System" - https://www.microsoft.com/en-us/research/project/trueskill-ranking-system/ - supports: skill is a mean mu and uncertainty sigma; a new player starts at mu 25, sigma 8.333; ranking uses the conservative estimate mu minus k times sigma with k commonly 3; team skill is the sum of player skills - checked 2026-11-14
+
+## Redis and BullMQ behaviour the boilerplate relies on
+
+- Redis, "Scripting with Lua" - https://redis.io/docs/latest/develop/programmability/eval-intro/ - supports: Redis runs a script atomically; a script must receive every key it touches as a key argument - checked 2026-11-14
+- Redis, "Transactions" - https://redis.io/docs/latest/develop/using-commands/transactions/ - supports: MULTI/EXEC runs isolated but has no rollback, so it cannot make "remove both or neither" conditional; a read-then-SET by two clients at once loses one update - checked 2026-11-14
+- Redis, "ZRANGE" - https://redis.io/docs/latest/commands/zrange/ - supports: since Redis 6.2.0 ZRANGE with BYSCORE replaces the deprecated ZRANGEBYSCORE - checked 2026-11-14
+- Redis, "Redis cluster specification", Hash tags - https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/ - supports: keys sharing a `{...}` hash tag land in the same slot, which multi-key operations need - checked 2026-11-14
+- BullMQ, "Connections" - https://docs.bullmq.io/guide/connections - supports: an ioredis instance passed to a Worker must have `maxRetriesPerRequest: null`; the Worker duplicates the connection for blocking commands - checked 2026-11-14
+- BullMQ, "Delayed" - https://docs.bullmq.io/guide/jobs/delayed - supports: the `delay` job option, in milliseconds - checked 2026-11-14
+- BullMQ, "Prioritized" - https://docs.bullmq.io/guide/jobs/prioritized - supports: priorities run from 1 to 2,097,151, lower is higher; jobs without a priority run before all prioritized jobs - checked 2026-11-14
+- ioredis README - https://raw.githubusercontent.com/redis/ioredis/main/README.md - supports: ioredis is in maintenance and node-redis is the recommended client for new projects - checked 2026-11-14
+- ioredis 6.0.0 published types, `RedisOptions.d.ts` - https://unpkg.com/ioredis@6.0.0/built/redis/RedisOptions.d.ts - supports: `maxRetriesPerRequest` configures "how many reconnection attempts should be allowed before the queue is flushed with a `MaxRetriesPerRequestError` error", `@default 20` (source `built/redis/RedisOptions.js`: `maxRetriesPerRequest: 20`) - checked 2026-11-14

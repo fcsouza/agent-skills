@@ -24,15 +24,15 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 
 | Need | Skill |
 |---|---|
-| Login, OAuth, sessions, roles | `betterauth-integration` |
+| Login, sessions, roles, WebSocket auth | `betterauth-integration` |
 | Queues, delayed jobs, scheduled work | `bullmq-game-queues` |
 | Sound effects, music, voice | `elevenlabs-sound-music` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |
-| Lag, desync, jitter; client-server sync, prediction, rollback | `game-state-sync` |
+| Lag, desync, jitter; prediction, reconciliation, interpolation | `game-state-sync` |
 | Player events, retention, funnels | `gameplay-analytics` |
 | Pairing players, lobbies, ranks | `matchmaking-system` |
 | Tables, player data, inventory, Drizzle | `postgres-game-schema` |
-| Cache, leaderboards, pub/sub, rate limits | `redis-game-patterns` |
+| Leaderboards, presence, rate limits, cache-aside | `redis-game-patterns` |
 | Skill trees, talent trees, unlock graphs | `skill-progression-trees` |
 | Payments, purchases, subscriptions, webhooks | `stripe-game-payments` |
 
@@ -49,7 +49,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 
 | Need | Skill |
 |---|---|
-| Pipelines, deploys, migration safety, staging | `ci-cd-game` |
+| Pipelines, deploys, migrations, a database per pull request | `ci-cd-game` |
 | Logging, alerts, server health, tick time, error rates | `monitoring-game-ops` |
 
 ### Workflows

@@ -1,203 +1,125 @@
 ---
 name: matchmaking-system
 description: >-
-  Use when implementing player matchmaking, skill-based match selection, lobby systems, queue management, or rank-based grouping. Triggers: matchmaking, lobby, queue, ELO, skill-based, rank, match players, pairing, bracket.
+  Covers skill-based matchmaking for multiplayer games: picking a rating system
+  (Elo, Glicko-2 or TrueSkill), skill brackets that widen with wait time,
+  claiming a matched pair from the queue without double-booking a player, and
+  the lobby lifecycle from ready-up to match end. Use when players need to be
+  paired or grouped by skill, a queue matches the same player twice or leaves
+  players waiting too long, new players keep losing to veterans, or a lobby
+  breaks when someone leaves during the countdown. Redis and BullMQ are the
+  reference implementation.
 ---
 
 # Matchmaking System
 
-## Purpose
+Pairs players by skill from a Redis sorted set, widens the skill bracket as they wait, claims each pair atomically, and runs the lobby until the match ends.
 
-Rank-based and skill-based player matching, lobby lifecycle management, and queue orchestration for multiplayer games.
+Related skills: `bullmq-game-queues` (queue and worker setup), `redis-game-patterns` (Redis client, presence), `postgres-game-schema` (rating and match history), `game-state-sync` (takes over once the match starts).
 
-## When to Use
+## Choose the rating system
 
-Trigger: matchmaking, lobby, queue, ELO, Glicko, skill-based matchmaking, rank, match players, pairing, bracket, queue management, wait time, search radius, lobby state
+| System | Pick it when | What it tracks |
+|---|---|---|
+| Elo | Matches are plentiful and you can keep matchmaking tight | One number. Menke: needs more matches to converge than Glicko or TrueSkill. |
+| Glicko-2 | Players compete alone and you want an uncertainty that grows while a player is away (RD rises in a rating period with no games) | Rating, rating deviation (RD), volatility; a draw scores 0.5. Menke, on Glicko: converges faster than Elo, not naturally adapted to teams. |
+| TrueSkill | Team modes, more than two teams, or draws | Mean mu and uncertainty sigma per player; team skill is the sum of its players. Menke: designed for teams and draws, converges in the fewest matches of the three. |
 
-## Prerequisites
+Starting values with a source:
 
-- `bullmq-game-queues` — priority queues, delayed jobs, worker patterns
-- `redis-game-patterns` — Redis connection, pub/sub for lobby events
-- `postgres-game-schema` — persisting match history, player ratings
+- Glicko-2: unrated players start at rating 1500, RD 350, volatility 0.06. Set the system constant tau between 0.3 and 1.2 and test which predicts best. Rating periods work best with 10-15 games per player.
+- TrueSkill: new players start at mu 25, sigma 8.333. Rank on the conservative estimate mu - 3 sigma, not on mu.
+- A Glicko-2 player's strength sits in rating plus or minus 2 RD with 95% confidence.
 
-## Core Principles
+No Elo K-factor is given here because no source was checked. Pick one and tune it against your own win-prediction data.
 
-> Raph Koster: "Matchmaking is the invisible hand that shapes every player's experience. Get it wrong, and no amount of great game design can save you."
-> Will Wright: "The best systems match complexity to the player — beginners face beginners, experts face experts, and everyone stays in flow."
+Persist ratings in Postgres after each match (`postgres-game-schema`) and cache them in Redis for the queue.
 
-1. **ELO/Glicko-2 for skill estimation** — track rating AND deviation. A player with 1500 rating and low deviation is well-calibrated; 1500 with high deviation means uncertain. Factor in performance metrics (damage dealt, objectives captured), not just win/loss.
-2. **Match quality score = sum(skill_delta^2 x weight) — minimize skill gap** — a match is only as good as its closest pairing. Compute quality across all player pairs, not just averages. Weight recent performance higher than lifetime rating.
-3. **Expand search radius over time** — start tight (+-50 rating) and widen every 10s. After 30s, widen aggressively. Players prefer a slightly uneven match over waiting 3 minutes. Use BullMQ delayed jobs to trigger radius expansion.
-4. **Separate queues by game mode, region, and optional parameters** — 1v1 ranked, 2v2 casual, battle royale, and co-op each have different matching criteria. Never cross-pollinate queues unless the player opts in.
-5. **Lobby state machine: WAITING -> ALL_READY -> COUNTDOWN -> IN_PROGRESS -> COMPLETE** — every lobby transition is explicit, logged, and reversible (until IN_PROGRESS). If a player disconnects during COUNTDOWN, revert to WAITING.
-6. **BullMQ priority queue for matchmaking** — players waiting > 30s get priority 1 (highest). This prevents starvation where popular skill brackets drain the queue while edge cases wait forever.
-7. **Never match new players against experienced players** — players with < 10 games are in a protected pool. Players with > 100 games are in the general pool. The 10-100 range transitions gradually. This prevents new player churn from stomps.
-8. **Pre-match validation: all players still connected before starting** — after a match is found, verify every player is still online via WebSocket heartbeat. If anyone dropped, return remaining players to the front of the queue (not the back).
-9. **Anti-abuse: leave penalties and queue cooldowns** — track abandonment rate. Players who leave > 20% of matches in the last 20 games get increasing queue delays (30s, 2m, 10m). Cooldown decays over time with completed matches.
+## Procedure
 
-## Step-by-Step Instructions
+1. Split pools by game mode and region. One sorted set per pool, score = rating. A player only searches their own pool unless they opt in to cross-region.
+2. Enqueue: write the sorted-set member and a hash with rating, deviation, games played and `queuedAt`, with a TTL so a crashed client does not stay queued forever.
+3. Add one BullMQ search job per player. The job calls `findMatch`; if nothing fits, it adds a delayed copy of itself, so the search runs again with a wider bracket.
+4. Bracket width comes from wait time: `initial + floor(wait / interval) * step`, capped at a maximum. Derive it from `queuedAt` on every search; do not store it, so it cannot go stale and needs no separate "widen" job.
+5. A pair fits when the rating gap is inside the wider of the two players' brackets, so the player who waited longer decides.
+6. Claim the pair in one Lua script: if both members are still in the sorted set, remove both and delete both hashes; otherwise remove nothing and try the next candidate. See "Atomic dequeue" below.
+7. Create the lobby. Players ready up; the last ready-up moves the lobby to COUNTDOWN.
+8. When the countdown ends, check every player's presence (WebSocket heartbeat). If all are there, the lobby goes IN_PROGRESS. If anyone dropped, the lobby is short of its match size, so it dissolves: `startMatch` deletes it, unmaps every player and returns the connected ones in `requeue`. Requeue them with their original `queuedAt` so their bracket stays wide. A leave before IN_PROGRESS dissolves the lobby the same way; `leaveLobby` returns the ids to requeue.
+9. On match end, mark the lobby COMPLETE, update ratings, and let the lobby expire after the results screen.
 
-### 1. Install Dependencies
-
-```bash
-bun add bullmq ioredis
-bun add -d @types/node
-```
-
-### 2. Set Up Matchmaking Queues
-
-Create dedicated BullMQ queues for matchmaking. Use the patterns from `bullmq-game-queues`.
+Copy when building the queue: `boilerplate/matchmaker.ts` (`MatchmakingEngine`, `startMatchmaking`). It takes the ioredis client as a parameter.
+Copy when building the lobby: `boilerplate/lobby-manager.ts` (`LobbyManager`). It takes the same client.
 
 ```typescript
-import { Queue, Worker } from 'bullmq';
-import type { Redis } from 'ioredis';
+import { Redis } from 'ioredis';
+import { MatchmakingEngine, startMatchmaking } from './matchmaker';
+import { LobbyManager } from './lobby-manager';
 
-const matchmakingQueue = new Queue('matchmaking', {
-  connection: redis,
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 500,
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 1000 },
-  },
-});
-
-// Separate queue for search radius expansion
-const radiusExpansionQueue = new Queue('matchmaking:radius-expand', {
-  connection: redis,
-});
-```
-
-### 3. Configure Rating System
-
-Choose ELO for simplicity or Glicko-2 for accuracy. Glicko-2 tracks rating deviation (confidence) and volatility.
-
-```typescript
-interface PlayerRating {
-  rating: number;      // ELO/Glicko-2 rating (default: 1500)
-  deviation: number;   // Glicko-2 RD (default: 350, lower = more confident)
-  volatility: number;  // Glicko-2 sigma (default: 0.06)
-  gamesPlayed: number;
-}
-
-// K-factor decreases as confidence increases
-function getKFactor(gamesPlayed: number): number {
-  if (gamesPlayed < 10) return 40;  // New players: high adjustment
-  if (gamesPlayed < 30) return 24;  // Learning players
-  return 16;                         // Established players
-}
-```
-
-### 4. Implement Queue Entry
-
-See `boilerplate/matchmaker.ts` for the full `MatchmakingEngine` class. Players enter the queue with their rating, region, and game mode.
-
-```typescript
-import { MatchmakingEngine } from './matchmaker';
-
+const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
+// Request path: by default ioredis holds a command through 20 reconnect
+// attempts (maxRetriesPerRequest: 20); 1 fails the request fast when Redis is
+// down, as `bullmq-game-queues` does for producers.
+const redis = new Redis(url, { maxRetriesPerRequest: 1 });
+// Worker connection: BullMQ requires maxRetriesPerRequest: null here.
+const workerRedis = new Redis(url, { maxRetriesPerRequest: null });
 const engine = new MatchmakingEngine(redis);
+const lobbies = new LobbyManager(redis);
+const { queue } = startMatchmaking(workerRedis, engine, async (match) => {
+  await lobbies.createLobby(match);
+});
 
 await engine.enqueue({
   playerId: 'player_123',
   rating: 1500,
-  deviation: 100,
+  deviation: 350,
+  gamesPlayed: 0,
   gameMode: 'ranked-1v1',
-  region: 'us-east',
+  region: 'eu-west',
   queuedAt: Date.now(),
-  searchRadius: 50,
 });
+await queue.add(
+  'search',
+  { gameMode: 'ranked-1v1', region: 'eu-west', playerId: 'player_123' },
+  { removeOnComplete: true },
+);
 ```
 
-### 5. Implement Match Finding
+## Atomic dequeue
 
-The engine scores potential matches and picks the best one. Quality score considers rating difference, deviation overlap, wait time, and region latency.
+Reading candidates and then removing them in separate calls lets two workers pick the same opponent, and both matches go ahead. A MULTI/EXEC of two ZREMs does not fix this: if one member is already gone, the other is still removed, and Redis transactions have no rollback.
 
-```typescript
-// Inside BullMQ worker
-const worker = new Worker('matchmaking', async (job) => {
-  const player = job.data as PlayerQueueEntry;
-  const match = await engine.findMatch(player);
+The boilerplate's claim script checks both members with ZSCORE, then ZREMs both and DELs both hashes, all inside one script. Redis runs a script atomically, so a second worker sees the pair gone and moves to its next candidate. Pass every key the script touches as a key argument. Every matchmaking key shares the `{mm}` hash tag because the scripts touch a pool and the global per-player markers together; on Redis Cluster that puts all matchmaking state in one slot.
 
-  if (match) {
-    await lobbyManager.createLobby(match);
-  } else {
-    // Schedule radius expansion after 10s
-    await radiusExpansionQueue.add('expand', {
-      playerId: player.playerId,
-    }, { delay: 10_000 });
-  }
-}, { connection: redis, concurrency: 10 });
-```
+## Lobby state machine
 
-### 6. Implement Lobby Lifecycle
+WAITING -> COUNTDOWN -> IN_PROGRESS -> COMPLETE. A leave or a failed presence check before IN_PROGRESS dissolves the lobby: it is deleted in the same compare-and-set write, every player is unmapped, and the remaining ids go back to the caller to requeue. A lobby short of its match size never starts. A leave after IN_PROGRESS is an abandon, not a lobby change.
 
-See `boilerplate/lobby-manager.ts` for the full `LobbyManager` class. Lobbies use Redis for state storage and pub/sub for real-time events.
+Every transition reads the lobby JSON, applies a change and writes it back with a compare-and-set script. Without that, two players readying up at once overwrite each other and the lobby never leaves WAITING.
 
-```typescript
-import { LobbyManager } from './lobby-manager';
+Give IN_PROGRESS a TTL longer than your longest match, or the lobby expires mid-game.
 
-const lobbyManager = new LobbyManager(redis);
+## New players and parties
 
-// Match found -> create lobby
-const lobby = await lobbyManager.createLobby(match);
+Check both in your own match data before you change anything: compare predicted and actual win rate by games played, and by party size.
 
-// Players ready up
-await lobbyManager.readyUp(lobby.lobbyId, 'player_123');
+- New players: in Menke's data they won 44% of their first game against a 49% prediction, catching up by about the ninth game. Matching them lower without changing their rating gives their opponents the wrong rating update; starting everyone lower drifts the whole population down. His fix was a model that learns the starting rating and the per-mode catch-up speed together with skill (TrueSkill Through Time).
+- Parties: in his example a party of four won 58% against a 53% prediction. An offset kept outside the rating model causes the same drift; his fix learns a skill offset per party size inside the model.
+- The boilerplate's guard keeps players under `newPlayerGames` away from players over `veteranGames`. It is a stopgap with tunable thresholds, not a measured fix.
 
-// All ready -> countdown starts automatically
-// Countdown complete -> IN_PROGRESS
-// Game ends -> COMPLETE
-```
+## Pitfalls
 
-### 7. Handle Edge Cases
+- Matching on average team rating alone: [1000, 2000] and [1500, 1500] have the same average. With TrueSkill, compare team sums and look at the spread inside each team.
+- Resetting a requeued player's wait: keep the original `queuedAt` so the bracket stays wide.
+- One global queue: separate by mode and region.
+- Long waits: the queue entry's hash expires after `entryTtlSeconds` and the player drops out silently. Refresh it from the client heartbeat or raise the TTL.
+- Losing a claimed pair: once the claim script runs, both players are out of the queue. `startMatchmaking` handles an `onMatch` failure by calling `engine.requeue` (one script, original rating and `queuedAt`), restarting both searches and rethrowing. Do the same if you call `findMatch` yourself. `cancel` leaves a marker for `cancelMarkerSeconds` so that requeue skips a player who cancelled while the match was being set up; a fresh `enqueue` clears it.
+- One player in two pools: a per-mode key lets the same player queue in two modes or regions and get matched twice. The boilerplate keeps a global "queued in" marker, written by the enqueue script, cleared by the claim and cancel scripts, and refuses an enqueue into a second pool.
+- Untrusted key parts: game mode and region become part of Redis keys; the boilerplate rejects anything but letters, digits, `_` and `-`.
+- Leave calls from non-members or stale clients: refuse a leave from a player not in the lobby, and delete the player-to-lobby mapping only if it still names this lobby (compare-and-delete script).
+- Starting on a stale presence check: the lobby can change while presence is checked. Start only if the countdown, its end time and the player set are the ones that were checked; otherwise `startMatch` throws `LobbyChangedError` and you call it again when the new countdown ends.
+- Skipping the presence check before IN_PROGRESS: a player who dropped during the countdown starts a match one short. A lobby that lost a player must dissolve, not wait in WAITING: no one can join it, and a lone player could ready up and start alone.
+- Priorities in BullMQ: jobs with no priority run before every prioritized job. If you boost long waiters with `priority`, give every search job a priority.
+- Tuning by opinion: test what your players care about most (latency, skill, streaks or wait time) with match data before you change the weights.
+- Client choice: the boilerplate uses ioredis because the other skills do. Its README says it is in maintenance and recommends node-redis for new projects; the claim logic ports as is.
 
-```typescript
-// Player disconnects during countdown
-await lobbyManager.leaveLobby(lobbyId, disconnectedPlayerId);
-// Remaining players return to queue front with priority boost
-
-// Player cancels queue
-await engine.dequeue('player_123');
-
-// Search radius expansion (called by delayed job)
-engine.widenSearchRadius('player_123');
-```
-
-## Code Examples
-
-See boilerplate files:
-
-- `boilerplate/matchmaker.ts` — Core `MatchmakingEngine` class with enqueue, dequeue, match finding, and quality scoring
-- `boilerplate/lobby-manager.ts` — `LobbyManager` class with state machine, Redis storage, and pub/sub events
-- `templates/matchmaking-config.md` — Configuration template for queue settings, rating parameters, and anti-abuse rules
-
-## Cross-References
-
-- **bullmq-game-queues** — Queue creation, worker patterns, retry strategies, delayed jobs. Matchmaking queues build directly on these patterns.
-- **redis-game-patterns** — Redis connection, pub/sub for lobby events, sorted sets for leaderboards. Lobby state is stored in Redis hashes with TTL.
-- **postgres-game-schema** — Match history, player rating persistence, abandonment tracking. Ratings are cached in Redis but persisted to PostgreSQL after each match.
-- **game-state-sync** — Once a match starts, state sync takes over. The lobby hands off to the game server with the match configuration.
-
-## Pitfalls & Anti-Patterns
-
-- **Don't match purely on average team rating** — a team of [1000, 2000] vs [1500, 1500] has the same average but terrible match quality. Minimize variance within AND between teams.
-- **Don't reset search radius on re-queue** — if a player was returned to queue after a failed lobby, preserve their accumulated wait time and expanded radius.
-- **Don't use a single global queue** — separate by game mode and region. A global queue means a 1v1 player in Asia competes for worker time with a 4v4 player in Europe.
-- **Don't ignore ELO inflation** — over time, ratings drift upward as new players inject points. Implement seasonal resets or rating decay for inactive players.
-- **Don't skip pre-match validation** — the #1 source of "ghost matches" is starting a game with a player who disconnected 2 seconds before launch. Always verify presence.
-- **Don't match solo players against premade teams at the same rating** — premade teams have coordination advantage worth ~100-200 rating points. Apply a handicap or separate the queues.
-- **Don't ignore region latency** — a "perfect" skill match across continents produces a terrible gameplay experience. Prioritize region over rating within reasonable bounds.
-
-## Designer Philosophy
-
-**Raph Koster:** Matchmaking defines the difficulty curve more than any level designer ever could. A good matchmaker keeps players in Csikszentmihalyi's "flow channel" — challenged enough to be engaged, but never so outmatched that they feel helpless. The system is invisible when it works, infuriating when it doesn't.
-
-**Will Wright:** The matchmaker is a simulation of social dynamics. It must model not just skill but confidence, frustration tolerance, and play patterns. A player on a losing streak needs an easier match, even if their rating says otherwise. Systems that serve the math instead of the human always fail.
-
-## Sources
-
-- [Microsoft TrueSkill Research](https://www.microsoft.com/en-us/research/project/trueskill-ranking-system/) — Bayesian skill estimation with uncertainty tracking
-- [Glicko-2 Rating System](http://www.glicko.net/glicko/glicko2.pdf) — Mark Glickman's rating system with deviation and volatility
-- [BullMQ Documentation](https://docs.bullmq.io) — Priority queues, delayed jobs, rate limiting
-- **GDC Talks**: "Ranked Matchmaking in Overwatch" (Scott Mercer, GDC 2017), "The Science Behind Matchmaking" (Josh Menke, GDC 2018)
-- [Riot Games Engineering: Matchmaking](https://technology.riotgames.com/) — Queue architecture and wait time optimization
+Read when citing a number or claim from this skill: `references/sources.md`.

@@ -1,3 +1,4 @@
+// Verified against: drizzle-orm 0.45.4 (2026-11-14)
 import {
 	date,
 	index,

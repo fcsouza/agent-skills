@@ -1,302 +1,103 @@
-import { cors } from "@elysiajs/cors";
-import { jwt } from "@elysiajs/jwt";
-import { Elysia, t } from "elysia";
-import type { ClientMessage, ServerMessage } from "../templates/message-types";
-import { RoomManager } from "./room-manager";
+// Verified against: elysia 1.4.32, @elysiajs/cors 1.4.3, better-auth 1.7.23 (2026-11-14)
+import { cors } from '@elysiajs/cors';
+import type { Auth } from 'better-auth';
+import { Elysia } from 'elysia';
+import {
+  type ClientMessage,
+  clientMessage,
+  type ServerMessage,
+} from '../templates/message-types';
+import { type PlayerSocket, RoomManager } from './room-manager';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface PlayerConnection {
-	ws: GameWebSocket;
-	playerId: string;
-	connectedAt: number;
-}
-
-type GameWebSocket = {
-	send: (data: string | ServerMessage) => void;
-	subscribe: (channel: string) => void;
-	unsubscribe: (channel: string) => void;
-	data: { playerId: string; token: string };
+// The two parts of your Better Auth instance this server uses. Pass the
+// `auth` your auth file exports (see the `betterauth-integration` skill).
+export type GameAuth = Pick<Auth, 'handler'> & {
+  api: Pick<Auth['api'], 'getSession'>;
 };
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
+const send = (ws: PlayerSocket, message: ServerMessage) =>
+  ws.send(JSON.stringify(message));
 
-const connections = new Map<string, PlayerConnection>();
-const roomManager = new RoomManager();
+const route = (
+  rooms: RoomManager,
+  ws: PlayerSocket,
+  playerId: string,
+  message: ClientMessage,
+) => {
+  switch (message.type) {
+    case 'join_room':
+      send(ws, rooms.joinRoom(message.roomId, playerId, ws));
+      break;
+    case 'leave_room':
+      rooms.leaveRoom(message.roomId, playerId);
+      send(ws, { type: 'room_left', roomId: message.roomId });
+      break;
+    case 'action':
+      rooms.queueAction(message.roomId, playerId, message.action);
+      break;
+    case 'room_message':
+      if (!rooms.getRoom(message.roomId)?.players.has(playerId)) break;
+      rooms.broadcastToRoom(message.roomId, {
+        type: 'room_message',
+        roomId: message.roomId,
+        playerId,
+        content: message.content,
+        serverTime: Date.now(),
+      });
+      break;
+    case 'ping':
+      send(ws, { type: 'pong', serverTime: Date.now() });
+      break;
+  }
+};
 
-// ---------------------------------------------------------------------------
-// REST Routes
-// ---------------------------------------------------------------------------
+// trustedOrigins: the game client origins. Use the same list as Better
+// Auth's `trustedOrigins` option.
+export const createGameServer = (auth: GameAuth, trustedOrigins: string[]) => {
+  const rooms = new RoomManager();
 
-const restRoutes = new Elysia({ prefix: "/api" })
-	// Players
-	.get("/players/:id", async ({ params }) => {
-		// Fetch player profile from database
-		return { id: params.id, status: "ok" };
-	})
-	.patch(
-		"/players/:id",
-		async ({ params, body }) => {
-			// Update player profile
-			return { id: params.id, updated: true };
-		},
-		{
-			body: t.Object({
-				displayName: t.Optional(t.String()),
-				settings: t.Optional(t.Record(t.String(), t.Unknown())),
-			}),
-		},
-	)
+  // Its own instance, so the derive below runs only on these routes and
+  // not on the mounted auth handler.
+  const game = new Elysia()
+    .derive(async ({ request, status }) => {
+      // auth.api skips Better Auth's origin checks, so check Origin here.
+      const origin = request.headers.get('origin');
+      if (!origin || !trustedOrigins.includes(origin)) return status(403);
+      const session = await auth.api.getSession({
+        headers: request.headers,
+        query: { disableCookieCache: true },
+      });
+      if (!session) return status(401);
+      return { playerId: session.user.id };
+    })
+    .post('/rooms', () => {
+      const room = rooms.createRoom({ maxPlayers: 8, tickRate: 20 });
+      return { roomId: room.id };
+    })
+    .ws('/ws', {
+      body: clientMessage,
+      open(ws) {
+        send(ws, {
+          type: 'connected',
+          playerId: ws.data.playerId,
+          serverTime: Date.now(),
+        });
+      },
+      message(ws, message) {
+        route(rooms, ws, ws.data.playerId, message);
+      },
+      close(ws) {
+        // Only the rooms this socket is in: a reconnect may have replaced it.
+        rooms.removePlayerFromAllRooms(ws.data.playerId, ws);
+      },
+    });
 
-	// Sessions
-	.post(
-		"/sessions",
-		async ({ body }) => {
-			// Create a new game session / room
-			const room = roomManager.createRoom({
-				maxPlayers: body.maxPlayers ?? 10,
-				tickRate: body.tickRate ?? 20,
-				metadata: body.metadata ?? {},
-			});
-			return { roomId: room.id, status: room.status };
-		},
-		{
-			body: t.Object({
-				maxPlayers: t.Optional(t.Number()),
-				tickRate: t.Optional(t.Number()),
-				metadata: t.Optional(t.Record(t.String(), t.Unknown())),
-			}),
-		},
-	)
-	.get("/sessions", () => {
-		return roomManager.listRooms().map((r) => ({
-			id: r.id,
-			status: r.status,
-			playerCount: r.players.size,
-			maxPlayers: r.maxPlayers,
-		}));
-	})
-	.get("/sessions/:id", ({ params }) => {
-		const room = roomManager.getRoom(params.id);
-		if (!room) return { error: "Room not found" };
-		return {
-			id: room.id,
-			status: room.status,
-			playerCount: room.players.size,
-			maxPlayers: room.maxPlayers,
-			tick: room.tick,
-		};
-	})
-	.delete("/sessions/:id", ({ params }) => {
-		roomManager.closeRoom(params.id);
-		return { closed: true };
-	})
+  return new Elysia()
+    .use(cors({ origin: trustedOrigins, credentials: true }))
+    .mount(auth.handler)
+    .use(game);
+};
 
-	// Inventory (example CRUD)
-	.get("/players/:id/inventory", async ({ params }) => {
-		// Fetch inventory from database
-		return { playerId: params.id, items: [] };
-	})
-	.post(
-		"/players/:id/inventory",
-		async ({ params, body }) => {
-			// Add item to inventory
-			return { playerId: params.id, item: body, added: true };
-		},
-		{
-			body: t.Object({
-				itemId: t.String(),
-				quantity: t.Number({ minimum: 1 }),
-			}),
-		},
-	);
-
-// ---------------------------------------------------------------------------
-// WebSocket Endpoint
-// ---------------------------------------------------------------------------
-
-const wsRoute = new Elysia()
-	.use(
-		jwt({
-			name: "jwt",
-			secret: process.env.JWT_SECRET ?? "development-secret-change-me",
-		}),
-	)
-	.ws("/ws", {
-		body: t.Union([
-			t.Object({ type: t.Literal("auth"), token: t.String() }),
-			t.Object({ type: t.Literal("join_room"), roomId: t.String() }),
-			t.Object({ type: t.Literal("leave_room"), roomId: t.String() }),
-			t.Object({
-				type: t.Literal("action"),
-				roomId: t.String(),
-				action: t.Object({
-					type: t.String(),
-					payload: t.Record(t.String(), t.Unknown()),
-				}),
-			}),
-			t.Object({
-				type: t.Literal("room_message"),
-				roomId: t.String(),
-				content: t.String(),
-			}),
-			t.Object({ type: t.Literal("ping") }),
-		]),
-
-		async open(ws) {
-			// Auth happens via the first message (type: 'auth')
-			// Connection is unauthenticated until then
-			ws.send(
-				JSON.stringify({
-					type: "connected",
-					serverTime: Date.now(),
-					message: "Send auth message with JWT token to authenticate.",
-				} satisfies ServerMessage),
-			);
-		},
-
-		async message(ws, data: ClientMessage) {
-			// ---------- Auth ----------
-			if (data.type === "auth") {
-				const jwtPlugin = (
-					ws as unknown as {
-						data: {
-							jwt: { verify: (t: string) => Promise<{ sub?: string } | false> };
-						};
-					}
-				).data.jwt;
-				const payload = await jwtPlugin.verify(data.token);
-				if (!payload || !payload.sub) {
-					ws.send(
-						JSON.stringify({
-							type: "error",
-							code: "AUTH_FAILED",
-							message: "Invalid or expired token.",
-						} satisfies ServerMessage),
-					);
-					return;
-				}
-
-				const playerId = payload.sub;
-				(ws.data as Record<string, unknown>).playerId = playerId;
-
-				connections.set(playerId, {
-					ws: ws as unknown as GameWebSocket,
-					playerId,
-					connectedAt: Date.now(),
-				});
-
-				ws.send(
-					JSON.stringify({
-						type: "auth_success",
-						playerId,
-						serverTime: Date.now(),
-					} satisfies ServerMessage),
-				);
-				return;
-			}
-
-			// ---------- Guard: must be authenticated ----------
-			const playerId = (ws.data as Record<string, unknown>).playerId as
-				| string
-				| undefined;
-			if (!playerId) {
-				ws.send(
-					JSON.stringify({
-						type: "error",
-						code: "NOT_AUTHENTICATED",
-						message: "Send auth message before other actions.",
-					} satisfies ServerMessage),
-				);
-				return;
-			}
-
-			// ---------- Message Routing ----------
-			switch (data.type) {
-				case "join_room": {
-					const result = roomManager.joinRoom(
-						data.roomId,
-						playerId,
-						ws as unknown as GameWebSocket,
-					);
-					ws.send(JSON.stringify(result));
-					break;
-				}
-
-				case "leave_room": {
-					roomManager.leaveRoom(data.roomId, playerId);
-					ws.send(
-						JSON.stringify({
-							type: "room_left",
-							roomId: data.roomId,
-						} satisfies ServerMessage),
-					);
-					break;
-				}
-
-				case "action": {
-					roomManager.queueAction(data.roomId, playerId, data.action);
-					break;
-				}
-
-				case "room_message": {
-					roomManager.broadcastToRoom(data.roomId, {
-						type: "room_message",
-						roomId: data.roomId,
-						playerId,
-						content: data.content,
-						serverTime: Date.now(),
-					});
-					break;
-				}
-
-				case "ping": {
-					ws.send(
-						JSON.stringify({
-							type: "pong",
-							serverTime: Date.now(),
-						} satisfies ServerMessage),
-					);
-					break;
-				}
-			}
-		},
-
-		close(ws) {
-			const playerId = (ws.data as Record<string, unknown>).playerId as
-				| string
-				| undefined;
-			if (playerId) {
-				// Remove from all rooms
-				roomManager.removePlayerFromAllRooms(playerId);
-				connections.delete(playerId);
-			}
-		},
-	});
-
-// ---------------------------------------------------------------------------
-// Server Assembly
-// ---------------------------------------------------------------------------
-
-const app = new Elysia()
-	.use(cors())
-	.use(restRoutes)
-	.use(wsRoute)
-	.get("/health", () => ({
-		status: "ok",
-		uptime: process.uptime(),
-		rooms: roomManager.listRooms().length,
-		connections: connections.size,
-	}))
-	.listen(Number(process.env.PORT ?? 3000));
-
-console.log(
-	`Game server running on ${app.server?.hostname}:${app.server?.port}`,
-);
-
-export type App = typeof app;
-export { app, connections, roomManager };
+// Usage, in your entry file:
+//   import { auth } from './auth';
+//   createGameServer(auth, ['https://play.example.com']).listen(3000);

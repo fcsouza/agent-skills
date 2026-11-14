@@ -1,3 +1,4 @@
+// Verified against: bullmq 6.7.6 (2026-11-14)
 // ============================================================
 // Worker Implementations — BullMQ Workers for Game Systems
 // ============================================================
@@ -6,6 +7,7 @@ import { type Job, Worker } from "bullmq";
 import {
 	type AnalyticsJobData,
 	type AnalyticsJobResult,
+	BROADCAST_PLAYER_ID,
 	type GameEventJobData,
 	type GameEventJobResult,
 	type MatchmakingJobData,
@@ -62,7 +64,8 @@ export const matchmakingWorker = new Worker<
 		});
 
 		if (compatiblePlayers.length < preferences.teamSize) {
-			// Not enough players — requeue with expanded criteria
+			// Not enough players: throw so BullMQ retries after backoff. To widen
+			// the search over time, derive the skill range from job.data.queuedAt.
 			await job.updateProgress(50);
 			throw new Error("Not enough players in pool — will retry with backoff");
 		}
@@ -136,34 +139,40 @@ export const gameEventWorker = new Worker<GameEventJobData, GameEventJobResult>(
 export const rewardWorker = new Worker<RewardJobData, RewardJobResult>(
 	QUEUE_NAMES.REWARD,
 	async (job: Job<RewardJobData>): Promise<RewardJobResult> => {
-		const { playerId, rewardType, payload, idempotencyKey } = job.data;
+		const { playerId, rewardType, payload } = job.data;
 
-		// Step 1: Idempotency check — has this reward already been credited?
-		const alreadyCredited = await checkIdempotency(idempotencyKey);
-		if (alreadyCredited) {
-			return {
-				credited: false,
-				playerId,
-				rewardType,
-				appliedAt: Date.now(),
-			};
+		// Jobs from a Job Scheduler share one template, so the base key repeats
+		// every run. Their job id is unique per run and stays the same across
+		// retries of that run, so it makes the key per-run.
+		const idempotencyKey = job.repeatJobKey
+			? `${job.data.idempotencyKey}:${job.id}`
+			: job.data.idempotencyKey;
+
+		// Broadcast trigger: enqueue one reward job per eligible player, each
+		// with idempotencyKey `${idempotencyKey}:${playerId}`. Grant nothing here.
+		if (playerId === BROADCAST_PLAYER_ID) {
+			await fanOutReward(job.data, idempotencyKey);
+			return { credited: false, playerId, rewardType, appliedAt: Date.now() };
 		}
 
-		// Step 2: Credit rewards to player account
-		if (payload.currency) {
-			await creditCurrency(playerId, payload.currency);
-		}
-		if (payload.items?.length) {
-			await creditItems(playerId, payload.items);
-		}
-		if (payload.experience) {
-			await creditExperience(playerId, payload.experience);
+		// Check, credit and mark in one database transaction: applyRewardOnce
+		// skips the callback when the key was already recorded.
+		const credited = await applyRewardOnce(idempotencyKey, async (tx) => {
+			if (payload.currency) {
+				await tx.creditCurrency(playerId, payload.currency);
+			}
+			if (payload.items?.length) {
+				await tx.creditItems(playerId, payload.items);
+			}
+			if (payload.experience) {
+				await tx.creditExperience(playerId, payload.experience);
+			}
+		});
+		if (!credited) {
+			return { credited: false, playerId, rewardType, appliedAt: Date.now() };
 		}
 
-		// Step 3: Mark as credited for idempotency
-		await markCredited(idempotencyKey);
-
-		// Step 4: Log reward event for analytics
+		// Log the reward event for analytics, after the commit
 		await logRewardEvent(playerId, rewardType, payload);
 
 		return {
@@ -232,7 +241,8 @@ export const analyticsWorker = new Worker<AnalyticsJobData, AnalyticsJobResult>(
 			playerId,
 			sessionId,
 			properties,
-			timestamp,
+			// Scheduler templates carry timestamp 0; use the job's processing time.
+			timestamp: timestamp || (job.processedOn ?? Date.now()),
 		});
 
 		return {
@@ -314,23 +324,30 @@ async function spawnSideEffects(
 ): Promise<string[]> {
 	throw new Error("Implement spawnSideEffects");
 }
-async function checkIdempotency(_key: string): Promise<boolean> {
-	throw new Error("Implement checkIdempotency");
-}
-async function creditCurrency(
-	_playerId: string,
-	_amount: number,
+async function fanOutReward(
+	_template: RewardJobData,
+	_runKey: string,
 ): Promise<void> {
-	throw new Error("Implement creditCurrency");
+	throw new Error("Implement fanOutReward");
 }
-async function creditItems(_playerId: string, _items: string[]): Promise<void> {
-	throw new Error("Implement creditItems");
+/** The writes a reward makes, all inside one database transaction. */
+interface RewardTx {
+	creditCurrency(playerId: string, amount: number): Promise<void>;
+	creditItems(playerId: string, items: string[]): Promise<void>;
+	creditExperience(playerId: string, xp: number): Promise<void>;
 }
-async function creditExperience(_playerId: string, _xp: number): Promise<void> {
-	throw new Error("Implement creditExperience");
-}
-async function markCredited(_key: string): Promise<void> {
-	throw new Error("Implement markCredited");
+/**
+ * In one transaction: insert `key` into the `processed_events` table from
+ * the `postgres-game-schema` skill (kind 'reward'), then run `apply`. If the
+ * insert conflicts, skip `apply` and return false. If `apply` throws, roll
+ * back everything, key included, so the job's retry can credit it. Same
+ * shape as `PaymentStore.processOnce` in `stripe-game-payments`.
+ */
+async function applyRewardOnce(
+	_key: string,
+	_apply: (tx: RewardTx) => Promise<void>,
+): Promise<boolean> {
+	throw new Error("Implement applyRewardOnce");
 }
 async function logRewardEvent(
 	_playerId: string,

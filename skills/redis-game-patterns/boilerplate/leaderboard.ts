@@ -1,110 +1,96 @@
-import { redis } from "./redis-client";
+// Verified against: ioredis 6.0.0 (2026-11-14)
+import type { Redis } from "ioredis";
 
-const key = (board: string) => `lb:${board}`;
+// Pass a client built with the default `replyMapping: "legacy"`. Under that
+// mapping WITHSCORES replies are flat [member, score, member, score, ...]
+// string arrays, which is what toEntries() parses.
+// ZRANGE ... REV needs Redis 6.2 or newer (it replaces the deprecated ZREVRANGE).
 
-export const leaderboard = {
-	async addScore(board: string, playerId: string, score: number) {
-		await redis.zadd(key(board), score, playerId);
-	},
+export interface LeaderboardEntry {
+	playerId: string;
+	score: number;
+	rank: number;
+}
 
-	async getTopN(
-		board: string,
-		n: number,
-	): Promise<{ playerId: string; score: number; rank: number }[]> {
-		const results = await redis.zrevrange(key(board), 0, n - 1, "WITHSCORES");
-		const entries: { playerId: string; score: number; rank: number }[] = [];
+const toEntries = (flat: string[], firstRank: number): LeaderboardEntry[] => {
+	const entries: LeaderboardEntry[] = [];
+	for (let i = 0; i < flat.length; i += 2) {
+		entries.push({
+			playerId: flat[i],
+			score: Number.parseFloat(flat[i + 1]),
+			rank: firstRank + i / 2,
+		});
+	}
+	return entries;
+};
 
-		for (let i = 0; i < results.length; i += 2) {
-			entries.push({
-				playerId: results[i],
-				score: parseFloat(results[i + 1]),
-				rank: i / 2 + 1,
-			});
-		}
+export const createLeaderboard = (redis: Redis) => {
+	const key = (board: string) => `lb:${board}`;
 
-		return entries;
-	},
+	// Highest score first. ioredis types `stop` as string | Buffer for ZRANGE.
+	const rangeDesc = (board: string, start: number, stop: number) =>
+		redis.zrange(key(board), start, String(stop), "REV", "WITHSCORES");
 
-	async getPlayerRank(
-		board: string,
-		playerId: string,
-	): Promise<{ rank: number; score: number } | null> {
-		const pipeline = redis.pipeline();
-		pipeline.zrevrank(key(board), playerId);
-		pipeline.zscore(key(board), playerId);
+	return {
+		async addScore(board: string, playerId: string, score: number) {
+			await redis.zadd(key(board), score, playerId);
+		},
 
-		const results = await pipeline.exec();
-		const rank = results?.[0]?.[1] as number | null;
-		const score = results?.[1]?.[1] as string | null;
+		async getTopN(board: string, n: number): Promise<LeaderboardEntry[]> {
+			return toEntries(await rangeDesc(board, 0, n - 1), 1);
+		},
 
-		if (rank === null || score === null) return null;
-
-		return { rank: rank + 1, score: parseFloat(score) };
-	},
-
-	async getAroundPlayer(
-		board: string,
-		playerId: string,
-		range = 5,
-	): Promise<{ playerId: string; score: number; rank: number }[]> {
-		const rank = await redis.zrevrank(key(board), playerId);
-		if (rank === null) return [];
-
-		const start = Math.max(0, rank - range);
-		const stop = rank + range;
-
-		const results = await redis.zrevrange(
-			key(board),
-			start,
-			stop,
-			"WITHSCORES",
-		);
-		const entries: { playerId: string; score: number; rank: number }[] = [];
-
-		for (let i = 0; i < results.length; i += 2) {
-			entries.push({
-				playerId: results[i],
-				score: parseFloat(results[i + 1]),
-				rank: start + i / 2 + 1,
-			});
-		}
-
-		return entries;
-	},
-
-	async snapshotToPostgres(
-		board: string,
-		persistFn: (
-			entries: { playerId: string; score: number; rank: number }[],
+		async getPlayerRank(
 			board: string,
-			snapshotAt: Date,
-		) => Promise<void>,
-	) {
-		const total = await redis.zcard(key(board));
-		const batchSize = 500;
-		const allEntries: { playerId: string; score: number; rank: number }[] = [];
+			playerId: string,
+		): Promise<{ rank: number; score: number } | null> {
+			// MULTI so rank and score come from the same moment.
+			const results = await redis
+				.multi()
+				.zrevrank(key(board), playerId)
+				.zscore(key(board), playerId)
+				.exec();
+			if (!results) return null;
+			const [[rankErr, rank], [scoreErr, score]] = results;
+			if (rankErr) throw rankErr;
+			if (scoreErr) throw scoreErr;
+			if (typeof rank !== "number" || typeof score !== "string") return null;
+			return { rank: rank + 1, score: Number.parseFloat(score) };
+		},
 
-		for (let offset = 0; offset < total; offset += batchSize) {
-			const results = await redis.zrevrange(
-				key(board),
-				offset,
-				offset + batchSize - 1,
-				"WITHSCORES",
-			);
+		async getAroundPlayer(
+			board: string,
+			playerId: string,
+			range = 5,
+		): Promise<LeaderboardEntry[]> {
+			const rank = await redis.zrevrank(key(board), playerId);
+			if (rank === null) return [];
+			const start = Math.max(0, rank - range);
+			return toEntries(await rangeDesc(board, start, rank + range), start + 1);
+		},
 
-			for (let i = 0; i < results.length; i += 2) {
-				allEntries.push({
-					playerId: results[i],
-					score: parseFloat(results[i + 1]),
-					rank: offset + i / 2 + 1,
-				});
+		// Copy the board to durable storage (for example at season end).
+		// `persist` is yours: write the rows to Postgres or wherever results live.
+		async snapshot(
+			board: string,
+			persist: (
+				entries: LeaderboardEntry[],
+				board: string,
+				snapshotAt: Date,
+			) => Promise<void>,
+			batchSize = 500,
+		) {
+			const total = await redis.zcard(key(board));
+			const all: LeaderboardEntry[] = [];
+			for (let offset = 0; offset < total; offset += batchSize) {
+				const flat = await rangeDesc(board, offset, offset + batchSize - 1);
+				all.push(...toEntries(flat, offset + 1));
 			}
-		}
+			await persist(all, board, new Date());
+		},
 
-		await persistFn(allEntries, board, new Date());
-	},
-
-	async reset(board: string) {
-		await redis.del(key(board));
-	},
+		async reset(board: string) {
+			await redis.del(key(board));
+		},
+	};
 };

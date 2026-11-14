@@ -1,4 +1,9 @@
-import { type Delta, decodeDelta, encodeDelta } from "./delta-encoder";
+import {
+	type Delta,
+	decodeDelta,
+	deepEqual,
+	encodeDelta,
+} from "./delta-encoder";
 import { RollbackBuffer } from "./rollback-buffer";
 
 export interface SyncEngineConfig {
@@ -175,10 +180,6 @@ export class StateSyncEngine<T extends Record<string, unknown>> {
 		lastProcessedSequence: number,
 		replayer: (state: T, input: PlayerInput) => T,
 	): ReconciliationResult<T> {
-		this.serverState = structuredClone(authoritativeState);
-		this.serverTick = serverTick;
-		this.lastAcknowledgedSequence = lastProcessedSequence;
-
 		// Discard acknowledged inputs
 		this.pendingInputs = this.pendingInputs.filter(
 			(input) => input.sequence > lastProcessedSequence,
@@ -190,7 +191,7 @@ export class StateSyncEngine<T extends Record<string, unknown>> {
 			reconciledState = replayer(reconciledState, input);
 		}
 
-		const corrected = !shallowEqual(this.currentState, reconciledState);
+		const corrected = !deepEqual(this.currentState, reconciledState);
 
 		this.currentState = reconciledState;
 		this.rollbackBuffer.push(
@@ -248,14 +249,21 @@ export class StateSyncEngine<T extends Record<string, unknown>> {
 			this.config.interpolationDelay +
 			(renderTime % tickDuration) / tickDuration;
 
-		const prevTick = Math.floor(renderTick);
-		const nextTick = Math.ceil(renderTick);
-		const alpha = renderTick - prevTick;
-
+		// The buffer holds one entry every snapshotInterval ticks, so look up the
+		// stored entries on either side of renderTick instead of exact ticks.
+		const { before, after } = this.rollbackBuffer.getBracket(renderTick);
+		if (!(before && after)) {
+			return {
+				prev: before?.state ?? null,
+				next: after?.state ?? null,
+				alpha: 0,
+			};
+		}
+		const span = after.tick - before.tick;
 		return {
-			prev: this.rollbackBuffer.getAt(prevTick),
-			next: this.rollbackBuffer.getAt(nextTick),
-			alpha,
+			prev: before.state,
+			next: after.state,
+			alpha: span === 0 ? 0 : (renderTick - before.tick) / span,
 		};
 	}
 
@@ -275,28 +283,5 @@ export class StateSyncEngine<T extends Record<string, unknown>> {
 		this.rollbackBuffer = new RollbackBuffer<T>(this.config.historyLength);
 		this.rollbackBuffer.push(0, structuredClone(initialState));
 		this.pendingInputs = [];
-		this.lastAcknowledgedSequence = 0;
-		this.serverState = null;
-		this.serverTick = 0;
 	}
-}
-
-function shallowEqual(a: unknown, b: unknown): boolean {
-	if (a === b) return true;
-	if (typeof a !== "object" || typeof b !== "object") return false;
-	if (a === null || b === null) return false;
-
-	const keysA = Object.keys(a as Record<string, unknown>);
-	const keysB = Object.keys(b as Record<string, unknown>);
-	if (keysA.length !== keysB.length) return false;
-
-	for (const key of keysA) {
-		if (
-			(a as Record<string, unknown>)[key] !==
-			(b as Record<string, unknown>)[key]
-		) {
-			return false;
-		}
-	}
-	return true;
 }

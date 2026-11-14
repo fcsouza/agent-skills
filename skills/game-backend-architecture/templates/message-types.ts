@@ -1,18 +1,36 @@
+// Verified against: elysia 1.4.32 (2026-11-14)
+import { type Static, t } from "elysia";
+
 // ---------------------------------------------------------------------------
 // Client → Server Messages
+// The player id never travels in a message: the server takes it from the
+// session it checked on the WebSocket upgrade.
+// One TypeBox schema: the server validates every message with it, and the
+// TypeScript type comes from it, so the two cannot drift apart.
+// Browser code: `import type { ClientMessage, ServerMessage }` from this file,
+// so the client bundle does not pull in elysia.
 // ---------------------------------------------------------------------------
 
-export type ClientMessage =
-	| { type: "auth"; token: string }
-	| { type: "join_room"; roomId: string }
-	| { type: "leave_room"; roomId: string }
-	| {
-			type: "action";
-			roomId: string;
-			action: { type: string; payload: Record<string, unknown> };
-	  }
-	| { type: "room_message"; roomId: string; content: string }
-	| { type: "ping" };
+export const clientMessage = t.Union([
+	t.Object({ type: t.Literal("join_room"), roomId: t.String() }),
+	t.Object({ type: t.Literal("leave_room"), roomId: t.String() }),
+	t.Object({
+		type: t.Literal("action"),
+		roomId: t.String(),
+		action: t.Object({
+			type: t.String(),
+			payload: t.Record(t.String(), t.Unknown()),
+		}),
+	}),
+	t.Object({
+		type: t.Literal("room_message"),
+		roomId: t.String(),
+		content: t.String(),
+	}),
+	t.Object({ type: t.Literal("ping") }),
+]);
+
+export type ClientMessage = Static<typeof clientMessage>;
 
 // ---------------------------------------------------------------------------
 // Server → Client Messages
@@ -20,8 +38,7 @@ export type ClientMessage =
 
 export type ServerMessage =
 	// Connection
-	| { type: "connected"; serverTime: number; message: string }
-	| { type: "auth_success"; playerId: string; serverTime: number }
+	| { type: "connected"; playerId: string; serverTime: number }
 
 	// Room lifecycle
 	| {

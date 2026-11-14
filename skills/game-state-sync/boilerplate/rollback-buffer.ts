@@ -27,13 +27,21 @@ export class RollbackBuffer<T> {
 
 	/**
 	 * Store a state snapshot at the given tick.
-	 * If the buffer is full, the oldest entry is overwritten.
+	 * A tick already in the buffer is replaced in place, so a replay or a
+	 * second snapshot of the same tick never leaves a stale copy behind.
+	 * Otherwise, if the buffer is full, the oldest entry is overwritten.
 	 */
 	push(tick: number, state: T): void {
 		const entry: BufferEntry<T> = {
 			tick,
 			state: structuredClone(state),
 		};
+
+		const existing = this.findIndex(tick);
+		if (existing !== -1) {
+			this.buffer[existing] = entry;
+			return;
+		}
 
 		this.buffer[this.head] = entry;
 		this.head = (this.head + 1) % this.capacity;
@@ -137,6 +145,33 @@ export class RollbackBuffer<T> {
 	}
 
 	/**
+	 * Find the newest entry at or before `tick` and the oldest entry after it.
+	 * Use for interpolation when entries are stored every N ticks, not every tick.
+	 */
+	getBracket(tick: number): {
+		before: BufferEntry<T> | null;
+		after: BufferEntry<T> | null;
+	} {
+		let before: BufferEntry<T> | null = null;
+		let after: BufferEntry<T> | null = null;
+		for (const entry of this.buffer) {
+			if (!entry) continue;
+			if (entry.tick <= tick && (!before || entry.tick > before.tick)) {
+				before = entry;
+			} else if (entry.tick > tick && (!after || entry.tick < after.tick)) {
+				after = entry;
+			}
+		}
+		return {
+			before: before && {
+				tick: before.tick,
+				state: structuredClone(before.state),
+			},
+			after: after && { tick: after.tick, state: structuredClone(after.state) },
+		};
+	}
+
+	/**
 	 * Current number of entries stored.
 	 */
 	size(): number {
@@ -182,16 +217,17 @@ export class RollbackBuffer<T> {
 	// --- Internal ---
 
 	private findEntry(tick: number): BufferEntry<T> | null {
+		const idx = this.findIndex(tick);
+		return idx === -1 ? null : (this.buffer[idx] ?? null);
+	}
+
+	private findIndex(tick: number): number {
 		// Linear scan — buffer is small (typically 32-128 entries)
 		for (let i = 0; i < this.count; i++) {
 			const idx =
 				this.count < this.capacity ? i : (this.head + i) % this.capacity;
-
-			const entry = this.buffer[idx];
-			if (entry && entry.tick === tick) {
-				return entry;
-			}
+			if (this.buffer[idx]?.tick === tick) return idx;
 		}
-		return null;
+		return -1;
 	}
 }
