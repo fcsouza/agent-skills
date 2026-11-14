@@ -108,8 +108,8 @@ async function fulfilCheckout(
       ? syncSubscription(stripe, subscriptionId, invoiceId)
       : null;
   }
-  // Stripe's fulfilment guide fulfils when payment_status is not 'unpaid':
-  // 'paid', or 'no_payment_required' (for example a 100% discount).
+  // Stripe's fulfilment guide fulfils when payment_status is not 'unpaid',
+  // so 'no_payment_required' grants as 'paid' does.
   if (session.mode !== 'payment' || session.payment_status === 'unpaid') {
     return null;
   }

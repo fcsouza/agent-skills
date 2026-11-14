@@ -105,9 +105,10 @@ read from the database inside the transaction that changes them.
 
 - Treating Redis as the record of truth for match results, rewards or
   currency. Write those to the database; Redis may lose them.
-- Read-then-write on shared keys from more than one server. Use `MULTI`,
-  `WATCH` or a single command; a plain pipeline does not stop another client's
-  command running between yours.
+- Read-then-write on shared keys from more than one server. Use a Lua
+  script (as `update()` does), a single command, or `MULTI`/`WATCH` on a
+  connection that no concurrent code shares; a plain pipeline does not stop
+  another client's command running between yours.
 - Using Pub/Sub for events a server must not miss. Redis Pub/Sub delivers at
   most once: a server that is down or disconnected loses the message. Send
   match results and purchases through a queue (`bullmq-game-queues`).
