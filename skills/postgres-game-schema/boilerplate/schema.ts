@@ -59,6 +59,10 @@ export const leaderboardPeriodEnum = pgEnum("leaderboard_period", [
 ]);
 
 // ─── Players ─────────────────────────────────────────────────────────────────
+// `level`, `xp` and `stats` below are for single-character games. When the
+// game has characters (next table), the character owns them and these three
+// columns go unused: delete them and `players_level_idx` from `players`,
+// and repoint `getGuildWithMembers` (query-patterns.ts) at `characters`.
 
 export const players = pgTable(
 	"players",
@@ -81,6 +85,47 @@ export const players = pgTable(
 	(table) => [
 		index("players_level_idx").on(table.level),
 		index("players_created_at_idx").on(table.createdAt),
+	],
+);
+
+// ─── Characters ──────────────────────────────────────────────────────────────
+// One account (`players`, keyed to the auth user) owns several characters.
+// The slot limit is a game rule: enforce it in code, not in the schema.
+// Wallets and inventory below still belong to the account (`playerId`). To
+// make them per character, see "Characters and ownership" in SKILL.md.
+// A character owns `level`, `xp` and `stats`. `players` has the same three
+// columns for single-character games; with characters, drop them there.
+
+export const characters = pgTable(
+	"characters",
+	{
+		id: text("id")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		playerId: text("player_id")
+			.notNull()
+			.references(() => players.id, { onDelete: "cascade" }),
+		// Name scope: per shard. Every live character on a shard needs a
+		// distinct name, and the same name may exist on another shard. For one
+		// global namespace, delete `shardId` and index `lower(name)` alone.
+		shardId: text("shard_id").notNull().default("default"),
+		name: text("name").notNull(),
+		level: integer("level").notNull().default(1),
+		xp: integer("xp").notNull().default(0),
+		stats: jsonb("stats").$type<Record<string, number>>().default({}),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+		deletedAt: timestamp("deleted_at"),
+	},
+	(table) => [
+		// Case-insensitive, so "Gandalf" and "gandalf" collide. Partial: a
+		// soft-deleted character frees its name. To keep deleted names
+		// reserved, remove the `.where(...)`.
+		uniqueIndex("characters_shard_name_idx")
+			.on(table.shardId, sql`lower(${table.name})`)
+			.where(sql`${table.deletedAt} is null`),
+		index("characters_player_id_idx").on(table.playerId),
 	],
 );
 
@@ -346,6 +391,9 @@ export const guildMembers = pgTable(
 		joinedAt: timestamp("joined_at").notNull().defaultNow(),
 	},
 	(table) => [
+		// One guild per player: a guild is the permanent group. Short-lived
+		// parties are not stored here. To allow several guilds, make this
+		// index non-unique and unique on (guildId, playerId) instead.
 		uniqueIndex("guild_members_player_idx").on(table.playerId),
 		index("guild_members_guild_id_idx").on(table.guildId),
 		index("guild_members_guild_role_idx").on(table.guildId, table.role),

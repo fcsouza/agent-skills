@@ -12,7 +12,7 @@ Target the stable Drizzle line, `drizzle-orm` 0.45.x. The Drizzle docs install l
 
 ## Files
 
-- `boilerplate/schema.ts`: copy when starting a game database. Twelve tables (players, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members, processed events) and their enums.
+- `boilerplate/schema.ts`: copy when starting a game database. Thirteen tables (players, characters, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members, processed events) and their enums.
 - `templates/entity-template.ts`: copy when adding a new game entity. Three patterns: an entity a player owns, a definition catalog with player instances, and an enum-driven timed entity.
 - `templates/query-patterns.ts`: read when writing queries against the schema: inventory join, leaderboard top N, event aggregation, JSONB filters, atomic currency credit, guarded spend, best-score upsert. Each function takes the database as its first argument (`GameDb`, any Drizzle Postgres database), so it works with whichever driver the project uses.
 
@@ -30,6 +30,21 @@ Every table and query in a game project follows these. Other skills (`stripe-gam
 - **Indexes.** Index the owner key (`playerId`) of every player-owned table. Add a composite index for each common filter, leading with the owner: `events (playerId, type)`, `leaderboards (category, period, score)`. Put a unique index on every natural key an upsert targets (`currencies (playerId, currencyType)`): PostgreSQL infers the `ON CONFLICT` target from a unique index.
 - **Money and currency.** Integer amounts, never read-modify-write. Credit with the atomic `amount = amount + n` upsert (`addCurrency` in `templates/query-patterns.ts`). Debit with `spendCurrency`: one `UPDATE ... WHERE amount >= cost`, and it reports failure when no row was updated, so two parallel spends cannot overdraw. The `currencies` table also has `CHECK (amount >= 0)`, so a debit that bypasses the guard fails instead of going negative.
 - **Idempotency.** `processed_events` holds one row per external event or job already applied (a Stripe event id, a reward job key), with `id` as the primary key, a `kind` and `created_at`. Insert it in the same transaction as the change it guards; a primary-key conflict means the change already happened. `stripe-game-payments` and `bullmq-game-queues` use this table.
+
+## Characters and ownership
+
+`players` is the account, keyed to the auth user. `characters` holds the several characters one account owns, with a name unique per shard among live characters (`characters_shard_name_idx` is a partial index on `deleted_at IS NULL`, so deleting a character frees its name; the schema comment says how to reserve names or make them global). The slot limit is a game rule; check it in code.
+
+When the game has characters, the character owns `level`, `xp` and `stats`, and you delete those three columns from `players`, along with `players_level_idx`, and point `getGuildWithMembers` in `templates/query-patterns.ts` (it selects `players.level`) at the character. A single-character game skips `characters` and keeps them on `players`.
+
+The game decides whether wallets and inventory belong to the account or to a character. The schema ships them on the account (`playerId`). To move a table to characters:
+1. Replace its `playerId` column with `characterId` referencing `characters.id` (keep `onDelete: "cascade"`), and repoint its indexes.
+2. Keep the `CHECK (amount >= 0)` and the guarded `spendCurrency` as they are.
+3. In `templates/query-patterns.ts`, change `spendCurrency`, `addCurrency` (including its `ON CONFLICT` target), `getPlayerCurrencies` and the inventory queries to take `characterId` and filter on it. They filter by `playerId` today, so they read and spend the wrong wallet until you do.
+
+A game can also keep both columns and use the character one for per-character rows.
+
+Guild membership stays one guild per player, since a guild is a permanent group and short-lived parties live outside this table. To allow several guilds, see the comment on `guild_members_player_idx`. Alts also need game rules (gear transfer, risk diversion) that no table enforces.
 
 ## Procedure
 

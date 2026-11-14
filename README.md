@@ -59,6 +59,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [game-design-fundamentals](skills/game-design-fundamentals/) | Design loop, core loops, difficulty, rewards |
 | [game-economy-design](skills/game-economy-design/) | Currencies, faucets and sinks, loot tables, exploit review |
 | [level-design](skills/level-design/) | Levels, environments, difficulty curves |
+| [mmo-design](skills/mmo-design/) | Persistent worlds: shards, economy at scale, alts, roles, guilds, endgame, live ops |
 | [procedural-gen](skills/procedural-gen/) | Seeded dungeons, terrain and worlds, generator validation |
 | [quest-mission-design](skills/quest-mission-design/) | Quests, objectives, quest trees |
 | [ui-ux-game](skills/ui-ux-game/) | HUD, menus, onboarding, accessibility |
