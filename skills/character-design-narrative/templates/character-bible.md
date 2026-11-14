@@ -10,7 +10,7 @@ Fill out one copy per major character. Minor characters can use an abbreviated v
 |-------|-------|
 | **Name** | _Full name, nicknames, aliases_ |
 | **Role** | _Protagonist / Antagonist / Ally / Mentor / NPC / Boss_ |
-| **Archetype** | _Hero / Trickster / Sage / Shadow / Herald / Threshold Guardian / etc._ |
+| **Archetype** | _Role in the story, in your own words_ |
 | **Age** | _Age or apparent age_ |
 | **Species/Race** | _If applicable to the game world_ |
 | **Faction** | _Faction or group affiliation_ |

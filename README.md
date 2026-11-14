@@ -56,10 +56,10 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 
 | Skill | Description |
 |-------|-------------|
-| [game-design-fundamentals](skills/game-design-fundamentals/) | Core loops, MDA framework, progression curves |
-| [game-economy-design](skills/game-economy-design/) | Virtual economies, currencies, loot tables |
+| [game-design-fundamentals](skills/game-design-fundamentals/) | Design loop, core loops, difficulty, rewards |
+| [game-economy-design](skills/game-economy-design/) | Currencies, faucets and sinks, loot tables, exploit review |
 | [level-design](skills/level-design/) | Levels, environments, difficulty curves |
-| [procedural-gen](skills/procedural-gen/) | Dungeon gen, noise terrain, wave function collapse |
+| [procedural-gen](skills/procedural-gen/) | Seeded dungeons, terrain and worlds, generator validation |
 | [quest-mission-design](skills/quest-mission-design/) | Quests, objectives, quest trees |
 | [ui-ux-game](skills/ui-ux-game/) | HUD, menus, onboarding, accessibility |
 
@@ -90,7 +90,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 
 | Skill | Description |
 |-------|-------------|
-| [character-design-narrative](skills/character-design-narrative/) | Characters, NPCs, dialogue, archetypes |
+| [character-design-narrative](skills/character-design-narrative/) | Characters, NPCs, character bibles, dialogue |
 | [quest-narrative-coherence](skills/quest-narrative-coherence/) | Narrative coherence check, lore validation |
 | [story-structure-game](skills/story-structure-game/) | Branching narratives, player agency, story arcs |
 | [worldbuilding](skills/worldbuilding/) | Lore, factions, geography, world bibles |

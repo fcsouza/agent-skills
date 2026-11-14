@@ -4,17 +4,21 @@
 
 ```
 Difficulty
-10 │                                    ████
- 8 │                              ██████
- 6 │                      ████████
- 4 │            ██████████
- 2 │    ████████
- 0 │████
+10 │                                 ╱╲  ╱
+ 8 │                          ╱╲  ╱╯  ╰╯
+ 6 │                   ╱╲  ╱╯  ╰╯
+ 4 │            ╱╲  ╱╯  ╰╯
+ 2 │     ╱╲  ╱╯  ╰╯
+ 0 │╱╲╱╯╰╯
    └──────────────────────────────────────
     Tutorial  Early    Mid    Late   Endgame
 ```
 
+Each phase rises in a sawtooth (SKILL.md step 14): a step up, then a short drop where the player uses an old skill on a harder problem. The ranges below are the band the teeth stay inside.
+
 ### Phase Breakdown
+
+The durations and ranges below are placeholders. Replace them with your own targets and check them in playtests.
 
 | Phase | Duration | Difficulty Range | Purpose | Key Design |
 |-------|----------|-----------------|---------|-----------|
@@ -53,6 +57,8 @@ Intensity
 
 ## Difficulty Tuning Knobs
 
+The percentages are starting guesses, not tested values. Change a knob by doubling or halving to find the direction fast, then refine.
+
 | Parameter | Easy | Normal | Hard |
 |-----------|------|--------|------|
 | Enemy/obstacle count | -30% | Base | +30% |
@@ -61,7 +67,7 @@ Intensity
 | Time limits | +50% or removed | Base | -25% |
 | Puzzle complexity | Fewer steps, hints | Base | Extra steps, no hints |
 | Checkpoint frequency | Every encounter | Every 2-3 encounters | Every area |
-| AI behavior complexity | Predictable | Mixed | Aggressive + adaptive |
+| AI behavior complexity | Predictable | Mixed | Aggressive |
 | Recovery options (healing, retry) | Abundant | Moderate | Scarce |
 
 ---
@@ -78,6 +84,8 @@ Intensity
 | Custom | Power users | Individual knob control |
 
 ### Approach B: Adaptive Difficulty
+
+Prefer preset modes. `game-design-fundamentals` lists the three costs of dynamic difficulty. The thresholds below are example values.
 
 ```
 IF player.deathCount > 3 in same area:
@@ -100,11 +108,11 @@ IF player.completionTime < expected * 0.5:
 
 | Mistake | Symptom | Fix |
 |---------|---------|-----|
-| Flat difficulty | Players get bored | Add peaks and valleys |
+| Flat difficulty | Players get bored | Use a sawtooth: step up, then a moment to use an old skill on a harder problem |
 | Sudden spike | Players quit at specific point | Add transition encounters |
 | No rest areas | Player fatigue | Insert cool-down zones between challenges |
 | Tutorial too long | Players skip/quit early | Teach through play, not text |
-| Endgame cliff | Only 1% of players see final content | Offer difficulty options for story access |
+| Endgame cliff | Players stop before the final content | Offer difficulty options for story access |
 | Reverse curve | Game gets easier over time | Scale challenges with player power growth |
 
 ---
@@ -117,5 +125,4 @@ IF player.completionTime < expected * 0.5:
 - [ ] Does Hard mode feel fair (hard but achievable)?
 - [ ] Do rest areas feel like actual breaks?
 - [ ] Is the peak encounter satisfying to overcome?
-- [ ] Does adaptive difficulty (if used) feel invisible?
 - [ ] Can the game be completed on all difficulty modes?

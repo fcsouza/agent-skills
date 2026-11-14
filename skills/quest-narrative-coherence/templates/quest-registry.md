@@ -1,5 +1,7 @@
 # Quest Registry
 
+The table a quest sits in is its status. The three quest tables (Active, Completed, Planned) use the same columns.
+
 ## Active Quests
 
 | Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
@@ -7,20 +9,22 @@
 
 ## Completed Quests
 
-| ID | Name | Arc | Outcome | Impact on World |
-|----|------|-----|---------|-----------------|
+| Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
+|----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
 
 ## Planned Quests
 
-| ID | Name | Arc | Dependencies | Priority | Notes |
-|----|------|-----|-------------|----------|-------|
-
-## Quest Arcs
-
-| Arc ID | Name | Theme | Status | Quests Included |
-|--------|------|-------|--------|-----------------|
+| Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
+|----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
 
 ## Economy Impact Log
 
+One row per registered quest. Step 2 of the check reads it for rewards already issued.
+
 | Quest ID | Currency Given | Items Given | Estimated Player Level |
-|----------|---------------|-------------|------------------------|
+|----------|----------------|-------------|------------------------|
+
+## Story Arcs
+
+| Arc | Theme | Quests |
+|-----|-------|--------|

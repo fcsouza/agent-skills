@@ -36,15 +36,14 @@ flowchart TD
     ACT2_C --> MIDPOINT
 
     MIDPOINT --> ACT3{Act 3: Final choice}
-    ACT3 -->|Sacrifice| ENDING_A([Ending A: Heroic sacrifice])
-    ACT3 -->|Compromise| ENDING_B([Ending B: Uneasy peace])
-    ACT3 -->|Seize power| ENDING_C([Ending C: Become the new threat])
+    ACT3 -->|Sacrifice: sets a flag| FINALE[Final scene, text shaped by flags]
+    ACT3 -->|Compromise: sets a flag| FINALE
+    ACT3 -->|Seize power: sets a flag| FINALE
+    FINALE --> ENDING([One ending, shaped by the flags set earlier])
 
     %% Styling
     style START fill:#4CAF50,color:#fff
-    style ENDING_A fill:#2196F3,color:#fff
-    style ENDING_B fill:#FF9800,color:#fff
-    style ENDING_C fill:#f44336,color:#fff
+    style ENDING fill:#2196F3,color:#fff
 ```
 
 ### Node Types
@@ -81,9 +80,10 @@ START: Game Start
 │           └── → ALL MERGE → MIDPOINT
 ├── MIDPOINT: Betrayal revealed
 │   └── ACT3: [CHOICE] Final choice
-│       ├── (Sacrifice) → ENDING A: Heroic sacrifice
-│       ├── (Compromise) → ENDING B: Uneasy peace
-│       └── (Seize power) → ENDING C: Become the new threat
+│       ├── (Sacrifice) → FINALE
+│       ├── (Compromise) → FINALE
+│       └── (Seize power) → FINALE
+│           └── ENDING: one ending, shaped by the flags set earlier
 ```
 
 ### Legend
@@ -97,9 +97,9 @@ START: Game Start
 
 ## Guidelines
 
-1. **Decision nodes** should have 2-4 options maximum. More than 4 overwhelms players.
-2. **Merge points** should feel natural, not forced. The world should reflect prior choices even after merging.
+1. **Decision nodes**: keep the option count low. Every option needs its own written result.
+2. **Merge points** cheapen earlier choices. Carry their effects past the merge in the world, dialogue and options.
 3. **Track variables**: Note which flags/variables each branch sets (e.g., `combat_reputation += 1`).
-4. **Test all paths**: Every branch combination must be playable start-to-finish.
-5. **Label endings clearly**: Use consistent naming (Ending A, B, C) and document how each is reached.
+4. **Test every path that remains after the cuts**: each branch combination you kept must be playable start-to-finish. The full tree is too large to test.
+5. **Shape the ending with flags**: document which flags change the final scene. If you add separate endings, each must be a full, different story, and you name and document how each is reached.
 6. **Avoid dead ends**: Every node must lead somewhere. If a branch fails, redirect rather than terminate.

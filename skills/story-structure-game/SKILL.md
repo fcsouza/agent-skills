@@ -1,97 +1,58 @@
 ---
 name: story-structure-game
-description: >-
-  Use when designing interactive narratives, branching storylines, player agency systems, non-linear story structures, or act frameworks for games. Triggers: branching narrative, player agency, story arc, interactive story, dialogue.
+description: Structures a game's story: act framework, branching and endings, and story beats. Use when planning how a game's plot is delivered and how player choices change it, or when a branching story grows too big to write or test.
 ---
 
 # Story Structure for Games
 
-## Purpose
+## Pick a method first
 
-Branching narratives, player agency, non-linear story structure, and act frameworks adapted for interactive media. Genre-agnostic — works for any game with narrative elements.
+Choose one before you draw any beats.
 
-## When to Use
+- String of pearls: fixed story scenes alternate with free-play stretches. You control the plot and the player stays on the story path. Pick this when the story is the main draw.
+- Story machine: you write no plot ahead. The rules and systems produce events players want to retell. Pick this when the systems are the main draw.
 
-Trigger: story structure, branching narrative, player agency, non-linear story, act structure, story beats, narrative arc, dialogue tree, multiple endings, player choice, consequence system, narrative design
+Ask of either method: which conflicts and choices let different stories arise, how can players make the story theirs, and does play produce a good interest curve.
 
-## Prerequisites
+For modular narrative built from small recombinable pieces, see Ken Levine's GDC 2014 talk "Narrative Legos" in `references/sources.md`.
 
-- `quest-narrative-coherence` — ensures all story content is consistent
-- `worldbuilding` — provides the world context for the story
+## Frame the arc
 
-## Core Principles
+An act frame gives a story shape. Use it as a skeleton, not a formula.
 
-> Hideo Kojima: "Games can tell stories that no other medium can — stories where the audience is the protagonist."
-> Ken Levine: "Narrative should emerge from systems, not just scripted sequences."
-> Hidetaka Miyazaki: "The best stories are the ones players piece together themselves."
+- Setup: hook, world, inciting incident, first real player choice.
+- Confrontation: rising challenges, major choices, consequences that compound, a midpoint turn.
+- Resolution: climax, final choice, outcome shaped by earlier choices, denouement.
 
-1. **Player agency is sacred** — the player must feel their choices matter; never invalidate a meaningful decision
-2. **Show consequences** — choices without visible consequences feel meaningless; show the impact
-3. **Non-linear doesn't mean random** — structure the narrative so any path through it feels intentional
-4. **Environmental storytelling first** — the world tells the story; dialogue and cutscenes support it (Miyazaki)
-5. **Dramatic structure still applies** — even branching narratives need tension, climax, and resolution
-6. **Multiple endings must all feel earned** — no "good ending" and "bad ending"; each ending should reflect the player's journey
-7. **Pacing is controlled by the player** — design for players who rush AND players who explore
+Give the protagonist goals, obstacles and conflicts that match what the player does in play. Space tense beats with quiet ones. Keep world logic consistent; see `quest-narrative-coherence` and `worldbuilding`.
 
-## Narrative Frameworks
+## Plan branching
 
-### Three-Act Structure (Adapted for Games)
-```
-Act 1 — Setup (10-20% of game)
-  Hook → World introduction → Inciting incident → Player given agency
+Choice trees grow fast: ten levels of three choices give a tree of 88,573 nodes (Schell's figure). You cannot write or test the full tree. Decide how you will cut it before you write branches.
 
-Act 2 — Confrontation (60-70% of game)
-  Rising challenges → Major choices → Consequences compound → Midpoint twist
+1. List the choices the player must feel. Mark the rest as flags that change later text, not new scenes.
+2. Converge branches where you must. Convergence cheapens the early choices, so carry their effects forward: the world, the dialogue and the available options change after the merge, even if the next scene does not.
+3. Plan the endings. Equal endings rarely work: players ask which one is the real one and dislike replaying to see the rest. Prefer one ending shaped by tracked choices. If you want two endings, make each a full, different story, such as a light path and a dark path.
+4. Limit story verbs. Games offer few ways to speak or act in story terms, so each choice must map to something the game can show.
+5. Decide whether the player can undo. Undo removes tragedy from a loss.
+6. Test every path that remains after the cuts, from start to finish.
 
-Act 3 — Resolution (10-20% of game)
-  Climax → Final choice → Resolution shaped by prior decisions → Denouement
-```
+Use `templates/branching-diagram.md` to draw the graph and `templates/story-beat-template.md` to list beats, prerequisites and consequences.
 
-### Branching Narrative Model
-```
-         [Start]
-        /       \
-    [Choice A] [Choice B]
-      /    \      \
-  [A1]    [A2]  [B1]
-    \      |     /
-     [Convergence Point]
-        /       \
-   [Final A]  [Final B]
-```
+## Show consequences
 
-### Kishōtenketsu (Eastern Structure — No Conflict Required)
-```
-Ki (Introduction) → Shō (Development) → Ten (Twist/Revelation) → Ketsu (Conclusion)
-```
+A choice with no visible effect reads as no choice. Show the effect soon after the choice and again later. Do not invalidate a decision the player made on purpose.
 
-## Cross-References
+## Pitfalls
 
-- `quest-narrative-coherence` — story consistency validation
-- `worldbuilding` — world context
-- `character-design-narrative` — character arcs within the story
-- `quest-mission-design` — quests as story delivery mechanism
+- Choices that all lead to the same result. Players notice and feel cheated.
+- Gameplay that contradicts the story, such as a hero who mourns one death after killing hundreds in play.
+- Long non-interactive sequences that take control away.
+- Characters who explain the plot instead of the player seeing it.
+- Side stories with no link to the main arc.
 
-## Pitfalls & Anti-Patterns
+## Files
 
-- **"Illusion of choice"** — choices that all lead to the same outcome; players notice and feel cheated
-- **"Ludonarrative dissonance"** — gameplay contradicts the story (hero kills 500 people then mourns one death)
-- **"Cutscene prison"** — long non-interactive sequences that remove player agency
-- **"Exposition dump"** — characters explaining plot instead of showing it
-- **"Disconnected side stories"** — narrative content that feels irrelevant to the main arc
-
-## Designer Philosophy
-
-**Hideo Kojima** (Metal Gear Solid): Games have a unique narrative advantage — the player IS the character. Use this. Break the fourth wall. Make the player's real-world actions part of the story. The controller, the save file, the screen itself can all be narrative tools.
-
-**Ken Levine** (BioShock): "Would you kindly" works because it uses game mechanics as narrative. The best game stories are inseparable from the gameplay — they can't be a movie, they can't be a book. They can ONLY be a game.
-
-**Hidetaka Miyazaki** (Dark Souls): Not every player needs to understand the story. Layer narrative so casual players get the broad strokes, and dedicated players who read item descriptions and explore every corner find a deeper, richer story beneath.
-
-## Sources
-
-- "Narrative Design for Indie Games" — GDC 2020
-- "Writing for Games" — GDC 2018
-- "The Art of Game Design" — Jesse Schell, Chapters on Story
-- "Interactive Storytelling" — Chris Crawford
-- "Designing BioShock's Narrative" — Ken Levine, GDC 2014
+- `templates/branching-diagram.md`: copy when you document branches, merges and endings, in Mermaid or as an indented list.
+- `templates/story-beat-template.md`: copy when you plan beats by act, with choices and consequences.
+- `references/sources.md`: read when you need the source behind a claim here.

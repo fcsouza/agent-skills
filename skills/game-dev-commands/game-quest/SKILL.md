@@ -35,32 +35,7 @@ Execute in this exact order:
 
 ## Phase 1 — Coherence Check (mandatory — cannot be skipped under any circumstances)
 
-Run the 5-step check from `quest-narrative-coherence` against the quest name (the input):
-
-**Step 1: Load World State** — already done in Phase 0. Extract from world-lore.md:
-- Active factions and their relationships
-- Major characters and their current status
-- Available locations
-- Active conflicts, alliances, treaties
-- World timeline
-
-**Step 2: Check Quest Registry** — from docs/quest-registry.md identify:
-- NPCs already assigned to existing quests (cannot be in two places at once)
-- Locations that are already primary quest hubs
-- Reward amounts already distributed (economy inflation check)
-
-**Step 3: Validate Proposed Quest** — verify:
-- [ ] No faction/character/location name conflicts with existing quests
-- [ ] No contradictions with established lore
-- [ ] Referenced characters are alive and available
-- [ ] Referenced locations exist in the world
-- [ ] Proposed reward scale is consistent with existing economy
-
-**Step 4: Confirm Lore Reference** — the quest MUST:
-- Reference at least one established lore element (character, faction, location, event)
-- Build upon or advance at least one existing narrative thread
-
-**Step 5: Prepare Registry Entry** — draft the registry row (will be written in Phase 5 after the quest is finalized)
+Apply the `quest-narrative-coherence` skill to the quest name. Phase 0 already loaded the world and the registry (its steps 1 and 2). Run its steps 3 and 4 and draft the registry row for step 5. Write the row in Phase 5, after the quest is final.
 
 Output a **Coherence Report** BEFORE proceeding to Phase 2:
 
@@ -77,29 +52,14 @@ If ANY item is flagged 🔴: **STOP**. Describe the conflict clearly, propose a 
 
 ## Phase 2 — Quest Type Selection
 
-Based on the quest name/concept and world context, recommend one type from the taxonomy:
-
-| Type | Best for |
-|------|---------|
-| Main Story | Advances primary narrative arc |
-| Side Quest | Optional, enriches world |
-| Chain Quest | Multi-step, each unlocks next |
-| Branching | Player choice determines outcome |
-| Repeatable | Can be done multiple times |
-| Discovery | Triggered by exploration |
-| Social | Requires other players |
-| Timed | Must complete within deadline |
-| Collection | Gather a set of items |
-| Escort/Protect | Keep something safe |
+Based on the quest name/concept and world context, recommend one type from the list in `quest-mission-design`: `main`, `faction`, `side`, `chain`, `repeatable`, `discovery`, `social`, `timed`, `collection`, `escort`.
 
 Ask **at most 1 question** if the type is genuinely ambiguous. If the context makes it clear, proceed without asking.
 
 ## Phase 3 — Objective Tree
 
-Apply the principles from `quest-mission-design`:
-- Every quest must present meaningful choices (Sid Meier)
-- At least 2 ways to complete any significant quest (Jonathan Blow — anti-pattern: "one true path")
-- Quest must reveal something about the world (Miyazaki)
+Apply the rules in `quest-mission-design`:
+- Main and faction quests have at least 2 ways to complete them
 - No fetch quests without narrative purpose
 
 Output a Mermaid flow diagram showing the objective tree:
@@ -113,7 +73,7 @@ flowchart TD
   D --> F["Outcome B: [world consequence]"]
 ```
 
-Include sub-objectives (required vs optional bonus) where appropriate. If the quest is a simple Side Quest or Discovery type, a linear flow is acceptable — but note if it has no branching and explain why it's acceptable given the type.
+Include sub-objectives (required vs optional bonus) where appropriate. If the quest is a simple `side` or `discovery` quest, a linear flow is acceptable — but note if it has no branching and explain why it's acceptable given the type.
 
 ## Phase 4 — Quest Brief
 
@@ -154,7 +114,7 @@ Output the complete quest brief in GDD section format:
 
 ## Phase 5 — Register Quest
 
-Append the completed quest as a new row at the end of the table under the `## Active Quests` heading of `docs/quest-registry.md`, in the registry format. Do not add it to the Completed Quests or Planned Quests tables:
+Append the completed quest as a new row at the end of the table under the `## Active Quests` heading of `docs/quest-registry.md`, in the registry format. Do not add it to the Completed Quests or Planned Quests tables. Then append one row to the `## Economy Impact Log` table (`Quest ID | Currency Given | Items Given | Estimated Player Level`). The quest row:
 
 ```markdown
 | [QID] | [Quest Name] | [Type] | [Giver NPC] | [Location] | [Factions Affected] | [Rewards Summary] | [Prerequisites] | [Story Arc] |
@@ -180,5 +140,5 @@ If the quest introduces any NPC or location not currently in `docs/world-lore.md
 2. **Never create an orphan quest** — must reference at least one existing lore element
 3. **Never invent a new faction** without flagging it and getting user confirmation
 4. **Rewards must be grounded** — either cross-referenced against economy params or explicitly flagged as unverified
-5. **At least 2 completion paths** for Main Story, Side Quest, Chain, and Branching types
+5. **At least 2 completion paths** for `main` and `faction` quests only
 6. **Register every quest** — Phase 5 is not optional

@@ -10,7 +10,6 @@ export interface CurrencyFlowEntry {
 	timestamp: number;
 	currencyId: string;
 	amount: number;
-	/** Positive = faucet (currency entering), negative = sink (currency leaving) */
 	direction: "faucet" | "sink";
 	source: string;
 	playerId?: string;
@@ -45,6 +44,7 @@ export interface InflationThresholds {
 // Flow Tracker
 // ============================================================
 
+// Prototype and test tracker: this array grows without bound.
 const flows: CurrencyFlowEntry[] = [];
 
 export const trackFlow = (
@@ -97,8 +97,9 @@ export const getFlows = (filter?: {
 	if (filter?.currencyId) {
 		result = result.filter((f) => f.currencyId === filter.currencyId);
 	}
-	if (filter?.since) {
-		result = result.filter((f) => f.timestamp >= filter.since!);
+	const since = filter?.since;
+	if (since !== undefined) {
+		result = result.filter((f) => f.timestamp >= since);
 	}
 	if (filter?.playerId) {
 		result = result.filter((f) => f.playerId === filter.playerId);
@@ -114,13 +115,16 @@ export const clearFlows = (): void => {
 // Balance Calculator
 // ============================================================
 
-export const calculateBalance = (
+const summarize = (
 	currencyId: string,
-	windowMs?: number,
+	filter: { playerId?: string; windowMs?: number },
 ): FlowSummary => {
-	const since = windowMs ? Date.now() - windowMs : 0;
+	const since = filter.windowMs ? Date.now() - filter.windowMs : 0;
 	const relevant = flows.filter(
-		(f) => f.currencyId === currencyId && f.timestamp >= since,
+		(f) =>
+			f.currencyId === currencyId &&
+			f.timestamp >= since &&
+			(filter.playerId === undefined || f.playerId === filter.playerId),
 	);
 
 	let totalFaucet = 0;
@@ -147,6 +151,11 @@ export const calculateBalance = (
 	};
 };
 
+export const calculateBalance = (
+	currencyId: string,
+	windowMs?: number,
+): FlowSummary => summarize(currencyId, { windowMs });
+
 export const calculateAllBalances = (windowMs?: number): FlowSummary[] => {
 	const currencyIds = new Set(flows.map((f) => f.currencyId));
 	return Array.from(currencyIds).map((id) => calculateBalance(id, windowMs));
@@ -156,6 +165,7 @@ export const calculateAllBalances = (windowMs?: number): FlowSummary[] => {
 // Inflation Monitor
 // ============================================================
 
+// Starting values only. Tune them from your own playtest data.
 const DEFAULT_THRESHOLDS: InflationThresholds = {
 	low: 0.05,
 	medium: 0.15,
@@ -221,38 +231,7 @@ export const calculatePlayerBalance = (
 	playerId: string,
 	currencyId: string,
 	windowMs?: number,
-): FlowSummary => {
-	const since = windowMs ? Date.now() - windowMs : 0;
-	const relevant = flows.filter(
-		(f) =>
-			f.playerId === playerId &&
-			f.currencyId === currencyId &&
-			f.timestamp >= since,
-	);
-
-	let totalFaucet = 0;
-	let totalSink = 0;
-
-	for (const entry of relevant) {
-		if (entry.direction === "faucet") {
-			totalFaucet += entry.amount;
-		} else {
-			totalSink += entry.amount;
-		}
-	}
-
-	const netFlow = totalFaucet - totalSink;
-	const balanceRatio = totalFaucet === 0 ? 0 : netFlow / totalFaucet;
-
-	return {
-		currencyId,
-		totalFaucet,
-		totalSink,
-		netFlow,
-		balanceRatio,
-		entryCount: relevant.length,
-	};
-};
+): FlowSummary => summarize(currencyId, { playerId, windowMs });
 
 // ============================================================
 // Top Sources — identify biggest faucets/sinks
@@ -285,3 +264,64 @@ export const getTopSources = (
 		.sort((a, b) => b.total - a.total)
 		.slice(0, limit);
 };
+
+// ============================================================
+// Stage Simulation (pure, no tracker state)
+// ============================================================
+
+export interface StageRates {
+	name: string;
+	hours: number;
+	/** Currency entering per player per hour */
+	faucetPerHour: number;
+	/** Currency leaving per player per hour */
+	sinkPerHour: number;
+}
+
+export interface StageResult {
+	name: string;
+	faucet: number;
+	sink: number;
+	net: number;
+	/** Net per faucet. 0 = balanced, above 0 = inflow, below 0 = drain */
+	balanceRatio: number;
+	/** Per-player balance at the end of the stage */
+	endBalance: number;
+}
+
+/** Walks one player through each stage and reports the flow per stage. */
+export const simulateStages = (stages: StageRates[]): StageResult[] => {
+	let balance = 0;
+	return stages.map((stage) => {
+		const faucet = stage.faucetPerHour * stage.hours;
+		const sink = stage.sinkPerHour * stage.hours;
+		const net = faucet - sink;
+		balance += net;
+		return {
+			name: stage.name,
+			faucet,
+			sink,
+			net,
+			balanceRatio: faucet === 0 ? 0 : net / faucet,
+			endBalance: balance,
+		};
+	});
+};
+
+// ============================================================
+// Example run: bun boilerplate/economy-simulator.ts
+// Replace the rates with the numbers from your economy sheet.
+// ============================================================
+
+if (import.meta.main) {
+	const results = simulateStages([
+		{ name: "early", hours: 2, faucetPerHour: 200, sinkPerHour: 150 },
+		{ name: "mid", hours: 8, faucetPerHour: 500, sinkPerHour: 450 },
+		{ name: "late", hours: 40, faucetPerHour: 1000, sinkPerHour: 700 },
+	]);
+	for (const r of results) {
+		console.log(
+			`${r.name}: faucet ${r.faucet}, sink ${r.sink}, net ${r.net}, ratio ${r.balanceRatio.toFixed(2)}, end balance ${r.endBalance}`,
+		);
+	}
+}

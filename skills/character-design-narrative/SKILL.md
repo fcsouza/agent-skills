@@ -1,89 +1,58 @@
 ---
 name: character-design-narrative
-description: >-
-  Use when creating game characters, NPCs, character arcs, dialogue systems, archetypes, or character bibles. Triggers: character, NPC, dialogue, archetype, character bible, motivation arc.
+description: Covers designing game characters: NPCs, companions, antagonists, player avatars, character bibles and branching dialogue. Use when a game needs a new character written, an NPC feels flat or interchangeable, or dialogue needs a branching format with conditions and effects.
 ---
 
 # Character Design (Narrative)
 
-## Purpose
+Read `worldbuilding` first when the game has a world; characters must fit its rules. Check new characters against `quest-narrative-coherence` so they do not contradict established lore.
 
-Character archetypes, motivation arcs, dialogue systems, and character bibles for game characters. Genre-agnostic — applies to any game with characters, NPCs, or player-created identities.
+## Principles
 
-## When to Use
+1. Every character wants something. That want drives what they do.
+2. Keep behaviour consistent. A character who acts out of type needs a story event that explains it.
+3. Give NPCs routines and goals that do not depend on the player.
+4. Show personality in action and in dialogue and animation, not in exposition.
+5. Give each character a flaw or contradiction. Test the design for inner contradictions that work against the game's purpose.
+6. Give each character a distinct voice. A player should tell two NPCs apart without seeing names.
 
-Trigger: character design, NPC design, character arc, dialogue system, character bible, character motivation, archetype, companion, antagonist, player character, voice, personality, character writing
+## Design steps
 
-## Prerequisites
+1. List the functions the character serves: quest giver, shop, companion, boss, tutorial, lore.
+2. Pick several traits. Decide how dialogue and animation will show each one.
+3. Plot relationships. Place each pair on two axes: hostile to friendly, and submissive to dominant. Draw a character web of who feels what about whom. Mark who has higher status.
+4. Plan any visible transformation: how the character looks or acts before and after their arc.
+5. For a player avatar, choose between an idealised form and a blank, iconic slate the player fills in.
+6. Fill in the bible: copy `templates/character-bible.md` when a character is significant. Minor characters need only Identity and Gameplay Role.
+7. Write dialogue: copy `templates/dialogue-tree.md` when a conversation branches, has conditions, or sets flags.
 
-- `worldbuilding` — characters must fit the world
-- `quest-narrative-coherence` — character actions must be consistent with established lore
+Writing a diverse cast takes research and care, and carries the risk of getting it wrong. Treat that as a reason to research, not to avoid it.
 
-## Core Principles
+## Multiplayer and MMO characters
 
-> Hideo Kojima: "Characters should feel like they exist beyond the player's experience of them."
-> Hidetaka Miyazaki: "Every character has a history. The player sees only the tip of the iceberg."
-> Jenova Chen: "Characters don't need words to communicate. Presence and movement tell the story."
+- Players often keep several characters per account. Decide early how many slots, and whether wallets and inventory belong to a character or to the account. `postgres-game-schema` keys player data to the account; add a characters table if players get several.
+- Plan for abuse of multiple characters: disposable characters used to move risk or gear to a main.
+- Names must be unique within whatever scope you choose, such as per shard.
 
-1. **Characters want things** — every character (NPC or player) must have a clear motivation that drives their actions
-2. **Consistency over surprise** — a character acting out of established personality must be justified by narrative events
-3. **Characters exist beyond the player** — NPCs should have lives, routines, and goals independent of the player's actions
-4. **Show personality through action** — what a character DOES reveals more than what they SAY
-5. **Flaws make characters interesting** — perfect characters are forgettable; memorable characters have contradictions
-6. **Archetypes as starting points** — use archetypes for structure, then subvert or deepen them
-7. **Voice consistency** — each character should have a distinct way of speaking that a player could identify without names
+## Pitfalls
 
-## Character Archetype Toolkit
+- Walking exposition: the NPC exists only to deliver information.
+- Personality-free quest giver: a quest marker with a face.
+- Sudden betrayal with no foreshadowing.
+- One-note villain with no understandable motive.
+- Static cast: nobody changes across the game.
+- Everyone talks the same.
 
-| Archetype | Core Trait | Typical Role | Subversion Example |
-|-----------|-----------|-------------|-------------------|
-| Mentor | Wisdom | Guide player early | Mentor has hidden agenda |
-| Trickster | Deception | Comic relief / chaos | Trickster is the most honest character |
-| Guardian | Protection | Block progress until ready | Guardian is protecting something terrible |
-| Herald | Information | Deliver news / quests | Herald's news is always wrong |
-| Shadow | Opposition | Antagonist / dark mirror | Shadow is justified in their actions |
-| Ally | Support | Help in challenges | Ally has their own quest that conflicts |
-| Shapeshifter | Ambiguity | Uncertain loyalty | Shapeshifter is the only constant |
+## Related skills
 
-## Character Bible Structure
+- `worldbuilding`: the world's rules.
+- `quest-narrative-coherence`: consistency checks.
+- `story-structure-game`: where character arcs sit in the plot.
+- `quest-mission-design`: characters as quest givers.
+- `elevenlabs-sound-music`: voice acting.
 
-For each significant character, document:
-1. **Identity**: Name, age, appearance, role, faction
-2. **Motivation**: What they want (public) and what they need (hidden)
-3. **History**: Backstory that explains their current state
-4. **Personality**: 3-5 defining traits, speech patterns, quirks
-5. **Relationships**: Connections to other characters
-6. **Arc**: How they change over the story (or why they don't)
-7. **Gameplay role**: What they do mechanically (quest giver, shop, companion, boss)
+## Files
 
-## Cross-References
-
-- `worldbuilding` — characters exist within the world's rules
-- `quest-narrative-coherence` — character consistency validation
-- `story-structure-game` — character arcs within narrative structure
-- `quest-mission-design` — characters as quest givers and participants
-- `elevenlabs-sound-music` — voice acting for characters
-
-## Pitfalls & Anti-Patterns
-
-- **"Walking exposition"** — NPC exists only to deliver information
-- **"Personality-free quest giver"** — NPC with no personality, just a quest marker
-- **"Sudden betrayal"** — character betrays without foreshadowing; feels cheap
-- **"One-note villain"** — antagonist with no understandable motivation
-- **"Static cast"** — no character changes or grows throughout the game
-- **"Everyone talks the same"** — all NPCs have identical voice/personality
-
-## Designer Philosophy
-
-**Hideo Kojima** (Metal Gear Solid): Characters are more than their function. The Boss, Ocelot, and Otacon all exist as complete people with histories, philosophies, and motivations. Even minor characters have enough depth that players wonder about their lives off-screen.
-
-**Hidetaka Miyazaki** (Dark Souls, Elden Ring): The most compelling characters are the ones you piece together. Solaire's sunny optimism in a dying world, Siegmeyer's fading courage — their stories unfold through brief encounters and item descriptions, creating a bond stronger than any cutscene.
-
-**Jenova Chen** (Journey): Sometimes the most powerful character is another player. Journey's companions communicate without words, creating genuine emotional connection through shared experience. Characters don't always need dialogue to be memorable.
-
-## Sources
-
-- "Creating Compelling Game Characters" — GDC 2016
-- "Writing Diverse Characters" — GDC 2019
-- "The Writer's Journey" — Christopher Vogler (adapted for games)
-- "Character Design for Games" — GDC 2018
+- `templates/character-bible.md`: copy when documenting a significant character.
+- `templates/dialogue-tree.md`: copy when authoring branching dialogue.
+- `references/sources.md`: read when you need the citations behind the design steps.

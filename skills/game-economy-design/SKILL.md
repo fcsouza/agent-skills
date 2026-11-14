@@ -1,97 +1,56 @@
 ---
 name: game-economy-design
-description: >-
-  Use when designing virtual economies, currencies, sink/faucet balance, loot tables, crafting systems, shops, or inflation control. Triggers: economy, currency, sinks, loot, inflation, crafting, shop.
+description: Covers how players earn and spend in-game currency: faucets and sinks, inflation and deflation, shop prices, loot and reward tables, crafting loops and exploit review. Use when a game needs a currency plan, drop rates or prices to tune, or a check that currency flow stays balanced.
 ---
 
 # Game Economy Design
 
-## Purpose
+An economy is two choices in a loop: how players earn, and how they spend. Any tradable thing counts as money, skill points included.
 
-Virtual currencies, sinks/faucets, inflation control, reward balancing, and monetization integration. Genre-agnostic — applies to any game with resources, currencies, or tradeable items.
+## Procedure
 
-## When to Use
+1. **List currencies.** For each: name, how earned, how spent, what a reset does to it, cap. Copy `templates/economy-config.md` when you need the sheet. Its numbers are placeholders.
+2. **Map faucets.** A faucet creates currency from nothing. A transfer between players is not a faucet. List every one: combat, quests, daily login, NPC buyers, insurance payouts.
+3. **Map sinks.** A sink destroys currency. Examples: shop prices (best on consumables), repair and upkeep, market taxes and broker fees, services players dislike doing (teleports priced by use), items that wear out, fees to exchange between currencies.
+4. **Pick the model.** Default to an open faucet-and-drain economy that you manage. A closed economy (fixed money) is hard to balance, sensitive to bugs and easy to gouge, and no one has built one for a large world. If the game has little persistence, ask whether it needs an economy at all.
+5. **Choose reward form.** Reward goods, not coin, where you can. Goods float with supply and demand. Fixed cash drops feel unfair once prices move. Goods inflate too: an item everyone owns is worth nothing.
+6. **Set prices.** Fixed prices work only if the money a player can hold is capped. With unbounded money, fixed prices drift toward free, and crafters who sell at fixed prices lose first.
+7. **Pick a cost curve on purpose.** Linear, exponential (1, 2, 4, 8, 16), triangular (1, 3, 6, 10, 15) or decreasing. Exponential numbers get large fast. Cost growth against income growth is your decision, so simulate it.
+8. **Simulate before you ship.** Read `boilerplate/economy-simulator.ts` when you need to check balance. Run its `simulateStages` with your per-stage faucet and sink rates, or run the file with `bun boilerplate/economy-simulator.ts` for the built-in example. Fix any stage whose net flow is not where you want it. The in-memory tracker is for prototypes and tests. A live game writes each currency flow to the database (`postgres-game-schema`) and aggregates there.
+9. **Design drops.** Use weighted tables with guaranteed drops and, where drops feel unfair, a pity counter. Copy `templates/loot-table.ts` when you need the types, including the optional `pity` field. The game keeps the counter per player. Price a conditional reward at its expected value: benefit times how often the condition holds.
+10. **Review for exploits.** Assume players will find any loop that pays. Check every stack split, trade and drop path as a duplication surface. Check craft, sell and buy cycles for net gain. Cap offline and queued activity or players run mule factories.
+11. **Add monetization last.** Selling power needs very careful balancing and attracts a narrow player type. Selling time, cosmetics and convenience is the safer default. For premium currency and purchases use `stripe-game-payments`.
 
-Trigger: game economy, virtual currency, sinks and faucets, inflation, reward balance, loot tables, crafting economy, marketplace, monetization, pricing, premium currency, gold sinks, resource balance
+## What to track in a live game
 
-## Prerequisites
+- Total money supply, per currency (the float).
+- Faucet and sink totals per source. `getTopSources` lists the biggest.
+- A price index over a fixed basket of goods.
+- Median and mean wealth per player. A median far below the mean means a few players hold most of it.
+- ARPU and ARPPU, to see whether the problem is acquisition, conversion or retention.
 
-- `game-design-fundamentals` — core loop understanding
-- `postgres-game-schema` — currency and item data models
+Watch for deflation as well as inflation. In EverQuest's Norrath, a 29-item price index fell 29 percent in one year. Set your own target ranges from playtest data. This skill gives no universal numbers.
 
-## Core Principles
+If inflation shows, cut the positive-sum sources or add sinks.
 
-> Sid Meier: "A game is a series of interesting decisions" — economy makes decisions meaningful.
-> Richard Garfield: "Elegant systems create depth from simple rules."
-> Raph Koster: "Players will optimize the fun out of your game" — design economies that stay fun when optimized.
-> Will Wright: "Simulation systems generate emergent behavior" — economies should emerge, not be scripted.
+## Pitfalls
 
-1. **Every faucet needs a sink** — if players earn currency, they must spend it; otherwise inflation destroys the economy
-2. **Two-currency model** — soft currency (earned in-game, plentiful) + hard currency (premium, scarce, optional) keeps free players engaged while monetizing
-3. **Exponential costs, linear income** — the natural idle game pattern; cost scaling must outpace earning to maintain engagement
-4. **Price anchoring** — establish what things "should" cost early; players will judge all future prices against the first items they buy
-5. **Never sell power directly** — sell time, cosmetics, convenience; pay-to-win destroys retention (Sid Meier principle)
-6. **Closed-loop economy** — track total currency in circulation; if it grows unbounded, you have a leak
-7. **Test with spreadsheets first** — simulate 100 hours of play before coding; if the spreadsheet breaks, the game will too
+- Hyperinflation: faucets with no sinks.
+- Dead economy: nothing worth buying, so currency piles up.
+- Currency confusion: too many currencies.
+- Duping and exploit loops: one bad stack or trade path can mint currency.
+- Early abundance: players expect the early rate forever.
+- Players quit rather than accept a bad market, and they gouge a market they can model. Guaranteed NPC buyers remove the reason to make what players want.
+- Adjusting prices by hidden levers erodes trust. Players see the effect, not the mechanism.
+- Players tune toward the optimum: given the chance, they optimize the fun out of a game. Make the optimal path fun.
 
-## Step-by-Step Instructions
+## Files
 
-### 1. Define Currencies
-List every currency: name, how earned, how spent, persistence on reset.
+- `templates/economy-config.md`: copy when you start a new economy sheet.
+- `templates/loot-table.ts`: copy when you need loot table types and rarity weights.
+- `boilerplate/economy-simulator.ts`: read when you need the flow tracker, inflation alerts or the stage simulation.
+- `references/sources.md`: read when you need the source behind a claim.
 
-### 2. Map Faucets (Income Sources)
-Every way players earn currency: combat rewards, quest rewards, daily login, achievements, trading.
+## Related skills
 
-### 3. Map Sinks (Spending Destinations)
-Every way players spend: upgrades, crafting, shop, repairs, fees, taxes, cosmetics.
-
-### 4. Balance the Spreadsheet
-Create a spreadsheet simulating player income vs. spending over time. Target: net currency growth should be slow or zero at every stage.
-
-### 5. Define Reward Tables
-Use weighted random for drops, with pity system for rare items. Cross-reference `quest-mission-design` for quest rewards.
-
-### 6. Integrate Monetization
-Map premium currency to Stripe products via `stripe-game-payments`. Ensure premium currency can't break game balance.
-
-## Economy Health Metrics
-
-| Metric | Healthy Range | Warning Sign |
-|--------|-------------|-------------|
-| Daily currency earned / spent ratio | 0.8-1.2 | > 1.5 (inflation) or < 0.5 (deflation) |
-| Median player currency held | 2-5x average purchase cost | > 20x (nothing to buy) |
-| Premium conversion rate | 2-5% of active players | < 1% (too expensive) or > 15% (too aggressive) |
-| Time to first meaningful purchase | 5-15 minutes | > 30 min (slow start) |
-
-## Cross-References
-
-- `postgres-game-schema` — currency and item table schemas
-- `stripe-game-payments` — premium currency and IAP integration
-- `quest-mission-design` — quest reward balancing
-- `game-design-fundamentals` — core loop reward schedules
-- `redis-game-patterns` — leaderboard caching for economy rankings
-
-## Pitfalls & Anti-Patterns
-
-- **"Hyperinflation"** — unlimited faucets with no sinks; currency becomes worthless
-- **"Pay-to-win"** — selling direct gameplay advantages; kills free player retention
-- **"Currency confusion"** — too many currency types; players can't understand what to spend
-- **"Dead economy"** — nothing interesting to buy; currency accumulates uselessly
-- **"Exploitable loops"** — crafting or trading loops that generate infinite value
-- **"Early abundance"** — giving too much currency early; players expect it forever
-
-## Designer Philosophy
-
-**Sid Meier**: The economy exists to make decisions interesting. If every choice has an obvious best option, the economy has failed. Players should regularly face "do I buy upgrade A or save for upgrade B?" dilemmas.
-
-**Richard Garfield** (Magic: The Gathering): The best economies emerge from simple, elegant rules. A few well-designed resource types with clear trade-offs create more depth than a dozen currencies that nobody understands.
-
-**Raph Koster**: Players will find the optimal farming strategy and grind it. Design your economy so that even the optimal path is fun, and the sub-optimal paths are still viable.
-
-## Sources
-
-- "Designing Virtual Economies" — GDC 2017
-- "Free-to-Play Game Economies" — GDC 2019
-- "Theory of Fun" — Raph Koster
-- "The Art of Game Design" — Jesse Schell, Chapter on Game Mechanics
-- Stripe gaming best practices documentation
+`game-design-fundamentals` (core loop), `postgres-game-schema` (currency and item tables), `stripe-game-payments` (real-money purchases), `quest-mission-design` (quest rewards), `procedural-gen` (seeded random content; this skill owns the loot table types, and the game supplies the roller).

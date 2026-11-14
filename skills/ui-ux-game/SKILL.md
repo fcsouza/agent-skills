@@ -1,87 +1,68 @@
 ---
 name: ui-ux-game
 description: >-
-  Use when designing game UI — HUD patterns, menu systems, onboarding flows, feedback loops, accessibility features, or notification systems. Triggers: HUD, menu, onboarding, accessibility, UI, UX, game interface.
+  Covers in-game interface design: HUD, menus, tutorials and onboarding, input feedback, and accessibility options. Use when building or reviewing a game's HUD, menu, tutorial, settings screen or accessibility options. Not for web or app UI outside games.
 ---
 
-# UI/UX Game Design
+# Game UI and UX
 
-## Purpose
+Related skills: `game-design-fundamentals` (feedback loops and rewards), `level-design` (tutorial levels), `elevenlabs-sound-music` (audio feedback).
 
-HUD patterns, menu systems, feedback loops, onboarding, and accessibility for any game type. Genre-agnostic — the same principles apply whether you're building an idle clicker, an MMO, or a puzzle game.
+## Principles
 
-## When to Use
+1. Show only what the player needs now. Ask, for each element: what must the player know, what do they want to know, and what feedback gets that across. Cut the element if nothing answers. (Schell, ch. 13)
+2. Answer every input at once. Keep input-to-first-feedback under about 100 ms; 50 ms reads as instant. Give some visible, audible or tactile result in the same frame, even if the full effect comes later. (Swink, ch. 2)
+3. Keep one meaning per control and per color. The same button does the same thing on every screen.
+4. Keep key state visible: health, progress, currency, status. Players should not have to guess what is happening.
+5. Show every mode change in more than one way, such as color plus icon plus sound. Keep overlapping modes on different input channels. (Schell, ch. 13)
+6. Design accessibility in from the first screen. Do not add it after launch.
+7. Size touch targets at 44 by 44 CSS pixels where you can. WCAG 2.2 sets 24 by 24 as the minimum (level AA) and 44 by 44 as the enhanced size (level AAA).
 
-Trigger: game UI, game UX, HUD, menu system, game feedback, onboarding, tutorial, accessibility, game interface, notification system, settings menu, inventory UI, tooltip, progress bar, game menu
+Minimal interfaces work. ICO has no health bars, no score and no map; the player holds Yorda's hand with a button. Super Mario Bros World 1-1 teaches with the placement of blocks, goombas and pipes. Both are secondary accounts, so treat them as examples, not rules. See `references/sources.md`.
 
-## Prerequisites
+## Pick a pattern
 
-- `game-design-fundamentals` — feedback loop and player motivation context
+| Need | Pattern |
+|---|---|
+| Always-visible state | HUD overlay, fixed position, small footprint |
+| Quick action choice | Radial menu on hold or right-click |
+| Many systems | Tabs with badges for new content |
+| Confirm or important info | Modal dialog; it blocks play, so use it sparingly |
+| Non-critical update | Toast that dismisses itself and stacks |
+| Detail on demand | Tooltip on hover or long-press |
+| Advancement | Progress bar, linear or radial, with milestones |
+| Item management | Grid with drag-drop, sort, filter and search |
 
-## Core Principles
+Copy `boilerplate/hud-components.ts` when you need typed HUD element shapes (health bar, resource display, notification queue, minimap, tooltip, crosshair, action bar). It has no dependencies.
 
-> Fumito Ueda: "Minimalism amplifies emotional impact. Remove everything that doesn't serve the experience."
-> Jenova Chen: "The interface should be invisible — players should feel, not read."
-> Shigeru Miyamoto: "Good UI teaches through interaction, not instruction."
+## Onboarding
 
-1. **Less is more** — show only what the player needs right now; progressive disclosure for complex systems (Ueda)
-2. **Feedback is instant** — every player action produces immediate visual + audio response (Chen)
-3. **Teach by doing** — tutorials should be interactive, not text walls; the best tutorial is no tutorial at all (Miyamoto)
-4. **Consistency breeds intuition** — same patterns everywhere: same button = same action, same color = same meaning
-5. **Accessibility is not optional** — colorblind modes, scalable text, remappable controls, screen reader support
-6. **Mobile-first responsive** — design for smallest screen first, scale up; touch targets minimum 44px
-7. **State is always visible** — player should never wonder "what's happening?" — show health, progress, currency, status
+Apply these rules from Hodent's GDC 2016 talk. Each is a rule of thumb from one author, not a measured law.
 
-## Key UI Patterns
+- Teach at most three things at the same time.
+- Give the reason for a rule before the detail.
+- Do not punish the player while they are still learning something.
+- Show tutorial text when the player can act on it. Text on a loading screen is rarely remembered.
+- Do not offer false affordances: an item that looks useful but is not misleads the player and makes the right lesson harder.
 
-| Pattern | Use Case | Implementation |
-|---------|----------|---------------|
-| HUD overlay | Always-visible game state | Fixed position, minimal footprint |
-| Radial menu | Quick action selection | Triggered by hold/right-click |
-| Tab navigation | Multi-system management | Tabs with badge indicators |
-| Modal dialog | Confirmations, important info | Blocks game, requires action |
-| Toast notification | Non-critical updates | Auto-dismiss, stackable |
-| Tooltip | Contextual details | Hover/long-press, positioned smart |
-| Progress bar | Show advancement | Linear or radial, with milestones |
-| Inventory grid | Item management | Drag-drop, sort, filter, search |
+## Usability review
 
-## Onboarding Flow
+Check each screen against Hodent's seven pillars (adapted from Nielsen's heuristics): signs and feedback, clarity, form follows function, consistency, minimum workload, error prevention and recovery, flexibility and accessibility.
 
-```
-1. First interaction → teach core mechanic (no text, just do it)
-2. First reward → show feedback system (number go up, sound, visual)
-3. First choice → teach decision-making (two options, clear difference)
-4. First failure → teach recovery (low stakes, quick retry)
-5. First system unlock → teach progressive disclosure (new tab appears)
-```
+## Accessibility
 
-## Cross-References
+Read `templates/accessibility-checklist.md` when you design or test a settings or accessibility screen. Every item in it traces to the Game Accessibility Guidelines or to WCAG 2.2.
 
-- `game-design-fundamentals` — feedback loops and reward schedules
-- `level-design` — tutorial level integration
-- `elevenlabs-sound-music` — audio feedback integration
+## Pitfalls
 
-## Pitfalls & Anti-Patterns
+- UI soup: so many elements that the player cannot focus.
+- Tutorial wall: text before the player has done anything.
+- Hidden state: critical information not on screen.
+- Inconsistent controls: one button, different actions on different screens.
+- Slow feedback: nothing visible within about 100 ms of input.
+- A wait over about 10 seconds with no progress display. This limit comes from Nielsen's general interface research, not from games.
+- Accessibility bolted on at the end.
 
-- **"UI soup"** — too many elements on screen at once; players can't focus
-- **"Text tutorial"** — pages of instructions before the player does anything
-- **"Hidden information"** — critical game state not visible; player feels lost
-- **"Inconsistent controls"** — same button does different things in different screens
-- **"No feedback"** — player clicks and nothing visually happens for 200ms+
-- **"Accessibility afterthought"** — adding colorblind mode after launch; it should be designed in
+## Files
 
-## Designer Philosophy
-
-**Fumito Ueda** (ICO, Shadow of the Colossus): The best UI is invisible. In ICO, there's no HUD — the player grips Yorda's hand, and that IS the interface. Every UI element you add should justify its existence against the alternative of removing it entirely.
-
-**Jenova Chen** (Journey, Flower): UI should create emotional connection, not information overload. In Journey, the entire "multiplayer UI" is another player's presence. No health bars, no names, no chat — just shared experience through minimal interface.
-
-**Shigeru Miyamoto** (Mario, Zelda): The best tutorials are the ones players don't notice. World 1-1 of Super Mario Bros teaches running, jumping, enemies, power-ups, and secrets — all without a single line of text.
-
-## Sources
-
-- "The Invisible Interface" — Fumito Ueda, GDC 2006
-- "Designing Journey" — Jenova Chen, GDC 2013
-- "Game Feel" — Steve Swink
-- "Don't Make Me Think" — Steve Krug (applies to game UI too)
-- WCAG 2.1 accessibility guidelines adapted for games
+- `references/sources.md`: read when you need the page behind a claim above.

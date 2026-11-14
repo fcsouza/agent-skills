@@ -1,134 +1,92 @@
 ---
 name: level-design
 description: >-
-  Use when designing game levels, environments, difficulty curves, pacing, encounter placement, or spatial layouts for any game genre. Triggers: level, pacing, difficulty curve, encounter, environment, spatial design.
+  Level layout, pacing, encounter placement and difficulty curves for any genre. Use when planning a new level or area, fixing players who get lost, stuck or bored, tuning how difficulty rises across a game, or writing a level design document.
 ---
 
 # Level Design
 
-## Purpose
+## Files
 
-Environment layout, pacing, difficulty curves, accessibility, and spatial design for any game type.
+- Copy `templates/level-design-doc.md` when you start a level. It holds the layout sketch, beats and encounter list.
+- Copy `templates/encounter-template.md` when you design one encounter: win, fail and recovery.
+- Read `templates/difficulty-curve.md` when you plan difficulty across the game or one level, or pick difficulty modes.
+- Copy `boilerplate/difficulty-curve.ts` when code must compute a difficulty value from a level number or from the gap between player and area level. Treat the curve shapes as starting points to tune, not as tested values.
+- Read `references/sources.md` when you need the source behind a claim here.
 
-## When to Use
+## Procedure
 
-Trigger: level design, environment layout, pacing, difficulty curve, level flow, spatial design, map design, area design, zone design, encounter design, tutorial level.
+### 1. Concept
 
-## Prerequisites
+1. State the level's purpose in the game's progression: what the player learns, feels or achieves.
+2. Name the mechanic the level introduces, tests or twists.
+3. Write the emotional arc: start, middle, end. A good experience has a hook, rising interest with short rests, and a finale larger than what came before.
+4. Set the constraints: playtime, difficulty band, technical budget.
 
-- `game-design-fundamentals`
+### 2. Mission, then space
 
-## Core Principles
+Treat the mission (what the player does, in what order, and why) and the space (geometry) as two structures. Write the mission as a list of tasks, locks and keys first. Then lay out a space that supports it. The mission needs flow and pacing. The space needs connectedness, distance and signposting.
 
-1. **"The level teaches the mechanic"** — Miyamoto. Every level introduces, tests, then twists a mechanic. The player should understand through doing, not reading.
+### 3. Layout
 
-2. **Pacing is rhythm** — Alternate intensity (combat/puzzle) with rest (exploration/story). A level without pacing variation is monotonous. Think of it like music: tension, release, tension, release.
+5. Sketch a top-down map. Mark entry and exit, the main path, side paths, encounters, rest areas and landmarks.
+6. Pick the space structure on purpose: linear, grid, web, points in space, or divided space. Mixing them is normal.
+7. Give every area a landmark. If you cannot say "you are near the X" for an area, add one. Uniform space is as dull as uniform chaos.
+8. Keep a clear main path. Steer with constraints, goals, interface, visual design, characters and music. The player needs to feel free, not to be free.
+9. Tie distances to the avatar. Set platform gaps, corridor width and cover spacing from the avatar's speed and jump, and retune both together when either changes. A long, empty run at a speed that serves no gameplay makes players zone out: add objects or decisions along it.
+10. Write the three beats for the main path: introduce the mechanic in a safe place, test it with more complexity, then twist it.
 
-3. **Spatial storytelling** — The environment tells a story without words. Broken furniture, scorch marks, an abandoned camp — the player pieces together what happened. Miyazaki's environmental narrative rewards observation.
+### 4. Pacing
 
-4. **The golden path with optional detours** — There must be a clear main route so no player gets lost, but rewarding side paths for the curious. Jenova Chen's flow theory: the player should always feel pulled forward, never stuck.
+11. Draw the interest curve for the level: intensity against progress. Draw it for each major encounter too, since the same shape repeats at every scale.
+12. Put a rest between peaks. Cut flat stretches. Padding them dulls the later peaks.
+13. Make the finale the largest peak, then give a reward or a cool-down.
+14. Raise difficulty in a sawtooth: step up, then give a moment where the player beats something that once beat them or uses an old skill on a harder problem. A straight ramp gives no sense of growth.
+15. Make the first levels very easy. Learning the controls is a challenge by itself.
 
-5. **Difficulty is a curve, not a line** — Ramp, plateau, spike, rest. Never linear increase. Jonathan Blow's principle of mechanic honesty: each challenge should feel like a genuine insight, not an arbitrary wall.
+### 5. Teaching
 
-6. **Accessibility is not optional** — Multiple difficulty modes, clear visual language, colorblind support, subtitles, remappable controls. Fumito Ueda's restraint and clarity: if a player can't parse what's happening, the design has failed.
+16. Teach by doing. Follow the onboarding rules in `ui-ux-game`.
 
-7. **Playtesting reveals truth** — Your intuition about difficulty is wrong until proven by playtesters. Watch players silently. Where they get stuck is where your design failed, not where the player failed.
+### 6. Encounters and puzzles
 
-## Step-by-Step Instructions
+17. Fill in `templates/encounter-template.md` for each encounter. Answer: what does the player learn or prove, what happens on failure, and is there more than one valid approach?
+18. For puzzles: make the goal obvious, make starting easy, show progress, and raise difficulty gradually. Give parallel puzzles so a stuck player can switch. Stack small puzzles into a pyramid that feeds a final one.
+19. Check the difficulty of each encounter against the level's curve.
+20. Do not use hidden dynamic difficulty as the fix for a bad curve. `game-design-fundamentals` lists its three costs. If you use adaptive changes anyway, follow the rules in `templates/difficulty-curve.md`.
 
-### Phase 1: Concept
+### 7. Environmental storytelling
 
-1. Define the level's **purpose** in the overall game progression. What does the player learn, feel, or achieve here?
-2. Identify the **core mechanic(s)** this level introduces, tests, or twists.
-3. Determine the **emotional arc** — what should the player feel at the start, middle, and end?
-4. Set **constraints**: estimated playtime, difficulty band, technical budget.
+21. Put details in the environment that imply what happened: a locked door with claw marks says more than a log entry. Never put them on the critical path.
 
-### Phase 2: Layout
+### 8. Accessibility pass
 
-5. Sketch a **top-down layout** (pen and paper or text diagram). Mark:
-   - Entry and exit points
-   - Main path (golden path)
-   - Side paths and optional areas
-   - Encounter locations
-   - Rest areas / safe zones
-   - Key landmarks for orientation
-6. Apply the **three-beat structure** to the main path:
-   - **Introduction**: teach or reintroduce the mechanic in a safe context.
-   - **Development**: test the mechanic with increasing complexity.
-   - **Twist**: combine the mechanic with something unexpected or subvert expectations.
-7. Place **landmarks** so the player always knows where they are. If you can't describe "you're near the [landmark]" for every area, add more landmarks.
+22. Check that every important element reads without color alone.
+23. Give each audio cue a visual alternative.
+24. Check that the critical path needs no precision timing, or offer an alternative.
+25. Check text size, subtitles and input remapping. See `ui-ux-game` for the full checklist.
 
-### Phase 3: Pacing
+### 9. Playtest
 
-8. Map **intensity over time** using a pacing graph. Plot encounters by intensity (1-10) against progression (0-100%).
-9. Ensure **valleys** exist between peaks. Two high-intensity encounters back-to-back is exhausting. Insert exploration, story, or resource gathering between them.
-10. Place the **climax** at roughly 75-85% through the level, then provide resolution / reward.
-
-### Phase 4: Encounters
-
-11. Design each encounter using the encounter template. For every encounter, answer:
-    - What is the player supposed to learn or prove?
-    - What happens if they fail?
-    - Is there more than one valid approach?
-12. Ensure **difficulty progression** within the level matches the difficulty curve template.
-
-### Phase 5: Environmental Storytelling
-
-13. Add **environmental details** that reward observation. These should never block progress but should enrich the experience.
-14. Use the **show, don't tell** principle. A locked door with claw marks tells more than a text log explaining "the creature escaped."
-
-### Phase 6: Accessibility Pass
-
-15. Review all visual communication — can a colorblind player parse every important element?
-16. Ensure all audio cues have visual alternatives.
-17. Check that the critical path is navigable without precision timing (or provide an alternative in accessibility mode).
-18. Verify text readability, subtitle availability, and input remapping support.
-
-### Phase 7: Playtest
-
-19. Run **silent playtests** — watch without helping. Record where players:
-    - Get lost (navigation failure)
-    - Get stuck (difficulty spike)
-    - Get bored (pacing failure)
-    - Miss content (discoverability failure)
-20. Iterate based on playtest data, not personal preference.
-
-## Code Examples
-
-N/A — this is a design skill. Implementation code lives in `game-backend-architecture`.
-
-## Cross-References
-
-- `game-design-fundamentals` — Core design pillars and mechanics framework.
-- `quest-mission-design` — Mission/quest structure that overlays on level layouts.
-- `worldbuilding` — Lore, world rules, and narrative context for environments.
-- `ui-ux-game` — HUD, minimap, waypoints, and player guidance systems.
+26. Plan and run the test as in `game-design-fundamentals`. For a level, log events such as time per area and deaths per encounter.
+27. Watch silently. Record where players get lost, get stuck, get bored or miss content. Test novices and experts.
+28. Change the level from what you saw, not from preference. Where players get stuck is a design failure.
 
 ## Pitfalls
 
-- **Linear corridors with no player choice** — Even a simple fork that reconnects gives the player agency. Straight lines feel like you're being pushed.
-- **Difficulty spikes without buildup** — A sudden hard encounter after easy ones feels unfair. Ramp into difficulty so the player feels prepared.
-- **Empty spaces that waste player time** — Every area should have a purpose: encounter, story, resource, or scenic reward. Walking through nothing is not "atmosphere," it's boredom.
-- **Inconsistent visual language** — If glowing objects mean "interactable" in one area, they must mean that everywhere. Breaking visual conventions confuses players.
-- **Tutorial levels that are boring** — The tutorial IS the game. If the tutorial isn't fun, players quit before reaching the "real" game.
-- **Overreliance on text or UI for guidance** — If you need a waypoint marker to prevent players from getting lost, the level layout itself has failed. Fix the layout first, add markers as a secondary aid.
-- **Designing for yourself instead of the player** — You know the solution. The player doesn't. What feels "obvious" to you is often invisible to a first-time player.
+- A straight corridor with no choice. A fork that reconnects gives agency.
+- A hard encounter after easy ones with no buildup. Ramp into it.
+- Empty space with no encounter, story, resource or view.
+- Visual language that changes between areas. If glowing means "interactable" in one place, it means that everywhere.
+- A boring tutorial. Players leave before the main game. See `ui-ux-game`.
+- A waypoint marker used to cover a confusing layout. Fix the layout first.
+- Designing from what you know. You know the solution. The player does not.
+- Pacing tuned in a ten-minute test. Flow shows only in long observation.
 
-## Designer Philosophy
+## Cross-references
 
-- **Shigeru Miyamoto**: "A good game is one that you can always feel you are progressing in."
-- **Hidetaka Miyazaki**: "The environment should make you wonder what happened here."
-- **Jenova Chen**: "I want players to feel a sense of journey."
-- **Jonathan Blow**: "Every puzzle should feel like a genuine insight."
-- **Fumito Ueda**: "Minimalism in design amplifies emotional impact."
-
-## Sources
-
-- GDC Vault — Level design talks (particularly "The Level Design of God of War," "Designing Unforgettable Levels," "10 Principles of Good Level Design")
-- *Level Up! The Guide to Great Video Game Design* — Scott Rogers
-- Nintendo design philosophy — Miyamoto's "garden" approach to level design
-- *A Theory of Fun for Game Design* — Raph Koster
-- *The Art of Game Design: A Book of Lenses* — Jesse Schell
-- *Dark Souls* postmortems — Miyazaki on environmental storytelling and interconnected world design
-- *Journey* postmortem — Jenova Chen on flow and emotional pacing
-- *The Witness* developer commentary — Jonathan Blow on puzzle integrity and mechanic honesty
+- `game-design-fundamentals`: the design loop, core loop and difficulty.
+- `quest-mission-design`: mission structure that overlays a level.
+- `worldbuilding`: lore and world rules behind an environment.
+- `ui-ux-game`: HUD, minimap, waypoints and the accessibility checklist.
+- `procedural-gen`: generating layouts. The mission-then-space split in step 2 applies there too.

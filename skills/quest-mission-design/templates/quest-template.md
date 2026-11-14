@@ -1,21 +1,17 @@
 # Quest Design: [Quest Name]
 
 ## Coherence Check
-- [ ] Step 1: World state loaded (read world-lore.md)
-- [ ] Step 2: Quest registry checked (read quest-registry.md)
-- [ ] Step 3: Validated against existing content
-- [ ] Step 4: References existing lore element: ___________
-- [ ] Step 5: Registered in quest-registry.md
+
+Complete `quest-narrative-coherence` before this brief and tick its checklist.
 
 ## Overview
 
 - **Quest ID**: [Unique identifier]
 - **Name**: [Display name]
-- **Type**: [Main Story / Side Quest / Chain / Branching / Repeatable / Discovery / Social / Timed]
-- **Arc**: [Which story arc this belongs to]
+- **Type**: [main / faction / side / chain / repeatable / discovery / social / timed / collection / escort]
+- **Story Arc**: [Which story arc this belongs to]
 - **Difficulty**: [1-10]
 - **Estimated Duration**: [Time to complete]
-- **Repeatable**: [Yes / No]
 - **Prerequisites**: [Other quests, level requirements, faction standing]
 
 ## Story Context
@@ -52,7 +48,7 @@
 
 | # | Objective | Type | Required | Success Condition | Fail Condition |
 |---|-----------|------|----------|------------------|---------------|
-| 1 | [Description] | [Go to / Interact / Defeat / Collect / Choose / Protect] | [Yes/No] | [What counts as success] | [What counts as failure, if any] |
+| 1 | [Description] | [fetch / kill / escort / explore / craft / social / puzzle / choice] | [Yes/No] | [What counts as success] | [What counts as failure, if any] |
 
 ## Branching Paths (if applicable)
 
@@ -68,9 +64,9 @@
 | [Reward] | [Currency / Item / XP / Unlock / Reputation] | [Amount] | [Completion / Bonus / Choice-dependent] |
 
 ### Economy Check
-- [ ] Reward amount reviewed against `game-economy-design` guidelines
+- [ ] Reward amount reviewed against `game-economy-design`
 - [ ] No reward inflation (compared to similar-level quests in registry)
-- [ ] Sink included if reward is large (cost to start quest, material requirements)
+- [ ] Sink included if reward is large (cost to start, material requirements)
 
 ## Locations
 
@@ -86,16 +82,10 @@
 | [Mid] | [NPC] | [Update/twist] | [Choice A / Choice B] |
 | [End] | [NPC] | [Resolution] | [None — cutscene] |
 
-## Quest Registry Entry
+## Quest Registry Row
+
+Append to the Active Quests table in `docs/quest-registry.md`:
 
 ```
-ID: [quest_id]
-Name: [Quest Name]
-Arc: [Arc name]
-NPCs: [NPC1, NPC2]
-Locations: [Loc1, Loc2]
-Factions: [Affected factions]
-Rewards: [Summary]
-Prerequisites: [quest_ids or conditions]
-Status: [planned / active / completed]
+| [Quest ID] | [Name] | [Type] | [Quest Giver NPC] | [Primary Location] | [Factions Affected] | [Rewards Summary] | [Prerequisites] | [Story Arc] |
 ```

@@ -1,10 +1,12 @@
 # Economy Configuration: [Game Name]
 
+Every number below is an illustrative placeholder. Replace each one from your playtests.
+
 ## Currencies
 
 | Currency | Type | Earn Source | Spend Sink | Persistence | Cap |
 |----------|------|-----------|-----------|-------------|-----|
-| [Name] | Soft (earned) | [Sources] | [Sinks] | [Resets on prestige? Persists?] | [Max holdable] |
+| [Name] | Soft (earned) | [Sources] | [Sinks] | [Reset behavior] | [Max holdable] |
 | [Name] | Hard (premium) | [Purchase / rare drops] | [Cosmetics / QoL] | Permanent | [None] |
 
 ## Faucets (Income)
@@ -46,27 +48,24 @@
 | [Legendary item] | 1 | 20 | Life-changing |
 
 ### Pity System
-- Guarantee rare+ after [50] drops without one
+- Guarantee rare+ after [50] drops without one (`pity.threshold` = 50, `pity.guarantees` = rare in `templates/loot-table.ts`)
 - Counter resets on any rare+ drop
 
 ## Monetization Map
 
-| Product | Stripe Price ID | Hard Currency | Real Money | Notes |
-|---------|----------------|--------------|------------|-------|
-| Small bundle | price_xxx | 100 | $0.99 | Impulse buy |
-| Medium bundle | price_xxx | 550 | $4.99 | Best value callout |
-| Large bundle | price_xxx | 1200 | $9.99 | Whale bait |
-| Premium pass | price_xxx | 500/month + perks | $4.99/mo | Recurring |
+Use `stripe-game-payments` for the purchase flow.
 
-## Health Check Formulas
+| Product | Price ID | Currency granted | Real money | Notes |
+|---------|----------|------------------|------------|-------|
+| [Bundle] | [id] | [amount] | [price] | [notes] |
 
-```
-inflation_rate = total_faucets_per_day / total_sinks_per_day
-// Target: 0.8 - 1.2
+## Health Checks
 
-median_wealth = median(all_player_currency)
-// Target: 2-5x average item cost
+Set each target from playtest data. Record the target here.
 
-time_to_first_purchase = time_until(player.currency >= cheapest_useful_item.cost)
-// Target: 5-15 minutes
-```
+| Check | Formula | Target |
+|-------|---------|--------|
+| Flow ratio | (faucets - sinks) / faucets, per currency per day | [set] |
+| Money supply | sum of all player balances, per currency | [set] |
+| Wealth skew | median balance / mean balance | [set] |
+| Time to first purchase | time until balance >= cheapest useful item | [set] |
