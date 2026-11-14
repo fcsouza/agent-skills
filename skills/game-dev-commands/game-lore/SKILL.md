@@ -11,7 +11,7 @@ argument-hint: type and name (e.g. "faction The Iron Court", "location Ashfall C
 - `worldbuilding`
 - `quest-narrative-coherence`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ In this order:
 
 1. Apply the `worldbuilding` skill.
 2. Apply the `quest-narrative-coherence` skill. Its "World-lore sections" list gives the section names this command writes to.
-3. Read `docs/world-lore.md`. If it does not exist, say: "Cannot proceed. docs/world-lore.md not found. Run `/game-architect` to generate the world foundation, or create the file with the seven sections listed in `quest-narrative-coherence`." Then stop.
+3. Read `docs/world-lore.md`. If it does not exist, say: "Cannot proceed. docs/world-lore.md not found. Run `/game-architect` to generate the world foundation, or create the file from the world-lore template of `quest-narrative-coherence`." Then stop.
 4. Detect the entry type from the input:
    - "faction": faction
    - "location": location
@@ -57,26 +57,26 @@ On any conflict, say: "Lore conflict: [the contradiction]. Proposed resolution: 
 
 ## Phase 2: Write the entry
 
-Copy the template for the detected type from `templates/lore-entries.md` (copy when you reach this phase). Fill every field. A genuinely unknown field reads "Unknown / to be determined" and goes on the open-questions list.
+Copy the template for the detected type from `templates/lore-entries.md`. Fill every field. A genuinely unknown field reads "Unknown / to be determined" and goes on the open-questions list.
 
 Write NPC personality as concrete traits. Vague words ("nice", "mean", "mysterious") give the next writer nothing to act on.
 
 ## Phase 3: Update docs/world-lore.md
 
-Append the entry under its section:
+Append the entry under the section for its type. Take the section names from World-lore sections in `quest-narrative-coherence`:
 
 | Entry type | Section |
 |---|---|
-| Faction | Factions |
-| Location | Locations |
-| NPC | Characters / Notable NPCs |
-| Event | History / Timeline |
-| Conflict | Active Conflicts |
-| Rule | Rules and Constraints |
+| Faction | the factions section |
+| Location | the locations section |
+| NPC | the characters section |
+| Event | the history section |
+| Conflict | the active conflicts section |
+| Rule | the rules section |
 
 If the section is missing, create it with that heading.
 
-Relationships go both ways. If the new entry names an enemy, ally or other tie to an existing entry, open that entry and add the matching note. Mark each such edit in the file with a comment: `// Updated: [existing entry] - added [relationship] with [new entry]`.
+Relationships go both ways. If the new entry names an enemy, ally or other tie to an existing entry, open that entry and add the matching note. List each such edit in the report below.
 
 After writing, report:
 
@@ -104,7 +104,3 @@ If it does not exist: "Quest registry: not yet created. Run `/game-quest` to sta
 2. Match the world's tone. Read it from `docs/world-lore.md` before writing; a whimsical entry in a grim world breaks the setting.
 3. Do not invent a new faction or major location inside an NPC or event entry. If the entry implies one, stop and ask whether to run `/game-lore` for that faction or location first.
 4. Date events with the world's own time markers. Real-world dates (AD, BC, CE) break the setting.
-
-## Files
-
-- `templates/lore-entries.md`: copy when Phase 2 writes an entry.
