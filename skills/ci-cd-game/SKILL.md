@@ -1,5 +1,5 @@
 ---
-name: infrastructure-ci-cd-game
+name: ci-cd-game
 description: >-
   Use when setting up CI/CD pipelines, GitHub Actions workflows, deployment automation, migration safety, or staging environments for game projects. Triggers: CI/CD, GitHub Actions, deployment, pipeline, staging.
 ---
@@ -44,13 +44,13 @@ Set up CI with Bun + GitHub Actions:
    - uses: actions/cache@v4
      with:
        path: ~/.bun/install/cache
-       key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+       key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
        restore-keys: |
          ${{ runner.os }}-bun-
    ```
 3. **Steps in order**:
    - `bun install --frozen-lockfile` — reproducible installs
-   - `bunx biome check .` — lint and format check
+   - `bun run lint:biome` — lint and format check
    - `bun run typecheck` — TypeScript strict mode
    - `bun test` — unit and integration tests
 4. **Environment variables for tests**:

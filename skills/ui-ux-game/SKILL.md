@@ -1,5 +1,5 @@
 ---
-name: design-ui-ux-game
+name: ui-ux-game
 description: >-
   Use when designing game UI — HUD patterns, menu systems, onboarding flows, feedback loops, accessibility features, or notification systems. Triggers: HUD, menu, onboarding, accessibility, UI, UX, game interface.
 ---

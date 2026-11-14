@@ -203,8 +203,6 @@ Challenge
 
 ## 9. Art Direction
 
-> Cross-reference: `game-asset-gen` skill for asset generation.
-
 | Aspect | Direction |
 |--------|-----------|
 | **Visual style** | [Pixel art, vector, 3D low-poly, realistic, etc.] |

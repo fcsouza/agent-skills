@@ -27,7 +27,7 @@ flowchart LR
 flowchart TD
     subgraph CI [Continuous Integration]
         PUSH[Push / PR] --> INSTALL[Install Dependencies<br/>bun install --frozen-lockfile]
-        INSTALL --> LINT[Lint + Format<br/>bunx biome check .]
+        INSTALL --> LINT[Lint + Format<br/>bun run lint:biome]
         LINT --> TYPECHECK[Type Check<br/>bunx tsc --noEmit]
         TYPECHECK --> TEST[Unit + Integration Tests<br/>bun test]
         TEST --> BUILD[Build<br/>bun run build]
@@ -67,7 +67,7 @@ flowchart TD
 
 ### 1. Lint (Biome)
 
-- Runs `bunx biome check .` to catch formatting and lint errors
+- Runs `bun run lint:biome` to catch formatting and lint errors
 - Fails fast: if lint fails, no further stages run
 - Uses Biome config from `biome.json` / `biome.jsonc`
 

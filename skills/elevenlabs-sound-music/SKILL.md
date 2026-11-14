@@ -1,5 +1,5 @@
 ---
-name: engineering-elevenlabs-sound-music
+name: elevenlabs-sound-music
 description: >-
   Use when adding audio to a game — SFX generation, adaptive music, voice
   acting, and audio state machine integration. Covers BOTH ElevenLabs API AND

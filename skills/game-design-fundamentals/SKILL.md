@@ -1,5 +1,5 @@
 ---
-name: design-game-design-fundamentals
+name: game-design-fundamentals
 description: >-
   Use when designing core game loops, feedback systems, player motivation models,
   MDA framework analysis, progression curves, difficulty tuning, reward schedules,
@@ -161,9 +161,7 @@ const scaledCost = (baseCost: number, multiplier: number, owned: number): number
 | Skill trees, talent trees, ability unlock graphs | `skill-progression-trees` |
 | Game UI/UX patterns, HUD design, menus | `ui-ux-game` |
 | Backend architecture, networking, state sync | `game-backend-architecture` |
-| Visual assets, procedural generation | `game-asset-gen` |
 | Sound design, music, audio feedback | `elevenlabs-sound-music` |
-| Idle/incremental-specific patterns | `idle-game-design` |
 
 ---
 
