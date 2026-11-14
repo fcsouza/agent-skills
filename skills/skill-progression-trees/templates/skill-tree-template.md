@@ -28,7 +28,7 @@ cost = baseCost * tier^exponent
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | baseCost | | Starting cost for tier 1 nodes |
-| exponent | | Typically 1.5-2.0; higher = steeper endgame |
+| exponent | | Start between 1.5 and 2.0; higher = steeper endgame |
 
 ### Cost Table Preview
 

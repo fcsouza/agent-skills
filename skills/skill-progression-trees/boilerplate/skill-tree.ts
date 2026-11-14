@@ -1,247 +1,298 @@
+// Verified against: drizzle-orm 0.45.4 (2026-11-14)
+import { and, eq, type TablesRelationalConfig } from 'drizzle-orm';
 import {
-	boolean,
-	index,
-	integer,
-	jsonb,
-	pgTable,
-	text,
-	timestamp,
-	uniqueIndex,
-} from "drizzle-orm/pg-core";
-import { eq, inArray } from "drizzle-orm";
+  boolean,
+  index,
+  integer,
+  jsonb,
+  type PgDatabase,
+  type PgQueryResultHKT,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
-// TODO: import db from your drizzle connection
-// TODO: import { players, currencies } from your schema
-// TODO: import Redis client for cache invalidation
+// The caller passes its own Drizzle database (any Postgres driver, with or
+// without a relational schema) or a transaction. PgTransaction extends
+// PgDatabase, so both fit. The functions stay generic over the schema because
+// a database built with `{ schema }` is not assignable to the schema-less type.
+export type Db<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+> = PgDatabase<PgQueryResultHKT, TFullSchema, TSchema>;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type SkillEffect = {
-	stat: string;
-	modifier: string; // e.g. "+10%", "+5", "*1.2"
+export type SkillEffect = {
+  stat: string;
+  modifier: string; // e.g. "+10%", "+5", "*1.2"
 };
 
-type UnlockResult = {
-	canUnlock: boolean;
-	reason?: string;
+export type UnlockResult = {
+  canUnlock: boolean;
+  reason?: string;
 };
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
-
-const SKILL_CURRENCY = "skill_points";
+// Currency type for skill points in your wallet table (see the commented
+// currency code below).
+export const SKILL_CURRENCY = 'skill_points';
 
 // ─── Skill Nodes (Tree Definition) ──────────────────────────────────────────
 
 export const skillNodes = pgTable(
-	"skill_nodes",
-	{
-		id: text("id")
-			.primaryKey()
-			.$defaultFn(() => crypto.randomUUID()),
-		name: text("name").notNull(),
-		description: text("description"),
-		category: text("category").notNull(), // 'active' | 'passive' | 'unlock' | 'prestige'
-		tier: integer("tier").notNull().default(1),
-		prerequisites: jsonb("prerequisites").$type<string[]>().default([]),
-		cost: integer("cost").notNull().default(1),
-		effects: jsonb("effects").$type<SkillEffect[]>().default([]),
-		isVisible: boolean("is_visible").notNull().default(true),
-		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
-	},
-	(table) => [
-		index("skill_nodes_category_idx").on(table.category),
-		index("skill_nodes_tier_idx").on(table.tier),
-	],
+  'skill_nodes',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text('name').notNull(),
+    description: text('description'),
+    // 'active' | 'passive' | 'unlock' | 'prestige'
+    category: text('category').notNull(),
+    tier: integer('tier').notNull().default(1),
+    prerequisites: jsonb('prerequisites')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    cost: integer('cost').notNull().default(1),
+    effects: jsonb('effects').$type<SkillEffect[]>().notNull().default([]),
+    isVisible: boolean('is_visible').notNull().default(true),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('skill_nodes_category_idx').on(table.category),
+    index('skill_nodes_tier_idx').on(table.tier),
+  ],
 );
 
 // ─── Player Skills (Unlock State) ───────────────────────────────────────────
 
 export const playerSkills = pgTable(
-	"player_skills",
-	{
-		id: text("id")
-			.primaryKey()
-			.$defaultFn(() => crypto.randomUUID()),
-		playerId: text("player_id").notNull(),
-		nodeId: text("node_id")
-			.notNull()
-			.references(() => skillNodes.id),
-		unlockedAt: timestamp("unlocked_at").notNull().defaultNow(),
-		snapshot: jsonb("snapshot").$type<Record<string, unknown>>().default({}),
-	},
-	(table) => [
-		uniqueIndex("player_skills_player_node_idx").on(
-			table.playerId,
-			table.nodeId,
-		),
-		index("player_skills_player_id_idx").on(table.playerId),
-	],
+  'player_skills',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    playerId: text('player_id').notNull(),
+    nodeId: text('node_id')
+      .notNull()
+      .references(() => skillNodes.id),
+    unlockedAt: timestamp('unlocked_at').notNull().defaultNow(),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().default({}),
+  },
+  (table) => [
+    uniqueIndex('player_skills_player_node_idx').on(
+      table.playerId,
+      table.nodeId,
+    ),
+    index('player_skills_player_id_idx').on(table.playerId),
+  ],
 );
 
 // ─── Check Unlock Eligibility ───────────────────────────────────────────────
 
-export async function canUnlock(
-	db: Parameters<typeof db.select>[0] extends never ? never : typeof db,
-	playerId: string,
-	nodeId: string,
+export async function canUnlock<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: Db<TFullSchema, TSchema>,
+  playerId: string,
+  nodeId: string,
 ): Promise<UnlockResult> {
-	// Fetch the target node
-	const [node] = await db
-		.select()
-		.from(skillNodes)
-		.where(eq(skillNodes.id, nodeId));
+  const [node] = await db
+    .select()
+    .from(skillNodes)
+    .where(eq(skillNodes.id, nodeId));
 
-	if (!node) {
-		return { canUnlock: false, reason: "Node does not exist" };
-	}
+  if (!node) {
+    return { canUnlock: false, reason: 'Node does not exist' };
+  }
 
-	// Check if already unlocked
-	const [existing] = await db
-		.select()
-		.from(playerSkills)
-		.where(eq(playerSkills.playerId, playerId))
-		.where(eq(playerSkills.nodeId, nodeId));
+  const unlocked = await db
+    .select({ nodeId: playerSkills.nodeId })
+    .from(playerSkills)
+    .where(eq(playerSkills.playerId, playerId));
+  const unlockedIds = new Set(unlocked.map((row) => row.nodeId));
 
-	if (existing) {
-		return { canUnlock: false, reason: "Node already unlocked" };
-	}
+  if (unlockedIds.has(nodeId)) {
+    return { canUnlock: false, reason: 'Node already unlocked' };
+  }
 
-	// Check prerequisites
-	if (node.prerequisites && node.prerequisites.length > 0) {
-		const unlockedNodes = await db
-			.select({ nodeId: playerSkills.nodeId })
-			.from(playerSkills)
-			.where(eq(playerSkills.playerId, playerId));
+  const missing = node.prerequisites.filter((id) => !unlockedIds.has(id));
+  if (missing.length > 0) {
+    return {
+      canUnlock: false,
+      reason: `Missing prerequisites: ${missing.join(', ')}`,
+    };
+  }
 
-		const unlockedIds = new Set(unlockedNodes.map((n) => n.nodeId));
-		const missingPrereqs = node.prerequisites.filter(
-			(prereq) => !unlockedIds.has(prereq),
-		);
+  // Check skill points. Replace `currencies` with your wallet table.
+  // const [wallet] = await db
+  //   .select()
+  //   .from(currencies)
+  //   .where(
+  //     and(
+  //       eq(currencies.playerId, playerId),
+  //       eq(currencies.currencyType, SKILL_CURRENCY),
+  //     ),
+  //   );
+  //
+  // if (!wallet || wallet.amount < node.cost) {
+  //   return {
+  //     canUnlock: false,
+  //     reason: `Not enough skill points (need ${node.cost})`,
+  //   };
+  // }
 
-		if (missingPrereqs.length > 0) {
-			return {
-				canUnlock: false,
-				reason: `Missing prerequisites: ${missingPrereqs.join(", ")}`,
-			};
-		}
-	}
-
-	// Check currency (skill points)
-	// TODO: Replace with your currency table reference
-	// const [wallet] = await db
-	//   .select()
-	//   .from(currencies)
-	//   .where(eq(currencies.playerId, playerId))
-	//   .where(eq(currencies.currencyType, SKILL_CURRENCY));
-	//
-	// if (!wallet || wallet.amount < node.cost) {
-	//   return { canUnlock: false, reason: `Not enough skill points (need ${node.cost})` };
-	// }
-
-	return { canUnlock: true };
+  return { canUnlock: true };
 }
 
 // ─── Unlock a Node ──────────────────────────────────────────────────────────
 
-export async function unlockNode(
-	db: Parameters<typeof db.transaction>[0] extends never ? never : typeof db,
-	playerId: string,
-	nodeId: string,
+export async function unlockNode<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: Db<TFullSchema, TSchema>,
+  playerId: string,
+  nodeId: string,
 ): Promise<void> {
-	const result = await canUnlock(db, playerId, nodeId);
-	if (!result.canUnlock) {
-		throw new Error(`Cannot unlock node: ${result.reason}`);
-	}
+  await db.transaction(async (tx) => {
+    // The unique index on (player_id, node_id) rejects a duplicate unlock, and
+    // the failed insert rolls back this transaction's deduction. Parallel
+    // unlocks of different nodes can both pass this check: guard the wallet
+    // update itself (see the deduction below).
+    const result = await canUnlock(tx, playerId, nodeId);
+    if (!result.canUnlock) {
+      throw new Error(`Cannot unlock node: ${result.reason}`);
+    }
 
-	const [node] = await db
-		.select()
-		.from(skillNodes)
-		.where(eq(skillNodes.id, nodeId));
+    const [node] = await tx
+      .select()
+      .from(skillNodes)
+      .where(eq(skillNodes.id, nodeId));
+    if (!node) {
+      throw new Error('Cannot unlock node: Node does not exist');
+    }
 
-	await db.transaction(async (tx) => {
-		// Deduct skill points
-		// TODO: Replace with your currency table reference
-		// await tx
-		//   .update(currencies)
-		//   .set({ amount: sql`amount - ${node.cost}` })
-		//   .where(eq(currencies.playerId, playerId))
-		//   .where(eq(currencies.currencyType, SKILL_CURRENCY));
+    // Deduct skill points. Replace `currencies` with your wallet table. The
+    // `amount >= cost` condition stops an overdraft when unlocks run in
+    // parallel; throw if `.returning()` comes back empty.
+    // const spent = await tx
+    //   .update(currencies)
+    //   .set({ amount: sql`${currencies.amount} - ${node.cost}` })
+    //   .where(
+    //     and(
+    //       eq(currencies.playerId, playerId),
+    //       eq(currencies.currencyType, SKILL_CURRENCY),
+    //       gte(currencies.amount, node.cost),
+    //     ),
+    //   )
+    //   .returning({ id: currencies.id });
+    // if (spent.length === 0) {
+    //   throw new Error('Cannot unlock node: Not enough skill points');
+    // }
 
-		// Insert player skill with prerequisite snapshot
-		await tx.insert(playerSkills).values({
-			playerId,
-			nodeId,
-			snapshot: {
-				prerequisites: node.prerequisites,
-				cost: node.cost,
-				effects: node.effects,
-				tier: node.tier,
-			},
-		});
-	});
+    // Store the node as it was at unlock time, for audit after a balance patch.
+    await tx.insert(playerSkills).values({
+      playerId,
+      nodeId,
+      snapshot: {
+        prerequisites: node.prerequisites,
+        cost: node.cost,
+        effects: node.effects,
+        tier: node.tier,
+      },
+    });
+  });
 
-	// TODO: Invalidate Redis cache
-	// await redis.del(`player:${playerId}:skills`);
+  // Invalidate the player's cached unlock set here, after the commit.
+}
+
+// ─── Check One Unlock Row ───────────────────────────────────────────────────
+
+export async function hasUnlocked<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: Db<TFullSchema, TSchema>,
+  playerId: string,
+  nodeId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: playerSkills.id })
+    .from(playerSkills)
+    .where(
+      and(eq(playerSkills.playerId, playerId), eq(playerSkills.nodeId, nodeId)),
+    );
+  return row !== undefined;
 }
 
 // ─── Get Player Tree ────────────────────────────────────────────────────────
 
-export async function getPlayerTree(
-	db: Parameters<typeof db.select>[0] extends never ? never : typeof db,
-	playerId: string,
-) {
-	const allNodes = await db.select().from(skillNodes);
-	const unlockedNodes = await db
-		.select({ nodeId: playerSkills.nodeId })
-		.from(playerSkills)
-		.where(eq(playerSkills.playerId, playerId));
+export async function getPlayerTree<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(db: Db<TFullSchema, TSchema>, playerId: string) {
+  const allNodes = await db.select().from(skillNodes);
+  const unlocked = await db
+    .select({ nodeId: playerSkills.nodeId })
+    .from(playerSkills)
+    .where(eq(playerSkills.playerId, playerId));
 
-	const unlockedIds = new Set(unlockedNodes.map((n) => n.nodeId));
+  const unlockedIds = new Set(unlocked.map((row) => row.nodeId));
 
-	return allNodes.map((node) => ({
-		...node,
-		unlocked: unlockedIds.has(node.id),
-	}));
+  return allNodes.map((node) => ({
+    ...node,
+    unlocked: unlockedIds.has(node.id),
+  }));
 }
 
-// ─── Cycle Detection (Admin Utility) ────────────────────────────────────────
+// ─── Tree Health Checks (Admin Utilities) ───────────────────────────────────
 
-export function detectCycles(
-	nodes: { id: string; prerequisites: string[] }[],
-): string[][] {
-	const visited = new Set<string>();
-	const recursionStack = new Set<string>();
-	const cycles: string[][] = [];
-	const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+type GraphNode = { id: string; prerequisites: string[] };
 
-	function dfs(nodeId: string, path: string[]): boolean {
-		visited.add(nodeId);
-		recursionStack.add(nodeId);
+// Returns every cycle found in the prerequisite graph. Run before saving an
+// admin edit; reject the edit if the result is not empty.
+export function detectCycles(nodes: GraphNode[]): string[][] {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const done = new Set<string>();
+  const onPath = new Set<string>();
+  const cycles: string[][] = [];
 
-		const node = nodeMap.get(nodeId);
-		if (!node) return false;
+  function visit(nodeId: string, path: string[]): void {
+    onPath.add(nodeId);
+    for (const prereq of nodeMap.get(nodeId)?.prerequisites ?? []) {
+      if (onPath.has(prereq)) {
+        cycles.push([...path.slice(path.indexOf(prereq)), prereq]);
+      } else if (!done.has(prereq) && nodeMap.has(prereq)) {
+        visit(prereq, [...path, prereq]);
+      }
+    }
+    onPath.delete(nodeId);
+    done.add(nodeId);
+  }
 
-		for (const prereq of node.prerequisites) {
-			if (!visited.has(prereq)) {
-				if (dfs(prereq, [...path, prereq])) return true;
-			} else if (recursionStack.has(prereq)) {
-				const cycleStart = path.indexOf(prereq);
-				cycles.push(path.slice(cycleStart));
-				return true;
-			}
-		}
+  for (const node of nodes) {
+    if (!done.has(node.id)) {
+      visit(node.id, [node.id]);
+    }
+  }
+  return cycles;
+}
 
-		recursionStack.delete(nodeId);
-		return false;
-	}
-
-	for (const node of nodes) {
-		if (!visited.has(node.id)) {
-			dfs(node.id, [node.id]);
-		}
-	}
-
-	return cycles;
+// Returns prerequisite IDs that point at nodes that no longer exist.
+export function findMissingPrerequisites(
+  nodes: GraphNode[],
+): { nodeId: string; missing: string[] }[] {
+  const ids = new Set(nodes.map((n) => n.id));
+  return nodes
+    .map((n) => ({
+      nodeId: n.id,
+      missing: n.prerequisites.filter((p) => !ids.has(p)),
+    }))
+    .filter((r) => r.missing.length > 0);
 }
