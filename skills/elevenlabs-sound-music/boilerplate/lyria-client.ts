@@ -1,168 +1,86 @@
-/**
- * Vertex AI Lyria 002 client for game music generation.
- * Outputs 32.8-second WAV at 48 kHz stereo. Instrumental only.
- */
-
+// Verified against: @google-cloud/aiplatform 7.8.0 (2026-11-14)
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { GoogleAuth } from "google-auth-library";
+import { join } from "node:path";
+import { PredictionServiceClient, type protos } from "@google-cloud/aiplatform";
 
-interface LyriaConfig {
+// Lyria 2 (`lyria-002`, GA) through the Vertex AI predict method.
+// Instrumental only, WAV at 48 kHz, prompts in US English, up to 4 clips per
+// prompt. The client authenticates with Application Default Credentials; on
+// a workstation, run `gcloud auth application-default login` once.
+
+export const LYRIA_MODEL = "lyria-002";
+
+export interface LyriaTarget {
 	projectId: string;
+	// The API reference sample uses us-central1.
 	location?: string;
 }
 
-interface GenerateOptions {
+// `seed` and `sampleCount` cannot be sent in the same request.
+export type LyriaRequest = {
 	prompt: string;
+	// What to leave out, e.g. "drums, electric guitar". Not "no drums".
 	negativePrompt?: string;
-	seed?: number;
-	sampleCount?: 1 | 2 | 3 | 4;
-}
+} & (
+	| { seed: number; sampleCount?: never }
+	| { sampleCount?: 1 | 2 | 3 | 4; seed?: never }
+);
 
-interface LyriaPrediction {
-	bytesBase64Encoded: string;
-	mimeType: string;
-}
+type Value = protos.google.protobuf.IValue;
 
-interface LyriaRequest {
-	instances: {
-		prompt: string;
-		negative_prompt?: string;
-		seed?: number;
-	}[];
-	parameters: {
-		sample_count: number;
+export const createLyriaClient = ({ location = "us-central1" }: LyriaTarget) =>
+	new PredictionServiceClient({
+		apiEndpoint: `${location}-aiplatform.googleapis.com`,
+	});
+
+// Returns one WAV file per clip.
+export const generateMusic = async (
+	client: PredictionServiceClient,
+	{ projectId, location = "us-central1" }: LyriaTarget,
+	request: LyriaRequest,
+): Promise<Buffer[]> => {
+	const instance: Record<string, Value> = {
+		prompt: { stringValue: request.prompt },
 	};
-}
-
-interface LyriaResponse {
-	predictions: LyriaPrediction[];
-}
-
-class LyriaClient {
-	private readonly projectId: string;
-	private readonly location: string;
-	private readonly auth: GoogleAuth;
-	private readonly endpoint: string;
-
-	constructor(config: LyriaConfig) {
-		this.projectId = config.projectId;
-		this.location = config.location ?? "us-central1";
-		this.auth = new GoogleAuth({
-			scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-		});
-		this.endpoint = `https://${this.location}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/lyria-002:predict`;
+	if (request.negativePrompt) {
+		instance.negative_prompt = { stringValue: request.negativePrompt };
+	}
+	if (request.seed !== undefined) {
+		instance.seed = { numberValue: request.seed };
+	}
+	const parameters: Record<string, Value> = {};
+	if (request.sampleCount !== undefined) {
+		parameters.sample_count = { numberValue: request.sampleCount };
 	}
 
-	private async getAccessToken(): Promise<string> {
-		const client = await this.auth.getClient();
-		const tokenResponse = await client.getAccessToken();
-		return tokenResponse.token!;
-	}
+	const [response] = await client.predict({
+		endpoint: `projects/${projectId}/locations/${location}/publishers/google/models/${LYRIA_MODEL}`,
+		instances: [{ structValue: { fields: instance } }],
+		parameters: { structValue: { fields: parameters } },
+	});
 
-	/**
-	 * Generate music from a text prompt.
-	 * Returns 1-4 predictions, each containing base64-encoded WAV data.
-	 */
-	async generate(options: GenerateOptions): Promise<LyriaPrediction[]> {
-		const token = await this.getAccessToken();
+	// Google's docs disagree on the field name: the API reference returns
+	// `audioContent`, the official Lyria 2 notebook decodes `bytesBase64Encoded`.
+	return (response.predictions ?? []).map((prediction: Value) => {
+		const fields = prediction.structValue?.fields;
+		const audio =
+			fields?.audioContent?.stringValue ??
+			fields?.bytesBase64Encoded?.stringValue;
+		if (!audio) throw new Error("Lyria prediction has no audio data");
+		return Buffer.from(audio, "base64");
+	});
+};
 
-		const requestBody: LyriaRequest = {
-			instances: [
-				{
-					prompt: options.prompt,
-					...(options.negativePrompt && {
-						negative_prompt: options.negativePrompt,
-					}),
-					...(options.seed !== undefined && { seed: options.seed }),
-				},
-			],
-			parameters: {
-				sample_count: options.sampleCount ?? 1,
-			},
-		};
-
-		const response = await fetch(this.endpoint, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(requestBody),
-		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			throw new Error(`Lyria API error (${response.status}): ${error}`);
-		}
-
-		const data: LyriaResponse = await response.json();
-		return data.predictions;
-	}
-
-	/**
-	 * Generate with exponential backoff for rate limit handling.
-	 */
-	async generateWithRetry(
-		options: GenerateOptions,
-		maxRetries = 3,
-	): Promise<LyriaPrediction[]> {
-		for (let attempt = 0; attempt <= maxRetries; attempt++) {
-			try {
-				return await this.generate(options);
-			} catch (error) {
-				if (attempt === maxRetries) throw error;
-
-				const message = error instanceof Error ? error.message : String(error);
-				if (!message.includes("429") && !message.includes("503")) throw error;
-
-				const delay = 2 ** attempt * 1000 + Math.random() * 1000;
-				console.log(
-					`Rate limited. Retrying in ${Math.round(delay / 1000)}s...`,
-				);
-				await new Promise((resolve) => setTimeout(resolve, delay));
-			}
-		}
-
-		throw new Error("Unreachable");
-	}
-
-	/**
-	 * Save a single prediction to disk as WAV.
-	 */
-	async save(prediction: LyriaPrediction, outputPath: string): Promise<void> {
-		const buffer = Buffer.from(prediction.bytesBase64Encoded, "base64");
-		await mkdir(dirname(outputPath), { recursive: true });
-		await writeFile(outputPath, buffer);
-	}
-
-	/**
-	 * Save all predictions as numbered variations.
-	 * Returns array of saved file paths.
-	 */
-	async saveAll(
-		predictions: LyriaPrediction[],
-		baseName: string,
-		outputDir: string,
-	): Promise<string[]> {
-		const paths: string[] = [];
-
-		for (let i = 0; i < predictions.length; i++) {
-			const filename = `${baseName}_v${i + 1}.wav`;
-			const outputPath = join(outputDir, filename);
-			await this.save(predictions[i], outputPath);
-			paths.push(outputPath);
-		}
-
-		return paths;
-	}
-}
-
-export { LyriaClient };
-export type {
-	LyriaConfig,
-	GenerateOptions,
-	LyriaPrediction,
-	LyriaRequest,
-	LyriaResponse,
+// Writes <baseName>_v1.wav, <baseName>_v2.wav, ... and returns the paths.
+// Record the prompt, negative prompt and seed next to each file, or the
+// track cannot be regenerated.
+export const saveClips = async (
+	clips: Buffer[],
+	baseName: string,
+	outputDir: string,
+) => {
+	const paths = clips.map((_, i) => join(outputDir, `${baseName}_v${i + 1}.wav`));
+	await mkdir(outputDir, { recursive: true });
+	await Promise.all(clips.map((clip, i) => writeFile(paths[i], clip)));
+	return paths;
 };

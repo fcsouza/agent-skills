@@ -8,6 +8,7 @@
   "devDependencies": {
     "@elevenlabs/elevenlabs-js": "2.78.0",
     "@elysiajs/cors": "1.4.3",
+    "@google-cloud/aiplatform": "7.8.0",
     "@neondatabase/serverless": "1.2.1",
     "@types/bun": "1.4.4",
     "better-auth": "1.7.23",
