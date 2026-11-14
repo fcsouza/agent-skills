@@ -1,11 +1,19 @@
 /**
- * Browser save slots in IndexedDB. Each write moves the current slot to a
- * backup key and stores the new envelope in ONE readwrite transaction, so the
- * slot is either the old save or the new one, never half of each. A Web Lock
- * keeps two tabs from writing the same slot at once.
+ * Browser save slots in IndexedDB.
  *
- * Browser only (uses `indexedDB`, `navigator.locks`, `navigator.storage`).
- * Imports nothing but the envelope type.
+ * Each slot record carries a local `revision`. A tab remembers the revision
+ * it last loaded or wrote and passes it to `writeSlot`. Inside one readwrite
+ * transaction, `writeSlot` compares it with the stored revision: on a match it
+ * moves the current record to `<slot>:backup` and stores the new one with
+ * revision + 1; on a mismatch it writes nothing and returns `stale`. This stops
+ * a second tab with older progress (say, one left open in the background that
+ * autosaves when hidden) from writing over newer progress from another tab.
+ *
+ * Readwrite transactions on the same object store run one at a time, in the
+ * order they were created, so the compare and the write cannot interleave
+ * with another tab's write.
+ *
+ * Browser only (uses `indexedDB`, `navigator.storage`, `document`).
  */
 
 import type { SaveEnvelope } from "./save-envelope";
@@ -14,7 +22,31 @@ const DB_NAME = "game-saves";
 const DB_VERSION = 1; // IndexedDB store layout, not the save payload version
 const STORE = "slots";
 
+export type SlotRecord = { revision: number; envelope: SaveEnvelope };
+
+export type WriteResult =
+	| { status: "saved"; revision: number }
+	// Another tab saved since this tab loaded. Show the player both saves
+	// (savedAt, playedMs) and let them choose, as for a server conflict.
+	| { status: "stale"; stored: SlotRecord | undefined };
+
 const backupKey = (slot: string) => `${slot}:backup`;
+
+// The rule `writeSlot` applies inside its transaction. `expected` is the
+// revision this tab loaded, 0 when it found the slot empty.
+export const decideLocalWrite = (
+	stored: { revision: number } | undefined,
+	expected: number,
+): { ok: true; next: number } | { ok: false } => {
+	const current = stored?.revision ?? 0;
+	return current === expected ? { ok: true, next: current + 1 } : { ok: false };
+};
+
+const isSlotRecord = (value: unknown): value is SlotRecord =>
+	typeof value === "object" &&
+	value !== null &&
+	Number.isInteger((value as { revision?: unknown }).revision) &&
+	"envelope" in value;
 
 const promisify = <T>(req: IDBRequest<T>) =>
 	new Promise<T>((resolve, reject) => {
@@ -22,14 +54,13 @@ const promisify = <T>(req: IDBRequest<T>) =>
 		req.onerror = () => reject(req.error);
 	});
 
-const done = (tx: IDBTransaction) =>
-	new Promise<void>((resolve, reject) => {
-		tx.oncomplete = () => resolve();
-		tx.onabort = () => reject(tx.error ?? new Error("save transaction aborted"));
-		tx.onerror = () => reject(tx.error);
-	});
-
-export const openSaveDb = (onBlocked?: () => void) =>
+export const openSaveDb = (opts: {
+	// Another tab still holds the old version open; ask the player to close it.
+	onBlocked?: () => void;
+	// A newer tab wants to upgrade. The database is closed so it can; tell the
+	// player to reload this tab, since its saves will fail from now on.
+	onVersionChange: () => void;
+}) =>
 	new Promise<IDBDatabase>((resolve, reject) => {
 		const req = indexedDB.open(DB_NAME, DB_VERSION);
 		// Store and index changes happen only here.
@@ -38,17 +69,21 @@ export const openSaveDb = (onBlocked?: () => void) =>
 				req.result.createObjectStore(STORE);
 			}
 		};
-		// Another tab still holds the old version open.
-		req.onblocked = () => onBlocked?.();
+		req.onblocked = () => opts.onBlocked?.();
 		req.onsuccess = () => {
 			const db = req.result;
-			// A newer tab wants to upgrade: close so it can, then reload this tab.
-			db.onversionchange = () => db.close();
+			db.onversionchange = () => {
+				db.close();
+				opts.onVersionChange();
+			};
 			resolve(db);
 		};
 		req.onerror = () => reject(req.error);
 	});
 
+// Raw records: run each envelope through loadSave and fall back to the backup
+// when the current one fails. Keep `current.revision` (0 if absent) for the
+// next writeSlot.
 export const readSlot = async (db: IDBDatabase, slot: string) => {
 	const tx = db.transaction(STORE, "readonly");
 	const store = tx.objectStore(STORE);
@@ -56,32 +91,42 @@ export const readSlot = async (db: IDBDatabase, slot: string) => {
 		promisify<unknown>(store.get(slot)),
 		promisify<unknown>(store.get(backupKey(slot))),
 	]);
-	// Raw values: run each through loadSave, and fall back to the backup
-	// when the current one fails.
-	return { current, backup };
+	return {
+		current: isSlotRecord(current) ? current : undefined,
+		backup: isSlotRecord(backup) ? backup : undefined,
+	};
 };
 
-// Throws QuotaExceededError when the origin is full; catch it, tell the
+// Rejects with QuotaExceededError when the origin is full; catch it, tell the
 // player, and offer to delete other slots or export the save.
 export const writeSlot = (
 	db: IDBDatabase,
 	slot: string,
 	envelope: SaveEnvelope,
+	expectedRevision: number,
 ) =>
-	navigator.locks.request(`save:${slot}`, async () => {
+	new Promise<WriteResult>((resolve, reject) => {
 		const tx = db.transaction(STORE, "readwrite");
 		const store = tx.objectStore(STORE);
-		const finished = done(tx);
-		const getPrevious = store.get(slot);
-		getPrevious.onsuccess = () => {
-			// Requests are queued inside the open transaction, so the commit
-			// covers both puts or neither.
-			if (getPrevious.result !== undefined) {
-				store.put(getPrevious.result, backupKey(slot));
+		let result: WriteResult | undefined;
+		const getCurrent = store.get(slot);
+		getCurrent.onsuccess = () => {
+			const stored = isSlotRecord(getCurrent.result)
+				? getCurrent.result
+				: undefined;
+			const decision = decideLocalWrite(stored, expectedRevision);
+			if (!decision.ok) {
+				result = { status: "stale", stored };
+				return; // no further requests: the transaction commits nothing
 			}
-			store.put(envelope, slot);
+			if (stored) store.put(stored, backupKey(slot));
+			const next: SlotRecord = { revision: decision.next, envelope };
+			store.put(next, slot);
+			result = { status: "saved", revision: decision.next };
 		};
-		await finished;
+		tx.oncomplete = () =>
+			result ? resolve(result) : reject(new Error("save transaction ended without a result"));
+		tx.onabort = () => reject(tx.error ?? new Error("save transaction aborted"));
 	});
 
 // Ask once, when the player first saves, ideally from a click handler.
@@ -92,8 +137,9 @@ export const requestPersistence = async (): Promise<boolean> => {
 	return navigator.storage.persist();
 };
 
-// Autosave when the page is hidden: the last event a page can rely on.
-// `save` should be the same function the save button calls.
+// Best-effort save when the page is hidden. The browser may end the page
+// before the write finishes, so checkpoint and timer saves are the main path;
+// this one catches what happened since the last of them.
 export const autosaveOnHide = (save: () => Promise<void>) => {
 	const onChange = () => {
 		if (document.visibilityState === "hidden") void save();

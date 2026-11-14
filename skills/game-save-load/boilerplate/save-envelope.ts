@@ -47,6 +47,7 @@ export type LoadResult<T> =
 			ok: false;
 			reason:
 				| "not-an-envelope"
+				| "bad-version"
 				| "wrong-game"
 				| "corrupt"
 				| "too-old"
@@ -80,20 +81,23 @@ const isEnvelope = (value: unknown): value is SaveEnvelope => {
 	);
 };
 
-// Validate before writing too: a save that would fail to load must not
-// replace one that loads.
+// Validate what will be stored, not the object in memory. JSON turns NaN and
+// Infinity into null, drops undefined and functions, and flattens Date, Map
+// and Set, so an object that passes validation can still write a save that
+// fails to load. Re-parse the payload and validate that. A save that would
+// not load must never replace one that loads (the old one becomes the backup).
 export const createSave = async <T>(
 	spec: SaveSpec<T>,
 	data: T,
 	playedMs: number,
 ): Promise<SaveEnvelope> => {
-	const checked = spec.validate(data);
+	const payload = JSON.stringify(data);
+	const checked = spec.validate(JSON.parse(payload));
 	if (!checked.success) {
-		throw new Error("refusing to write a save that fails validation", {
+		throw new Error("refusing to write a save that would fail to load", {
 			cause: checked.error,
 		});
 	}
-	const payload = JSON.stringify(checked.data);
 	return {
 		format: spec.format,
 		version: spec.current,
@@ -135,6 +139,7 @@ export const migrateAndValidate = <T>(
 	version: number,
 	input: unknown,
 ): MigrateResult<T> => {
+	if (!Number.isInteger(version)) return { ok: false, reason: "bad-version" };
 	if (version > spec.current) return { ok: false, reason: "too-new" };
 	if (version < spec.minLoadable) return { ok: false, reason: "too-old" };
 

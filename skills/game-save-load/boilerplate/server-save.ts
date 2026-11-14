@@ -76,6 +76,8 @@ export const saveSlotHistory = pgTable(
 	],
 );
 
+// How many replaced versions each slot keeps. This skill's default; tune it
+// to the size of your saves and how far back players need to go.
 const KEEP_HISTORY = 5;
 
 // ─── Save with a revision check ─────────────────────────────────────────────
@@ -94,7 +96,8 @@ export type SaveResult =
 	| {
 			status: "conflict";
 			// Shown to the player beside the local save so they can choose.
-			// Keep local: save again with expectedRevision = server.revision.
+			// Keep local: save again with expectedRevision = server.revision,
+			// or with 0 when server is null (the slot was deleted).
 			// Keep server: loadSlot and discard the local save.
 			server: {
 				revision: number;
@@ -103,6 +106,9 @@ export type SaveResult =
 				updatedAt: Date;
 			} | null;
 	  };
+
+const slotWhere = (playerId: string, slot: string) =>
+	and(eq(saveSlots.playerId, playerId), eq(saveSlots.slot, slot));
 
 const serverMeta = (db: GameDb, playerId: string, slot: string) =>
 	db
@@ -113,9 +119,79 @@ const serverMeta = (db: GameDb, playerId: string, slot: string) =>
 			updatedAt: saveSlots.updatedAt,
 		})
 		.from(saveSlots)
-		.where(and(eq(saveSlots.playerId, playerId), eq(saveSlots.slot, slot)))
+		.where(slotWhere(playerId, slot))
 		.limit(1)
 		.then((rows) => rows[0] ?? null);
+
+// The shared write path: lock the row, check the revision, keep the old
+// version in history, update, prune. Call it inside a transaction.
+const writeExisting = async (
+	tx: GameDb,
+	input: SaveInput,
+): Promise<SaveResult> => {
+	// Lock the row so a second save for the same slot waits for this one.
+	const [current] = await tx
+		.select()
+		.from(saveSlots)
+		.where(slotWhere(input.playerId, input.slot))
+		.for("update");
+
+	if (!current || current.revision !== input.expectedRevision) {
+		return {
+			status: "conflict",
+			server: current
+				? {
+						revision: current.revision,
+						formatVersion: current.formatVersion,
+						playedMs: current.playedMs,
+						updatedAt: current.updatedAt,
+					}
+				: null,
+		};
+	}
+
+	await tx.insert(saveSlotHistory).values({
+		saveSlotId: current.id,
+		revision: current.revision,
+		formatVersion: current.formatVersion,
+		playedMs: current.playedMs,
+		payload: current.payload,
+	});
+
+	const [updated] = await tx
+		.update(saveSlots)
+		.set({
+			revision: sql`${saveSlots.revision} + 1`,
+			formatVersion: input.formatVersion,
+			playedMs: input.playedMs,
+			payload: input.payload,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(saveSlots.id, current.id),
+				eq(saveSlots.revision, input.expectedRevision),
+			),
+		)
+		.returning({ revision: saveSlots.revision });
+
+	if (!updated) {
+		// Unreachable while the row lock holds; kept so a refactor that
+		// drops the lock fails safe instead of overwriting.
+		throw new Error("save slot changed under a row lock");
+	}
+
+	await tx
+		.delete(saveSlotHistory)
+		.where(
+			and(
+				eq(saveSlotHistory.saveSlotId, current.id),
+				lte(saveSlotHistory.revision, current.revision - KEEP_HISTORY),
+			),
+		);
+
+	return { status: "saved", revision: updated.revision };
+};
 
 export const saveToSlot = (db: GameDb, input: SaveInput): Promise<SaveResult> =>
 	db.transaction(async (tx) => {
@@ -139,72 +215,43 @@ export const saveToSlot = (db: GameDb, input: SaveInput): Promise<SaveResult> =>
 				server: await serverMeta(tx, input.playerId, input.slot),
 			};
 		}
+		return writeExisting(tx, input);
+	});
 
-		// Lock the row so a second save for the same slot waits for this one.
-		const [current] = await tx
-			.select()
-			.from(saveSlots)
-			.where(
-				and(eq(saveSlots.playerId, input.playerId), eq(saveSlots.slot, input.slot)),
-			)
-			.for("update");
+// ─── Restore an older version ───────────────────────────────────────────────
 
-		if (!current || current.revision !== input.expectedRevision) {
-			return {
-				status: "conflict",
-				server: current
-					? {
-							revision: current.revision,
-							formatVersion: current.formatVersion,
-							playedMs: current.playedMs,
-							updatedAt: current.updatedAt,
-						}
-					: null,
-			};
-		}
-
-		// Keep the version being replaced, in the same transaction.
-		await tx.insert(saveSlotHistory).values({
-			saveSlotId: current.id,
-			revision: current.revision,
-			formatVersion: current.formatVersion,
-			playedMs: current.playedMs,
-			payload: current.payload,
-		});
-
-		const [updated] = await tx
-			.update(saveSlots)
-			.set({
-				revision: sql`${saveSlots.revision} + 1`,
-				formatVersion: input.formatVersion,
-				playedMs: input.playedMs,
-				payload: input.payload,
-				updatedAt: new Date(),
+// The player picks a row from listSlotHistory. The restore is a normal save
+// of that row's payload: same revision check, and the version it replaces
+// goes into history, so a restore can itself be undone. The join on
+// playerId and slot stops one player restoring another's row. Migrate the
+// result with migrateAndValidate on load, as for any row.
+export const restoreFromHistory = (
+	db: GameDb,
+	playerId: string,
+	slot: string,
+	historyId: string,
+	expectedRevision: number,
+): Promise<SaveResult | { status: "not-found" }> =>
+	db.transaction(async (tx) => {
+		const [old] = await tx
+			.select({
+				formatVersion: saveSlotHistory.formatVersion,
+				playedMs: saveSlotHistory.playedMs,
+				payload: saveSlotHistory.payload,
 			})
-			.where(
-				and(
-					eq(saveSlots.id, current.id),
-					eq(saveSlots.revision, input.expectedRevision),
-				),
-			)
-			.returning({ revision: saveSlots.revision });
-
-		if (!updated) {
-			// Unreachable while the row lock holds; kept so a refactor that
-			// drops the lock fails safe instead of overwriting.
-			throw new Error("save slot changed under a row lock");
-		}
-
-		await tx
-			.delete(saveSlotHistory)
-			.where(
-				and(
-					eq(saveSlotHistory.saveSlotId, current.id),
-					lte(saveSlotHistory.revision, current.revision - KEEP_HISTORY),
-				),
-			);
-
-		return { status: "saved", revision: updated.revision };
+			.from(saveSlotHistory)
+			.innerJoin(saveSlots, eq(saveSlotHistory.saveSlotId, saveSlots.id))
+			.where(and(eq(saveSlotHistory.id, historyId), slotWhere(playerId, slot)))
+			.limit(1);
+		if (!old) return { status: "not-found" };
+		return writeExisting(tx, {
+			playerId,
+			slot,
+			expectedRevision,
+			formatVersion: old.formatVersion,
+			playedMs: old.playedMs,
+			payload: old.payload,
+		});
 	});
 
 // ─── Load ───────────────────────────────────────────────────────────────────
@@ -220,15 +267,18 @@ export const loadSlot = (db: GameDb, playerId: string, slot: string) =>
 		.limit(1)
 		.then((rows) => rows[0] ?? null);
 
-// Restore an older version: the player picks one of the history rows.
-export const listSlotHistory = (db: GameDb, saveSlotId: string) =>
+// The versions a player can restore, newest first. Scoped by playerId and
+// slot through save_slots, never by a bare id from the client.
+export const listSlotHistory = (db: GameDb, playerId: string, slot: string) =>
 	db
 		.select({
 			id: saveSlotHistory.id,
 			revision: saveSlotHistory.revision,
+			formatVersion: saveSlotHistory.formatVersion,
 			playedMs: saveSlotHistory.playedMs,
 			createdAt: saveSlotHistory.createdAt,
 		})
 		.from(saveSlotHistory)
-		.where(eq(saveSlotHistory.saveSlotId, saveSlotId))
+		.innerJoin(saveSlots, eq(saveSlotHistory.saveSlotId, saveSlots.id))
+		.where(slotWhere(playerId, slot))
 		.orderBy(desc(saveSlotHistory.revision));

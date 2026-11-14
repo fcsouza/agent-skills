@@ -73,11 +73,11 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [elevenlabs-sound-music](skills/elevenlabs-sound-music/) | SFX generation, adaptive music, voice acting |
 | [game-anti-cheat](skills/game-anti-cheat/) | Defend an online game against cheating: server-side validation, hidden-state filtering, detection, enforcement |
 | [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
+| [game-save-load](skills/game-save-load/) | Save and load: browser and server saves, versioned format with migrations, atomic writes, cross-device conflicts |
 | [game-state-sync](skills/game-state-sync/) | Client-server sync: prediction, reconciliation, interpolation, delta compression |
 | [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
 | [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, rating systems, skill-based queues |
 | [postgres-game-schema](skills/postgres-game-schema/) | Game DB schemas, Drizzle ORM, inventory |
-| [game-save-load](skills/game-save-load/) | Save and load: browser and server saves, versioned format with migrations, atomic writes, cross-device conflicts |
 | [redis-game-patterns](skills/redis-game-patterns/) | Leaderboards, presence, rate limits, cache-aside |
 | [skill-progression-trees](skills/skill-progression-trees/) | Skill trees, talent trees, unlock graphs |
 | [stripe-game-payments](skills/stripe-game-payments/) | In-app purchases, subscriptions, webhooks |

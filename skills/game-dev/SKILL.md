@@ -30,11 +30,11 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Sound effects, music, voice | `elevenlabs-sound-music` |
 | Cheating: input validation, hidden state, dupes, detection, bans | `game-anti-cheat` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |
+| Saves, slots, save versions and migration, cloud sync conflicts | `game-save-load` |
 | Lag, desync, jitter; prediction, reconciliation, interpolation | `game-state-sync` |
 | Player events, retention, funnels | `gameplay-analytics` |
 | Pairing players, lobbies, ranks | `matchmaking-system` |
 | Tables, player data, inventory, Drizzle | `postgres-game-schema` |
-| Saves, slots, save versions and migration, cloud sync conflicts | `game-save-load` |
 | Leaderboards, presence, rate limits, cache-aside | `redis-game-patterns` |
 | Skill trees, talent trees, unlock graphs | `skill-progression-trees` |
 | Payments, purchases, subscriptions, webhooks | `stripe-game-payments` |
