@@ -150,6 +150,19 @@ new_fixture
 printf -- '---\nname: demo\ndescription: >\n  First line\n  second line.\n---\nBody\n' >"$(skill_md)"
 expect_pass "folded multi-line description"
 
+new_fixture
+half="$(printf 'x%.0s' $(seq 1 600))"
+printf -- '---\nname: demo\ndescription: %s\n  %s\n---\nBody\n' "$half" "$half" >"$(skill_md)"
+expect_fail N2 "plain description wrapped onto a second line, over 1024 in all"
+
+new_fixture
+printf -- '---\r\nname: demo\r\ndescription: A demo skill\r\n  wrapped onto a second line.\r\n---\r\nBody\r\n' >"$(skill_md)"
+expect_pass "CRLF frontmatter with a wrapped plain description"
+
+new_fixture
+printf -- '---\r\nname: demo\r\ndescription: %s\r\n  %s\r\n---\r\nBody\r\n' "$half" "$half" >"$(skill_md)"
+expect_fail N2 "CRLF wrapped description over 1024 in all"
+
 # ---------------------------------------------------------------- S1
 new_fixture
 {
@@ -284,6 +297,78 @@ new_fixture
 write_skill demo "d" "Apply the \`no-such-skill\` skill first."
 expect_fail X1 "Apply the names an unknown skill"
 
+# x1_fixture: an index skill with a Route table and one command, all clean.
+x1_fixture() {
+  new_fixture
+  mkdir -p "$FX/skills/game-dev" "$FX/skills/game-dev-commands/game-build"
+  cat >"$FX/skills/game-dev/SKILL.md" <<'EOF'
+---
+name: game-dev
+description: Index.
+---
+# Game Dev
+
+Mentions `outside-the-table` before the Route section.
+
+## Route
+
+### Design
+
+| Need | Skill |
+|---|---|
+| Demo work | `demo` |
+| Build one component | `/game-build` (`game-build`) |
+
+## Rules
+
+- `not-a-skill-after-route`
+EOF
+  cat >"$FX/skills/game-dev-commands/game-build/SKILL.md" <<'EOF'
+---
+name: game-build
+description: Build.
+---
+# Build
+
+## Requires
+
+- `demo`
+
+Apply the `demo` skill, then apply the `demo` skill again.
+EOF
+  printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
+    >"$FX/.claude-plugin/marketplace.json"
+}
+
+x1_fixture
+expect_pass "X1 clean index and command"
+
+x1_fixture
+printf -- '---\nname: game-build\ndescription: Build.\n---\n# Build\n\nApply the `demo` skill.\n' \
+  >"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "command without a Requires heading"
+
+x1_fixture
+printf '\nThen apply the `typo-name` skill.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "lowercase apply the names an unknown skill"
+
+x1_fixture
+write_skill other "d" "Body."
+printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
+  >"$FX/.claude-plugin/marketplace.json"
+printf '\nApply the `other` skill.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "command applies an existing skill not in its Requires block"
+
+x1_fixture
+sed 's/`demo` |/`dmeo` |/' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
+mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
+expect_fail X1 "typo in the index Route table"
+
+x1_fixture
+sed 's#`/game-build`#`/game-biuld`#' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
+mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
+expect_fail X1 "typo in a slash name in the index Route table"
+
 # ---------------------------------------------------------------- P1
 new_fixture
 write_skill demo "d" "Path $HOME_MAC here."
@@ -364,6 +449,10 @@ new_fixture
 write_skill demo "Does things. Triggers: a, b." "Body."
 expect_fail C5 "Triggers: in description"
 
+new_fixture
+printf -- '---\nname: demo\ndescription: Does things.\n  Triggers: a, b.\n---\nBody\n' >"$(skill_md)"
+expect_fail C5 "Triggers: on the second line of a wrapped description"
+
 # ---------------------------------------------------------------- .content-pending and Z1
 new_fixture
 {
@@ -414,6 +503,22 @@ else
   report 0 "--only N1 passes when N1 holds" "exit=$CODE
 $OUT"
 fi
+
+for manifest in '{"plugins":[{"name":"other"}]}' 'not json' ''; do
+  new_fixture
+  if [[ -n $manifest ]]; then
+    printf '%s\n' "$manifest" >"$FX/.claude-plugin/marketplace.json"
+  else
+    rm "$FX/.claude-plugin/marketplace.json"
+  fi
+  run_lint --only N1
+  if [[ $CODE == 1 && $OUT == *"FAIL M1 "* && $OUT != *"check-skills: ok"* ]]; then
+    report 1 "--only N1 still reports a broken manifest (${manifest:-missing})"
+  else
+    report 0 "--only N1 still reports a broken manifest (${manifest:-missing})" "exit=$CODE
+$OUT"
+  fi
+done
 
 new_fixture
 printf '# Readme\n\nShips 9 skills.\n' >"$FX/README.md"

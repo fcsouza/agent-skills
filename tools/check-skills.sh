@@ -40,15 +40,24 @@ fail() {
   STATUS=1
 }
 
+# fail_load <path> <message>: a manifest that cannot be loaded leaves no
+# skills to check, so its M1 line prints whatever --only says.
+fail_load() {
+  printf 'FAIL M1 %s: %s\n' "$1" "$2"
+  STATUS=1
+}
+
 rel() { printf '%s' "${1#"$ROOT"/}"; }
 
 is_pending() { [[ -e $ROOT/$1/.content-pending ]]; }
 
 # fm_field <file> <key>: value of a frontmatter key, quotes stripped.
-# Handles `key: value` and folded or literal blocks (`key: >` / `key: |`).
-# Exit 1 when the key is absent.
+# Handles `key: value`, a plain value wrapped onto indented lines, and folded
+# or literal blocks (`key: >` / `key: |`). Continuation lines join with a
+# space. CRLF line ends are read as LF. Exit 1 when the key is absent.
 fm_field() {
   awk -v key="$2" '
+    { sub(/\r$/, "") }
     NR == 1 && $0 != "---" { exit }
     NR > 1 && $0 == "---" { exit }
     NR > 1 {
@@ -63,7 +72,8 @@ fm_field() {
       if (index($0, key ":") == 1) {
         v = substr($0, length(key) + 2); sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
         found = 1
-        if (v ~ /^[>|][-+]?$/) { collecting = 1; val = "" } else { val = v }
+        collecting = 1
+        val = (v ~ /^[>|][-+]?$/) ? "" : v
       }
     }
     END {
@@ -147,20 +157,63 @@ check_l2() {
   done < <(find "$ROOT/$dir/templates" "$ROOT/$dir/boilerplate" "$ROOT/$dir/references" -type f 2>/dev/null | sort)
 }
 
+skill_exists() {
+  [[ -f $ROOT/skills/$1/SKILL.md || -f $ROOT/skills/game-dev-commands/$1/SKILL.md ]]
+}
+
+# x1_requires <file>: backticked names on "- " lines of the Requires block.
+x1_requires() {
+  awk '
+    /^#+[ \t]+Requires[ \t]*$/ { inblock = 1; next }
+    /^#/ { inblock = 0 }
+    inblock && /^- / { print }
+  ' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
+}
+
+# x1_applied <file>: names in "apply the `name`", any case.
+x1_applied() {
+  grep -oiE 'apply the `[^`]+`' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
+}
+
+# x1_route <file>: backticked tokens in the table rows of the "## Route"
+# section, a leading / stripped.
+x1_route() {
+  awk '
+    /^##[ \t]+Route[ \t]*$/ { inroute = 1; next }
+    /^##[ \t]/ { inroute = 0 }
+    inroute && /^\|/ { print }
+  ' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sed 's#^/##' | sort -u
+}
+
 check_x1() {
-  local dir=$1 name
+  local dir=$1 file="$ROOT/$1/SKILL.md" name required is_command=0
+  [[ $dir == skills/game-dev-commands/* ]] && is_command=1
+  required="$(x1_requires "$file")"
+
+  if ((is_command)) && ! grep -qE '^##[[:space:]]+Requires[[:space:]]*$' "$file"; then
+    fail X1 "$dir/SKILL.md" "command has no '## Requires' heading"
+  fi
+
   while IFS= read -r name; do
-    [[ -f $ROOT/skills/$name/SKILL.md || -f $ROOT/skills/game-dev-commands/$name/SKILL.md ]] ||
-      fail X1 "$dir/SKILL.md" "required skill '$name' does not exist"
-  done < <(
-    # "Requires" block: backticked names on "- " lines up to the next heading.
-    awk '
-      /^#+[ \t]+Requires[ \t]*$/ { inblock = 1; next }
-      /^#/ { inblock = 0 }
-      inblock && /^- / { print }
-    ' "$ROOT/$dir/SKILL.md" | grep -oE '`[^`]+`' | tr -d '`'
-    grep -oE 'Apply the `[^`]+`' "$ROOT/$dir/SKILL.md" | sed -E 's/^Apply the `//; s/`$//'
-  )
+    [[ -n $name ]] || continue
+    skill_exists "$name" || fail X1 "$dir/SKILL.md" "required skill '$name' does not exist"
+  done <<<"$required"
+
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    if ! skill_exists "$name"; then
+      fail X1 "$dir/SKILL.md" "applied skill '$name' does not exist"
+    elif ((is_command)) && ! grep -qxF -- "$name" <<<"$required"; then
+      fail X1 "$dir/SKILL.md" "applied skill '$name' is not listed under Requires"
+    fi
+  done < <(x1_applied "$file")
+
+  if [[ $dir == skills/game-dev ]]; then
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      skill_exists "$name" || fail X1 "$dir/SKILL.md" "Route table names '$name', which does not exist"
+    done < <(x1_route "$file")
+  fi
 }
 
 check_c1() {
@@ -296,16 +349,16 @@ check_r2() {
 load_entry() {
   local skills_json
   if [[ ! -f $ROOT/$MARKETPLACE ]]; then
-    fail M1 "$MARKETPLACE" "file not found"
+    fail_load "$MARKETPLACE" "file not found"
     return
   fi
   ENTRY="$(jq -c '[.plugins[]? | select(.name == "game-dev")][0] // empty' "$ROOT/$MARKETPLACE" 2>/dev/null)"
   if [[ -z $ENTRY ]]; then
-    fail M1 "$MARKETPLACE" "no plugin named game-dev"
+    fail_load "$MARKETPLACE" "no plugin named game-dev"
     return
   fi
   if ! printf '%s' "$ENTRY" | jq -e '.skills | type == "array"' >/dev/null 2>&1; then
-    fail M1 "$MARKETPLACE" "game-dev entry has no skills array"
+    fail_load "$MARKETPLACE" "game-dev entry has no skills array"
     return
   fi
   HAS_SKILLS_ARRAY=1
