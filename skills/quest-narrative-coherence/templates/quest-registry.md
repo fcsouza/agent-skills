@@ -17,6 +17,13 @@ The table a quest sits in is its status. All three tables use the same columns.
 | Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
 |----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
 
+## Economy Impact Log
+
+One row per registered quest. Step 2 of the check reads it for rewards already issued.
+
+| Quest ID | Currency Given | Items Given | Estimated Player Level |
+|----------|----------------|-------------|------------------------|
+
 ## Story Arcs
 
 | Arc | Theme | Quests |

@@ -18,7 +18,7 @@ Files, in the game project:
 ## The five-step check
 
 1. **Load the world.** Read `docs/world-lore.md`. Note the factions and how they relate, the characters and their status, the locations, the active conflicts and the timeline. If the file is missing, stop and create it from the template first.
-2. **Load the registry.** Read `docs/quest-registry.md`. Note the NPCs already giving quests, the locations already used as hubs, the rewards already issued, the chains and the arcs.
+2. **Load the registry.** Read `docs/quest-registry.md`. Note the NPCs already giving quests, the locations already used as hubs, the rewards already issued (the Economy Impact Log), the chains and the arcs.
 3. **Validate.** Tick each item or flag it:
    - No faction, character or location clashes with another quest.
    - No contradiction with lore, including character motives and the timeline.
@@ -28,7 +28,7 @@ Files, in the game project:
    - Rewards fit the economy and the quests already in the registry (`game-economy-design`).
    - Difficulty fits the progression curve.
 4. **Anchor.** The quest names at least one established lore element (character, faction, location or event) and advances at least one existing thread. A new element needs a reason in the world, and an entry in `docs/world-lore.md`.
-5. **Register.** Append one row to the Active Quests table in `docs/quest-registry.md`. Use a Planned row while the quest is a draft. Fill every column.
+5. **Register.** Append one row to the Active Quests table in `docs/quest-registry.md`. Use a Planned row while the quest is a draft. Fill every column. Append one row to the Economy Impact Log. When a quest completes, move its row to Completed and write its world consequence (a death, a changed faction relation) into `docs/world-lore.md`.
 
 If step 3 flags anything, stop. Describe the conflict, propose a fix and wait for the user.
 
@@ -39,6 +39,8 @@ Every table in the registry uses these columns, in this order:
 `Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc`
 
 `Type` takes one value from the type list in `quest-mission-design`. The table a row sits in (Active, Completed, Planned) is its status, so there is no Status column.
+
+The Economy Impact Log is a separate table: `Quest ID | Currency Given | Items Given | Estimated Player Level`.
 
 ## World-lore sections
 
