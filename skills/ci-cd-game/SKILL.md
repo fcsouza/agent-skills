@@ -1,114 +1,45 @@
 ---
 name: ci-cd-game
 description: >-
-  Use when setting up CI/CD pipelines, GitHub Actions workflows, deployment automation, migration safety, or staging environments for game projects. Triggers: CI/CD, GitHub Actions, deployment, pipeline, staging.
+  GitHub Actions pipeline rules for a Bun game backend on Neon and Fly.io: migrations before deploy, one Neon database branch per pull request, a smoke test after deploy, and a pinned Bun version. Use when a game project needs CI, a deploy workflow, preview databases for pull requests, or a safe order for schema migrations and server deploys.
 ---
 
 # CI/CD for Games
 
-## Purpose
+General GitHub Actions syntax comes from the vendor: use the `github-actions-templates` skill if it is installed, otherwise https://docs.github.com/en/actions. This skill covers the parts a game backend adds.
 
-GitHub Actions pipelines, test strategies, migration safety, and staging environments for game projects.
+## Files
 
-## When to Use
+- `boilerplate/ci.yml`: copy when setting up CI. Lint, type check and tests on every push to `main` and every pull request; each pull request gets its own Neon branch, deleted when the pull request closes.
+- `boilerplate/deploy.yml`: copy when setting up deploys. Migrate, then deploy to Fly.io, then smoke test.
 
-Trigger: CI/CD, GitHub Actions, deployment, pipeline, testing, staging, migration, continuous integration, continuous deployment, build pipeline, release
+Both go in `.github/workflows/`. They expect the project's `package.json` to define `lint:biome` (`ultracite check`), `format` (`ultracite fix`), `typecheck` and `smoke`, and `drizzle.config.ts` to read `DATABASE_URL`. Secrets: `NEON_API_KEY`, `DATABASE_URL`, `DATABASE_URL_TEST`, `REDIS_URL_TEST`, `FLY_API_TOKEN`. Variables: `NEON_PROJECT_ID`, `GAME_URL`.
 
-## Prerequisites
+## Rules
 
-- `postgres-game-schema` — migration safety
-- `game-backend-architecture` — what we're deploying
+1. **Migrate before deploy.** A separate `migrate` job runs `bunx drizzle-kit migrate`; `deploy` declares `needs: migrate`. If migrations fail, GitHub skips the deploy and the old server keeps running.
+2. **Migrations must work with the previous server image.** A Fly rollback redeploys an old image and leaves the database as it is. Add columns and tables in one release; drop or rename them in a later release, once no running image reads them. Roll back with `fly releases --app <app> --image` to find the previous image, then `fly deploy --image <that image>`.
+3. **One deploy at a time.** `deploy.yml` sets a `concurrency` group so two quick merges never migrate production together. A newer pending run replaces an older pending one; a running one finishes.
+4. **One Neon branch per pull request.** `ci.yml` creates `preview/pr-<number>`, migrates it and runs the tests against it. The branch is a copy of the project's default branch, so each pull request tests its own schema change against that data without touching it. The `closed` event deletes the branch. On later pushes the action returns the existing branch and Drizzle applies only the new migrations.
+5. **Smoke test the game, not only the server.** After deploy, check `/health`, then run `bun run smoke`: open a WebSocket and complete the handshake, then run one matchmaking round trip. A server can answer HTTP and still fail every game session.
+6. **Pin Bun.** Without `bun-version`, setup-bun reads `packageManager` or `engines.bun` from `package.json` and falls back to `latest`, which changes with each Bun release. The lockfile format has changed between Bun versions (1.2 moved to the text `bun.lock`), so pin the version the team runs locally and bump it on purpose. Hash `bun.lock` in the cache key.
+7. **Gate production on people when needed.** Add required reviewers to the `production` environment. Only the `migrate` job references it, so one approval releases migrate, deploy and smoke.
+8. **Pin third-party actions by commit SHA.** The Neon actions receive the Neon API key, and a tag can be moved. The boilerplate pins every action not published by GitHub to a full commit SHA with the release tag as a trailing comment (flyctl has no current release, so its comment names the branch and date); let Dependabot or Renovate bump the pins. GitHub's workflow dependency lockfile (`.github/workflows/actions.lock`, made with `gh actions-lock`) is the stronger option where a repository can adopt it. Make `NEON_API_KEY` a project-scoped key, which reaches a single project; creating one needs a Neon organization admin.
+9. **Keep one main branch and let tests gate every deploy.** Rare shipped Sea of Thieves this way: trunk-based development and heavy investment in automated tests. `deploy.yml` does not wait for `ci.yml`, so protect `main` and require the `test` check before merging.
 
-## Core Principles
+## Pitfalls
 
-1. **Never deploy without tests** — automated tests gate every deployment
-2. **Migrations are one-way** — never run destructive migrations in production without backup
-3. **Staging mirrors production** — test with real data shapes, real Redis, real PostgreSQL
-4. **Feature flags over branches** — deploy dark features, enable via config
-5. **Rollback plan always** — every deployment has a revert strategy
-6. **Monitor after deploy** — `monitoring-game-ops` alerts catch post-deploy issues
+- **Pull requests from forks.** GitHub passes no secrets to them, so the Neon step fails. Run those pull requests from a branch in the repository, or skip the database steps for forks.
+- **Dependabot pull requests.** Workflows started by Dependabot see only Dependabot secrets, not Actions secrets. Store `NEON_API_KEY`, `DATABASE_URL_TEST` and `REDIS_URL_TEST` as Dependabot secrets too, or every pin bump fails at the Neon step.
+- **Destructive migration in the same release as the code change.** The rollback image then reads a column that no longer exists. Split it across two releases (rule 2).
+- **Health check only.** `/health` passes while WebSocket upgrades or matchmaking fail. Keep the smoke script.
+- **Cache key on a missing file.** `hashFiles` returns an empty string when no file matches, so the key stops changing when dependencies change. Hash `bun.lock`, the file Bun writes.
 
-## Pipeline Stages
+## Related skills
 
-```
-Push → Lint → Type Check → Unit Tests → Build → Integration Tests → Deploy Staging → Smoke Tests → Deploy Production
-```
+- `postgres-game-schema` for the schema and migration conventions.
+- `game-backend-architecture` for what gets deployed.
+- `monitoring-game-ops` for alerts after a deploy.
+- For Neon branching beyond this workflow, use the `neon-postgres` skill if it is installed, otherwise https://neon.com/docs/guides/branching-github-actions.
 
-## Step-by-Step: CI Pipeline
-
-Set up CI with Bun + GitHub Actions:
-
-1. **Use `oven-sh/setup-bun@v2`** — not `actions/setup-node`. Bun is the runtime.
-2. **Cache bun install**:
-   ```yaml
-   - uses: actions/cache@v4
-     with:
-       path: ~/.bun/install/cache
-       key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-       restore-keys: |
-         ${{ runner.os }}-bun-
-   ```
-3. **Steps in order** (the project's `package.json` must define `lint:biome` as `ultracite check` and `format` as `ultracite fix`):
-   - `bun install --frozen-lockfile` — reproducible installs
-   - `bun run lint:biome` — lint and format check
-   - `bun run typecheck` — TypeScript strict mode
-   - `bun test` — unit and integration tests
-4. **Environment variables for tests**:
-   - `DATABASE_URL` — Neon test branch connection string
-   - `REDIS_URL` — test Redis instance
-
-See `boilerplate/ci.yml` for the complete workflow.
-
-## Step-by-Step: Deploy Pipeline
-
-1. **Drizzle migration job** (runs before deploy):
-   - Separate job that runs `bunx drizzle-kit migrate` with production `DATABASE_URL`
-   - Deploy job declares `needs: migrate` so it only runs after migrations succeed
-2. **Deploy to Fly.io**:
-   - Use `superfly/flyctl-actions/setup-flyctl@master` to install flyctl
-   - Run `flyctl deploy --remote-only` — builds on Fly's infrastructure, no local Docker required
-   - Auth via `FLY_API_TOKEN` secret
-3. **Post-deploy health check**:
-   ```bash
-   APP_NAME=$(flyctl info --json | jq -r '.Name')
-   curl --retry 5 --retry-delay 10 -f "https://${APP_NAME}.fly.dev/health"
-   ```
-4. **Rollback strategy**:
-   - Fly.io machines support instant rollback: `flyctl releases rollback`
-   - Every deploy creates a new release — previous release is always available
-   - Combine with feature flags to disable broken features without a full rollback
-
-See `boilerplate/deploy.yml` for the complete workflow.
-
-## Neon Database Branching
-
-For preview environments (per-PR Neon branching):
-
-- Neon supports database branches — each PR gets its own isolated database branch
-- Use `neondatabase/create-branch-action@v5` in GitHub Actions:
-  ```yaml
-  - uses: neondatabase/create-branch-action@v5
-    id: create_branch
-    with:
-      project_id: ${{ secrets.NEON_PROJECT_ID }}
-      branch_name: preview/pr-${{ github.event.number }}
-      api_key: ${{ secrets.NEON_API_KEY }}
-  ```
-- Branch connection string available as `${{ steps.create_branch.outputs.db_url }}`
-- Delete branch on PR close with `neondatabase/delete-branch-action@v3`
-- This gives each PR a real isolated database — no shared test state pollution
-
-## boilerplate/ci.yml and boilerplate/deploy.yml
-
-See `boilerplate/ci.yml` for a complete, production-ready CI workflow and `boilerplate/deploy.yml` for the deployment workflow with migration safety. Both files are ready to copy into `.github/workflows/`.
-
-## Cross-References
-
-- `postgres-game-schema` — migration safety in deployments
-- `monitoring-game-ops` — post-deployment monitoring
-- `game-backend-architecture` — server deployment targets
-
-## Sources
-
-- GitHub Actions documentation
-- "Continuous Delivery for Games" — GDC DevOps talks
+Verified citations are in `references/sources.md`; read it when checking where a claim comes from.
