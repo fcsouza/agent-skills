@@ -41,11 +41,12 @@ Use the `better-auth-best-practices` skill if it is installed, otherwise https:/
 | Role | May do |
 |---|---|
 | player | join and create matches, send chat, file reports |
-| moderator | player actions; list and view users; ban, unban and revoke sessions of players only; end matches, delete chat, read and resolve reports, read game config and analytics |
+| moderator | player actions; list and view users; ban, unban and revoke all sessions of players only; end matches, delete chat, read and resolve reports, read game config and analytics |
 | admin | every admin-plugin action (including changing roles), every game action, update game config |
 
 - The admin plugin's endpoints check its own `user` and `session` resources. Unban checks `user: ['ban']`. Changing a role checks `user: ['set-role']`.
-- Moderators act on players only. The admin plugin's ban, unban and revoke-session endpoints check the caller's permission, not the target's role, so a moderator with `user: ['ban']` could ban an admin. `staffGuard` closes that: on `/admin/ban-user`, `/admin/unban-user`, `/admin/revoke-user-sessions` and `/admin/revoke-user-session` it loads the target user and returns 403 when the target is a moderator or admin and the caller is not an admin. Any new moderator power over users needs the same check.
+- Moderators act on players only. The admin plugin's endpoints check the caller's permission, never the target's role, so a moderator with `user: ['ban']` could ban an admin. `staffGuard` denies by default: on every `/admin/*` path outside its allow list (`list-users`, `get-user`, `has-permission`, `stop-impersonating`), a caller who is not an admin must name a target user, and the target must not be a moderator or admin. It coerces `userId` the way the endpoints do and rejects a request whose target it cannot find.
+- Do not give moderators `session: ['list']`. `/admin/list-user-sessions` returns each session's token, and a token is a login. Moderators revoke a player's sessions with `/admin/revoke-user-sessions`, which needs only `session: ['revoke']`.
 - `user.role` holds a comma-separated list when a user has several roles. The `can()` helper in the template splits it.
 - Check a permission with `can(session.user.role, { chat: ['delete'] })` when you already hold the session, or with `auth.api.userHasPermission({ body: { userId, permissions } })` when you only have the id.
 - Ownership is not a role. A player edits their own profile or inventory because the session user id equals the owner id. Check that separately (`isOwner` in the template).
@@ -75,6 +76,7 @@ A direct `auth.api` call skips Better Auth's origin checks, even with the browse
 - A single `isAdmin` boolean instead of roles.
 - Leaving rate limits at their defaults for a public game. Better Auth's built-in limiter applies only to client requests, not to `auth.api` calls made by the server.
 - Giving moderators admin-plugin permissions without `staffGuard`. They can then ban or log out admins and each other.
+- Upgrading Better Auth without reviewing `staffGuard`. It denies by default, but its allow list and its reading of `userId` and `sessionToken` match 1.7.23. Check both against any admin endpoint a new version adds.
 - Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
 ## Related skills

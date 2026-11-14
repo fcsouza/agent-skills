@@ -36,7 +36,8 @@ export const player = ac.newRole({
 // (staff-guard.ts) so these user and session powers reach players only.
 export const moderator = ac.newRole({
   user: ['list', 'get', 'ban'],
-  session: ['list', 'revoke'],
+  // No session 'list': /admin/list-user-sessions returns session tokens.
+  session: ['revoke'],
   match: ['join', 'create', 'end'],
   chat: ['send', 'delete'],
   report: ['create', 'read', 'resolve'],
