@@ -1,7 +1,7 @@
 ---
 name: game-design-fundamentals
 description: >-
-  Genre-agnostic game design procedures: the design and playtest loop, core loops, difficulty and reward tuning, onboarding checks and a design-document template. Use when you are shaping a new game or feature, a loop feels flat, players churn or quit early, a difficulty curve or reward schedule needs tuning, or a tutorial needs review.
+  Genre-agnostic game design procedures: the design and playtest loop, core loops, difficulty and reward tuning and a design-document template. Use when you are shaping a new game or feature, a loop feels flat, players churn or quit early, or a difficulty curve or reward schedule needs tuning.
 ---
 
 # Game Design Fundamentals
@@ -43,11 +43,7 @@ Read `references/design-procedures.md` when you need the long forms: prototype r
 
 ## Onboarding
 
-- Teach in the game, with guardrails, at the moment the lesson is needed.
-- Limit simultaneous learning to three items. Teach the why, not every how.
-- Space practice across varied contexts (still targets, then moving, then partly hidden).
-- Do not punish players while they learn. Players who die or struggle during onboarding retain less.
-- Remove false affordances and context-free tutorial text.
+`ui-ux-game` owns the onboarding rules. Apply them to every tutorial and first-time flow.
 
 ## Player types
 
