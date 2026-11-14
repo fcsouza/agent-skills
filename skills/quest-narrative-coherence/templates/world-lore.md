@@ -1,36 +1,30 @@
-# World Lore Document
+# World Lore
 
 ## World Overview
 
-<!-- Brief description of the world, its tone, and core themes -->
+<!-- Setting, tone and core themes -->
 
-## Timeline
+## Factions
 
-<!-- Chronological list of significant events -->
+<!-- Per faction: name, goals, allies, enemies, current state -->
+
+## Locations
+
+<!-- Regions, cities, landmarks: what exists and where -->
+
+## Characters / Notable NPCs
+
+<!-- Per character: name, role, faction, personality, current status, location -->
+
+## History / Timeline
 
 | Date/Era | Event | Significance |
 |----------|-------|--------------|
 
-## Factions
-
-<!-- Each faction: name, description, goals, allies, enemies, current state -->
-
-## Major Characters
-
-<!-- Each character: name, role, faction, personality, current status, location -->
-
-## Geography
-
-<!-- Regions, cities, landmarks — what exists and where -->
-
 ## Active Conflicts
 
-<!-- Current tensions, wars, disputes, mysteries -->
+<!-- Current wars, disputes, treaties, open mysteries -->
 
-## Cultural Elements
+## Rules and Constraints
 
-<!-- Customs, religions, technology level, magic system (if any) -->
-
-## Rules & Constraints
-
-<!-- Hard limits: what CAN'T exist in this world, what breaks tone -->
+<!-- What cannot exist in this world, and what breaks its tone -->

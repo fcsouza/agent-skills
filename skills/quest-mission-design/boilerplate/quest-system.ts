@@ -6,7 +6,24 @@
 // Enums
 // ============================================================
 
+// Same list as the quest type table in SKILL.md and the registry Type column.
 export const QuestType = {
+	MAIN: "main",
+	FACTION: "faction",
+	SIDE: "side",
+	CHAIN: "chain",
+	REPEATABLE: "repeatable",
+	DISCOVERY: "discovery",
+	SOCIAL: "social",
+	TIMED: "timed",
+	COLLECTION: "collection",
+	ESCORT: "escort",
+} as const;
+
+export type QuestType = (typeof QuestType)[keyof typeof QuestType];
+
+/** What the player does in one objective. Not the quest type. */
+export const ObjectiveType = {
 	FETCH: "fetch",
 	KILL: "kill",
 	ESCORT: "escort",
@@ -14,10 +31,9 @@ export const QuestType = {
 	CRAFT: "craft",
 	SOCIAL: "social",
 	PUZZLE: "puzzle",
-	CHAIN: "chain",
 } as const;
 
-export type QuestType = (typeof QuestType)[keyof typeof QuestType];
+export type ObjectiveType = (typeof ObjectiveType)[keyof typeof ObjectiveType];
 
 export const QuestState = {
 	AVAILABLE: "available",
@@ -35,7 +51,7 @@ export type QuestState = (typeof QuestState)[keyof typeof QuestState];
 export interface QuestObjective {
 	id: string;
 	description: string;
-	type: QuestType;
+	type: ObjectiveType;
 	/** Current progress toward the target */
 	progress: number;
 	/** Target value to complete this objective */

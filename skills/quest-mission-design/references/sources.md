@@ -1,0 +1,5 @@
+# Sources
+
+- Jeff Kaplan, "Learning From World of Warcraft's Quest Design Mistakes" (GDC 2009, reported by Game Developer, 27 March 2009) - https://www.gamedeveloper.com/game-platforms/gdc-learning-from-i-world-of-warcraft-i-s-quest-design-mistakes - supports: the minimap lit up with quests (do not open many quests at once); mystery should never be in the action the player has to do; keep quest text short; collection quests need flow, sane creature density and sane item counts; do not stack four kill quests then four collection quests - checked 2026-11-14
+- Jesse Schell, The Art of Game Design: A Book of Lenses (Morgan Kaufmann, 2008), ch. 12, puzzle principles (lenses 48-52) - https://shop.elsevier.com/books/the-art-of-game-design/schell/978-0-12-369496-6 - supports: make the goal obvious, show progress, offer hints - checked 2026-11-14
+- Richard Bartle, Designing Virtual Worlds (New Riders, 2003), ch. 4, pp. 401 and 407-408 - https://en.wikipedia.org/wiki/Designing_Virtual_Worlds - supports: make quest and monster rewards goods rather than coin; even goods inflate; written in 2003, treat as a mechanism not a law - checked 2026-11-14

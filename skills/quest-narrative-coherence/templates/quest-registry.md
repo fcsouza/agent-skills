@@ -1,5 +1,7 @@
 # Quest Registry
 
+The table a quest sits in is its status. All three tables use the same columns.
+
 ## Active Quests
 
 | Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
@@ -7,20 +9,15 @@
 
 ## Completed Quests
 
-| ID | Name | Arc | Outcome | Impact on World |
-|----|------|-----|---------|-----------------|
+| Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
+|----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
 
 ## Planned Quests
 
-| ID | Name | Arc | Dependencies | Priority | Notes |
-|----|------|-----|-------------|----------|-------|
+| Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
+|----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
 
-## Quest Arcs
+## Story Arcs
 
-| Arc ID | Name | Theme | Status | Quests Included |
-|--------|------|-------|--------|-----------------|
-
-## Economy Impact Log
-
-| Quest ID | Currency Given | Items Given | Estimated Player Level |
-|----------|---------------|-------------|------------------------|
+| Arc | Theme | Quests |
+|-----|-------|--------|

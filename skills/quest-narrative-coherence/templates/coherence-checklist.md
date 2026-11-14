@@ -1,35 +1,31 @@
-# Quest Coherence Checklist
+# Coherence Checklist: [QUEST NAME]
 
-## Quest: [NAME]
+## 1. World loaded
 
-### Step 1: World State Loaded
+- [ ] Read `docs/world-lore.md`
+- [ ] Noted faction relations and character status
 
-- [ ] Read world-lore.md
-- [ ] Noted current faction states
-- [ ] Noted active character statuses
+## 2. Registry loaded
 
-### Step 2: Registry Checked
+- [ ] Read `docs/quest-registry.md`
+- [ ] Noted busy NPCs, used hubs and rewards already issued
 
-- [ ] Read quest-registry.md
-- [ ] No conflicting quests found
-- [ ] NPC availability confirmed
+## 3. Validated
 
-### Step 3: Validation
+- [ ] No clash with another quest (faction, character, location)
+- [ ] No lore or timeline contradiction
+- [ ] Every NPC alive and free
+- [ ] Every location exists, or is introduced here
+- [ ] Faction involvement fits current relations
+- [ ] Rewards fit the economy and the registry
+- [ ] Difficulty fits the progression curve
 
-- [ ] No faction conflicts
-- [ ] No lore contradictions
-- [ ] Characters alive and available
-- [ ] Locations exist and accessible
-- [ ] Reward scale consistent
-- [ ] Difficulty appropriate
+## 4. Anchored
 
-### Step 4: Lore Reference
+- [ ] Lore element referenced: ___________
+- [ ] Thread advanced: ___________
+- [ ] Reason in the world for any new element: ___________
 
-- [ ] References existing lore element: ___________
-- [ ] Advances narrative thread: ___________
-- [ ] World-building justification if new element: ___________
+## 5. Registered
 
-### Step 5: Registered
-
-- [ ] Added to quest-registry.md
-- [ ] All fields filled (NPCs, locations, factions, rewards, prereqs)
+- [ ] Row added to `docs/quest-registry.md` with all nine columns

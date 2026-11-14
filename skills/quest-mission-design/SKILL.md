@@ -1,118 +1,79 @@
 ---
 name: quest-mission-design
-description: >-
-  Use when designing quests, missions, objectives, quest trees, or reward structures. Requires quest-narrative-coherence check before any quest creation. Triggers: quest, mission, objectives, quest tree, rewards.
+description: Defines the quest type list, objective trees, quest briefs and reward rules for any game genre. Use when designing a quest, mission, quest chain or reward structure, or when a quest feels like a fetch task with no point.
 ---
 
-# Quest & Mission Design
+# Quest and Mission Design
 
-## Purpose
+Apply `quest-narrative-coherence` before you design any quest, and again at the end to register it. It owns the five-step check and the registry format. This skill does not repeat them.
 
-Quest types, objective trees, reward structures, and mission flow design for any game genre. Enforces narrative coherence through mandatory lore checks.
+## Quest types
 
-## When to Use
+One list, used in the quest brief, in `docs/quest-registry.md` and in the `QuestType` union in `boilerplate/quest-system.ts`.
 
-Trigger: quest design, mission design, objectives, quest types, quest rewards, quest tree, mission flow, side quests, main quest, quest chain, objective design
+| Type | Use for |
+|------|---------|
+| `main` | Advances the primary story arc |
+| `faction` | Advances one faction's storyline and standing |
+| `side` | Optional, enriches the world |
+| `chain` | Several steps, each unlocks the next |
+| `repeatable` | Can be done more than once |
+| `discovery` | Starts from exploration |
+| `social` | Needs other players |
+| `timed` | Has a deadline |
+| `collection` | Gather a set of items |
+| `escort` | Keep a target safe |
 
-## Prerequisites
+A quest of any type can contain a choice. A choice is an objective, not a type.
 
-- `quest-narrative-coherence` — **MANDATORY**. Read and follow the 5-step coherence check before creating ANY quest.
-- `game-design-fundamentals` — core loop and reward system knowledge
-- `worldbuilding` — world context for quest setting
+## Steps
 
-## Core Principles
+1. Apply `quest-narrative-coherence` steps 1 to 4.
+2. Pick the type from the list above.
+3. Design the objective tree (below).
+4. Set rewards. Check the scale against `game-economy-design` and against similar quests in the registry.
+5. Write the brief. Copy `templates/quest-template.md` when you start a brief.
+6. Apply `quest-narrative-coherence` step 5 to register the quest.
 
-> Jonathan Blow: "Every puzzle should feel like a genuine insight, not busywork."
-> Sid Meier: "A game is a series of interesting decisions."
-> Hidetaka Miyazaki: "Quests should reveal the world, not just provide objectives."
+## Rules
 
-1. **Every quest must pass the coherence check** — no orphan quests, no lore contradictions (see `quest-narrative-coherence`)
-2. **Objectives must present meaningful choices** — not just "go here, collect that" (Sid Meier)
-3. **Quest rewards must match the game economy** — cross-reference `game-economy-design` for balance
-4. **Multi-path solutions** — at least 2 ways to complete any significant quest (Jonathan Blow)
-5. **Quests reveal world** — every quest should teach the player something about the world (Miyazaki)
-6. **Pacing matches the game** — quest length and density fit the session cadence from `game-design-fundamentals`
-7. **No fetch quests without narrative purpose** — if a quest is mechanically simple, it must be narratively rich
+- Main and faction quests have at least two ways to complete them. Other types may be linear.
+- A quest that is mechanically simple needs a narrative reason. A collection quest says why the items matter and asks for a reasonable count.
+- Write the required action in plain words. Put the mystery in the story, not in what the player has to do.
+- Make the goal obvious, show progress, and give a stuck player a hint. These are Schell's puzzle principles; they apply to puzzle objectives.
+- Keep quest text short.
+- In a persistent shared economy, prefer goods over coin as rewards, so their value floats with supply and demand. Goods still inflate if everyone gets the same one.
+- Vary quest types in a sequence. Do not stack several of one type in a row.
+- Do not open many quests at once. A map full of markers makes the player lose track of the story.
 
-## Step-by-Step Instructions
+## Objective tree
 
-### 1. Run Coherence Check
-Follow the 5-step check from `quest-narrative-coherence`. Load lore, check registry, validate, reference existing content, register.
-
-### 2. Define Quest Type
-Choose from the quest type taxonomy (see below).
-
-### 3. Design Objective Tree
-Map out the objectives, branching paths, and completion conditions.
-
-### 4. Balance Rewards
-Cross-reference `game-economy-design` for appropriate reward scale.
-
-### 5. Write Quest Brief
-Use the quest template in `templates/`.
-
-### 6. Register Quest
-Add to quest-registry.md per the coherence clause.
-
-## Quest Type Taxonomy
-
-| Type | Description | Example (abstract) |
-|------|-------------|-------------------|
-| Main Story | Advances primary narrative arc | "Uncover the truth about [event]" |
-| Side Quest | Optional, enriches world | "Help [NPC] with [problem]" |
-| Chain Quest | Multi-step, each unlocks next | "Phase 1 → Phase 2 → Phase 3" |
-| Branching | Player choice determines outcome | "Side with [A] or [B]" |
-| Repeatable | Can be done multiple times | "Daily challenge: [task]" |
-| Discovery | Triggered by exploration | "Find [hidden thing] to unlock" |
-| Social | Requires other players | "Complete [task] with a group" |
-| Timed | Must complete within deadline | "Finish before [timer] expires" |
-| Collection | Gather a set of items/objects | "Find all [N] pieces of [set]" |
-| Escort/Protect | Keep something safe | "Protect [target] during [event]" |
-
-## Objective Tree Structure
+Read `boilerplate/quest-system.ts` when you implement the tree and the quest state machine. It has the types, the transitions between states and the completion logic.
 
 ```
 Quest: [Name]
 ├── Objective 1: [Required]
-│   ├── Sub-objective 1a: [Required]
-│   └── Sub-objective 1b: [Optional bonus]
-├── Objective 2: [Choice A OR Choice B]
-│   ├── Choice A: [Path with consequence X]
-│   └── Choice B: [Path with consequence Y]
-└── Objective 3: [Final — depends on choice above]
-    ├── Outcome A: [If chose A above]
-    └── Outcome B: [If chose B above]
+│   ├── 1a: [Required]
+│   └── 1b: [Optional bonus]
+├── Objective 2: [Choice A or Choice B]
+│   ├── A: [Path, consequence X]
+│   └── B: [Path, consequence Y]
+└── Objective 3: [Final, depends on the choice]
 ```
 
-## Cross-References
+## Pitfalls
 
-- `quest-narrative-coherence` — MANDATORY prerequisite
-- `worldbuilding` — world context for quest setting
-- `game-economy-design` — reward balancing
-- `game-design-fundamentals` — core loop integration
-- `character-design-narrative` — NPC involvement
-- `postgres-game-schema` — quest data persistence
+- A collection quest with no reason.
+- Rewards that inflate the economy.
+- A main or faction quest with one solution.
+- An NPC who talks for minutes while the player does nothing.
+- A prerequisite the player cannot discover.
 
-## Pitfalls & Anti-Patterns
+## Related
 
-- **"Go collect 10 things"** — collection quests without narrative justification
-- **"Orphan quest"** — quest that connects to nothing in the world (caught by coherence check)
-- **"Reward inflation"** — quest gives too much, breaking economy
-- **"One true path"** — quest with only one solution removes player agency
-- **"Lore dump quest"** — NPC talks for 5 minutes, player does nothing
-- **"Invisible prerequisite"** — quest requires something the player can't know about
-
-## Designer Philosophy
-
-**Jonathan Blow** (Braid, The Witness): Every quest objective should feel like a genuine insight. If the player is just following a marker, the quest has failed. The best quests make players think, experiment, and discover.
-
-**Sid Meier** (Civilization): Quests are decisions. "Go kill X" is not a decision. "Choose between helping faction A (gaining their trust but angering B) or helping faction B" IS a decision.
-
-**Hidetaka Miyazaki** (Dark Souls, Elden Ring): The best quests don't announce themselves. They emerge from exploration, environmental clues, and NPC conversations. The player should feel like they discovered the quest, not that it was assigned.
-
-## Sources
-
-- "Designing Quests That Don't Suck" — GDC 2018
-- "The Art of Game Design" — Jesse Schell, Chapter on Stories
-- "Narrative Design for Indie Games" — GDC 2020
-- "Quest Design in Open World Games" — GDC 2019
+- `quest-narrative-coherence`: the check and the registry.
+- `references/sources.md`: read when you need the support for the rules above.
+- `game-economy-design`: reward scale.
+- `worldbuilding`: world context for the setting.
+- `character-design-narrative`: NPC roles.
+- `postgres-game-schema`: persisting quest state.

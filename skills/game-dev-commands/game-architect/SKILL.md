@@ -651,6 +651,12 @@ Create with this structure:
 
 ## History / Timeline
 <!-- Populated via game-lore skill -->
+
+## Active Conflicts
+<!-- Populated via game-lore skill -->
+
+## Rules and Constraints
+<!-- Populated via game-lore skill -->
 ```
 
 Fill in World Overview from interview Group 3. Leave detailed sections as guided placeholders.
