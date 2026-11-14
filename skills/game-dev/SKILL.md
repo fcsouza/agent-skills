@@ -13,10 +13,10 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 
 | Need | Skill |
 |---|---|
-| Core loop, feedback, motivation, progression curves | `game-design-fundamentals` |
+| Design loop, core loop, difficulty, rewards, onboarding | `game-design-fundamentals` |
 | Currencies, sinks and faucets, loot, crafting, shops | `game-economy-design` |
 | Level layout, pacing, encounter placement, difficulty curve | `level-design` |
-| Dungeons, maps, seeds, noise, generated loot | `procedural-gen` |
+| Dungeons, maps, terrain, seeds | `procedural-gen` |
 | Quests, missions, objectives, rewards | `quest-mission-design` |
 | HUD, menus, onboarding, accessibility | `ui-ux-game` |
 
