@@ -255,7 +255,7 @@ check_c2() {
   local n
   while IFS=: read -r n _; do
     fail C2 "$1/SKILL.md" "line $n is a block quote; state it as plain text and put its source in references/sources.md"
-  done < <(grep -n '^>' "$ROOT/$1/SKILL.md")
+  done < <(unfenced "$ROOT/$1/SKILL.md" | grep -n '^>')
 }
 
 check_c3() {

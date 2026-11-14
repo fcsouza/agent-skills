@@ -576,6 +576,10 @@ else
 fi
 
 new_fixture
+write_skill demo "d" "$(printf '```\n> a shell prompt or template line\n```\n')"
+expect_pass "C2 ignores a > line inside a code fence"
+
+new_fixture
 write_skill demo "d" "$(printf 'A line with a > sign inside.\n')"
 expect_pass "no block quote"
 
