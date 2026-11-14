@@ -16,7 +16,7 @@ bun add bullmq ioredis
 
 BullMQ 6 connects with ioredis by default but lists it only as an optional peer dependency, so install it yourself (https://docs.bullmq.io/guide/connections). `redis-game-patterns` explains why the bundle uses ioredis.
 
-Then copy the files listed under Files, in that order.
+Then copy the files in the order numbered under Files.
 
 ## One queue per domain
 
@@ -88,12 +88,12 @@ BullMQ retries failed jobs and re-runs stalled ones, so any job can run more tha
 
 ## Files
 
-- `templates/job-types.ts`: copy when you start. Queue names, job payload and result types, job names, the `Priority` enum.
-- `templates/queue-config.ts`: copy when you start. Producer and worker connections, the shared key prefix, retries, rate limits, concurrency.
-- `boilerplate/queues.ts`: copy when you add jobs from the game server. One typed `Queue` per domain plus `QueueEvents` for monitoring.
-- `boilerplate/workers.ts`: copy when you write processors. One `Worker` per queue; replace the placeholder functions at the bottom.
-- `boilerplate/scheduler.ts`: copy when you need daily rewards, season ends, timed events or periodic snapshots. It uses the queues from `queues.ts`, so `closeAllQueues()` closes them too.
-- `references/sources.md`: read when you need the doc page and sentence behind a rule below.
+1. `templates/job-types.ts`: copy when you start. Queue names, job payload and result types, job names, the `Priority` enum.
+2. `templates/queue-config.ts`: copy when you start. Producer and worker connections, the shared key prefix, retries, rate limits, concurrency.
+3. `boilerplate/queues.ts`: copy when you add jobs from the game server. One typed `Queue` per domain plus `QueueEvents` for monitoring.
+4. `boilerplate/workers.ts`: copy when you write processors. One `Worker` per queue; replace the placeholder functions at the bottom.
+5. `boilerplate/scheduler.ts`: copy when you need daily rewards, season ends, timed events or periodic snapshots. It uses the queues from `queues.ts`, so `closeAllQueues()` closes them too.
+- `references/sources.md`: read when you need the doc page and sentence behind a rule above.
 
 ## Related skills
 

@@ -85,4 +85,4 @@ This skill gives no D1, D7 or D30 target numbers. A benchmark only compares if i
 
 - `postgres-game-schema` (base schema, players table, Drizzle setup)
 - `redis-game-patterns` (Redis connection)
-- `bullmq-game-queues` (scheduled flush and nightly cohort jobs).
+- `bullmq-game-queues` (scheduled flush and nightly cohort jobs)

@@ -51,11 +51,13 @@ The Economy Impact Log is a separate table: `Quest ID | Currency Given | Items G
 
 ## Files
 
-Files, in the game project:
-
+In the game project:
 
 - `docs/world-lore.md`: the world as established. Copy `templates/world-lore.md` when the file does not exist. Read it when you need the section list.
 - `docs/quest-registry.md`: every quest, by status. Copy `templates/quest-registry.md` when the file does not exist. Read it when you need the column list.
+
+In this skill:
+
 - `templates/coherence-checklist.md`: copy it once per quest and tick it as you go.
 - `references/sources.md`: read when you need the book support for this skill.
 

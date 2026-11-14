@@ -107,4 +107,4 @@ const dungeon = new DungeonGenerator().generate('my-seed-123', {
 - `game-economy-design` (loot tables, drop rates)
 - `postgres-game-schema` (stored generated content)
 - `redis-game-patterns` (session caches)
-- `game-backend-architecture` (server-side generation).
+- `game-backend-architecture` (server-side generation)

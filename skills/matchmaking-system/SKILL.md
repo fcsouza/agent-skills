@@ -45,8 +45,8 @@ Persist ratings in Postgres after each match (`postgres-game-schema`) and cache 
 8. When the countdown ends, check every player's presence (WebSocket heartbeat). If all are there, the lobby goes IN_PROGRESS. If anyone dropped, the lobby is short of its match size, so it dissolves: `startMatch` deletes it, unmaps every player and returns the connected ones in `requeue`. Requeue them with their original `queuedAt` so their bracket stays wide. A leave before IN_PROGRESS dissolves the lobby the same way; `leaveLobby` returns the ids to requeue.
 9. On match end, mark the lobby COMPLETE, update ratings, and let the lobby expire after the results screen.
 
-Copy when building the queue: `boilerplate/matchmaker.ts` (`MatchmakingEngine`, `startMatchmaking`). It takes the ioredis client as a parameter.
-Copy when building the lobby: `boilerplate/lobby-manager.ts` (`LobbyManager`). It takes the same client.
+Build the queue from `boilerplate/matchmaker.ts`.
+Build the lobby from `boilerplate/lobby-manager.ts`.
 
 ```typescript
 import { Redis } from 'ioredis';
@@ -131,4 +131,4 @@ Check both in your own match data before you change anything: compare predicted 
 - `bullmq-game-queues` (queue and worker setup)
 - `redis-game-patterns` (Redis client, presence)
 - `postgres-game-schema` (rating and match history)
-- `game-state-sync` (takes over once the match starts).
+- `game-state-sync` (takes over once the match starts)

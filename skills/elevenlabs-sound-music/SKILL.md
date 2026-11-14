@@ -155,4 +155,4 @@ The three ElevenLabs skills come from https://github.com/elevenlabs/skills.
 
 ## Related skills
 
-- `game-design-fundamentals` (audio as player feedback).
+- `game-design-fundamentals` (audio as player feedback)

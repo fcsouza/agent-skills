@@ -69,4 +69,4 @@ Read `templates/accessibility-checklist.md` when you design or test a settings o
 
 - `game-design-fundamentals` (feedback loops and rewards)
 - `level-design` (tutorial levels)
-- `elevenlabs-sound-music` (audio feedback).
+- `elevenlabs-sound-music` (audio feedback)
