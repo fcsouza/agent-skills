@@ -1,10 +1,10 @@
 ---
 name: game-expand
-description: Adds a new feature to an existing MVP plan — scoped architect interview, scope validation against original plan, and integration into the build sequence. Extract the feature name or description from the user's message. Requires docs/mvp-first-draft.md — run game-architect first.
+description: Adds a feature to an existing MVP plan with a scoped interview, a scope check against the original plan, and a place in the build sequence. Takes the feature name or description as `$ARGUMENTS`, or from the user's message when empty. Use when the user wants to add a feature (clan system, seasonal events, crafting) to a game that already has docs/mvp-first-draft.md.
 argument-hint: feature name or description (e.g. "clan system", "seasonal events", "crafting")
 ---
 
-# Game Expand — Feature Expansion
+# Game Expand: Feature Expansion
 
 ## Requires
 
@@ -12,161 +12,116 @@ None. This command applies no skill. It reads the plan file named under Prerequi
 
 ## Prerequisites
 
-- Requires `docs/mvp-first-draft.md` in the project (run the `game-architect` skill (`/game-architect`) first)
+- `docs/mvp-first-draft.md` exists in the project. Run `/game-architect` first if it does not.
 
----
+## Phase 0: Context load (silent)
 
-## Phase 0 — Context Load (silent, mandatory)
+Input is `$ARGUMENTS`. If it is empty, take the feature name or description from the user's message.
 
-Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the feature name or description.
+1. Read `docs/mvp-first-draft.md`. If it does not exist, output "Stopped: docs/mvp-first-draft.md not found. Run `/game-architect` first to create the MVP plan." and stop. The expansion must attach to an existing plan.
+2. Read `docs/build-registry.md` if it exists. Note which components are built, mocked and remaining.
+3. Compute MVP completion. Without a registry: "MVP completion: 0% (build registry not yet created)". With one: "MVP completion: [built]/[total] components ([%])".
 
-Execute in this exact order:
+## Phase 1: Scope validation (before any question)
 
-1. READ `docs/mvp-first-draft.md`
-   - If it does NOT exist: output `⛔ Cannot proceed. docs/mvp-first-draft.md not found. Run the game-architect skill (/game-architect) first to create your MVP plan before expanding it.` and stop.
-2. READ `docs/build-registry.md` if it exists — note which components are built vs mocked vs remaining
-3. Calculate MVP completion % from build-registry:
-   - If build-registry doesn't exist: "MVP completion: 0% (build registry not yet created)"
-   - If it exists: "MVP completion: [built]/[total] components ([%])"
+Run these checks first so the interview does not spec a feature the plan already covers.
 
-## Phase 1 — Scope Validation (before asking any questions)
+**Check 1: deferred features.** Search Section 10 (Out of Scope for MVP) of `docs/mvp-first-draft.md` for the feature name. If found, output: `Warning: "[feature]" was deferred in Section 10. Original reason: "[text from plan]". Adding it now grows the MVP. MVP completion is [%]. Proceed? (confirm to continue)`. Wait for the user's confirmation. If not found, continue.
 
-This phase runs before the interview to check if the requested feature conflicts with the existing plan.
+**Check 2: already planned.** Search Section 9 (MVP Build Sequence) for the feature name.
+- In the plan and `built` in the registry: output "Stopped: [feature] is already built (see docs/build-registry.md). To change it, audit it with `/game-review`." and stop.
+- In the plan and not built: output "Stopped: [feature] is already in the MVP plan (Section 9) and not built. Implement it with `/game-build [feature]` instead of re-planning." and stop.
 
-**Check 1: Out-of-Scope / Deferred features (Section 10 of mvp-first-draft.md)**
+**Check 3: completion.** If MVP completion is below 50% and Check 1 did not already warn, output "Note: the MVP is [%] complete. Finishing the core MVP first is usually cheaper. Confirm to proceed." Wait for confirmation.
 
-Search `docs/mvp-first-draft.md` Section 10 for anything matching the feature name:
-- If found: output `⚠️ "[feature]" was explicitly deferred in your MVP plan (Section 10). Original reason: "[quote from plan]". Adding it now will increase scope beyond the original MVP. MVP completion is currently [%]. Proceed with expansion? (confirm to continue)`
-  - Wait for user confirmation before proceeding
-- If not found: continue silently
+## Phase 2: Scoped interview (at most 3 questions)
 
-**Check 2: Already-planned features**
+`/game-architect` runs the full game interview. This command asks only what the feature spec needs. Do not re-ask what the plan answers (genre, stack, multiplayer type, core loop). Skip any question the plan already answers.
 
-Search `docs/mvp-first-draft.md` Section 9 (Build Sequence) for the feature name:
-- If it matches a component already IN the MVP plan and in build-registry as "built": output `⚠️ [feature] is already built (see docs/build-registry.md). Did you mean to refactor it? Use the game-review skill (/game-review) to audit the existing implementation.` and stop.
-- If it matches a component already in the plan but NOT built yet: output `⚠️ [feature] is already in your MVP plan (Section 9) and not yet built. Use the game-build skill (/game-build) to implement it instead of re-planning.` and stop.
+1. Required, ask first: "How does **[feature]** connect to your existing core loop? (for example: it extends the economy, it is a retention mechanic, it adds a PvP mode)"
+2. Required: "Which existing MVP systems does this feature depend on? (for example: auth, matchmaking, quest system, economy)"
+3. Optional, only when the scope is ambiguous: one clarification specific to the feature. Examples: for "clan system", do clans have their own economy or only social features; for "seasonal events", are they time-gated on the server or a cosmetic reset; for "crafting", does it consume inventory items or create new item types.
 
-**Check 3: MVP completion warning**
+Do not ask about naming or code style. The topic skills already define those.
 
-If MVP completion < 50% and the deferred check did NOT trigger a warning:
-Output: `📊 Note: Your MVP is [%] complete. Consider finishing the core MVP before expanding. This is informational — type your confirmation to proceed.`
-Wait for user confirmation.
+## Phase 3: Feature spec
 
-## Phase 2 — Scoped Feature Interview (maximum 3 questions)
+Where the feature touches another domain, point to the skill that owns it instead of writing the rules here: economy sinks and faucets to `game-economy-design`, quests and lore to `quest-narrative-coherence`, persistent multiplayer worlds to `mmo-design`, tables to `postgres-game-schema`.
 
-Unlike the `game-architect` skill (`/game-architect`), which runs a full game interview, this skill asks ONLY what's needed to spec this specific feature.
-
-Do NOT re-ask anything already answered in `docs/mvp-first-draft.md` (genre, tech stack, multiplayer type, core loop, etc.).
-
-Ask exactly these questions (skip any that can be answered from the existing plan):
-
-**Question 1 (required — ask this first):**
-"How does **[feature]** connect to your existing core loop? (e.g. 'it extends the economy system', 'it's a new player retention mechanic', 'it adds a new player vs player mode')"
-
-**Question 2 (required):**
-"Which existing systems from your MVP does this feature depend on? (e.g. auth, matchmaking, quest system, economy)"
-
-**Question 3 (optional — only ask if feature scope is genuinely ambiguous):**
-One targeted clarification question specific to the feature. Examples:
-- For "clan system": "Should clans have their own economy (shared currency, clan bank) or only social features?"
-- For "seasonal events": "Are seasonal events time-gated server-side or just cosmetic resets?"
-- For "crafting": "Does crafting consume items from the player inventory, or create new item types not in the MVP?"
-
-Never ask about naming conventions, code style, or anything the skill files already define.
-
-## Phase 3 — Feature Spec
-
-Based on the existing MVP plan and the answers from Phase 2, produce a focused feature spec:
+Produce this spec:
 
 ```markdown
 ## Feature: [name]
 
-**Core loop integration:** [how it feeds into the existing loop from the MVP plan]
-**Depends on:** [existing components from build-registry that this requires]
-**New systems required:** [components that must be built from scratch]
-**Estimated complexity:** [Low / Medium / High — based on: Low = 1-2 new components, Medium = 3-4, High = 5+]
+**Core loop integration:** [how it feeds the loop in the MVP plan]
+**Depends on:** [existing components that this requires]
+**New systems required:** [components built from scratch]
+**Estimated complexity:** [Low = 1-2 new components, Medium = 3-4, High = 5 or more]
 
 ### Mechanics
 **Player-facing:** [what the player does]
-**Server-side validation requirements:** [what the server must enforce — be specific about authority boundaries]
+**Server-side validation:** [what the server enforces; name the authority boundaries]
 
-### Data Model Sketch
-[New Drizzle tables or columns needed — brief, not full schema]
-Example:
+### Data model sketch
+[New tables or columns, brief, in the ORM the plan's Section 4 names. Not a full schema.]
 - New table: `clans` (id, name, leader_id, created_at)
-- New table: `clan_members` (clan_id, player_id, role, joined_at)
-- Add column: `players.clan_id` → references clans
+- Add column: `players.clan_id` references clans
 
-### Build Sequence Addition
-[Where this feature slots into the existing Section 9 build sequence]
-Example:
-- After: `[existing component it depends on]`
-- Before: `[existing component that could optionally use it]`
-New build order for affected section:
+### Build sequence addition
+After: [existing component it depends on]
+Before: [existing component that could use it]
 1. [existing component]
-2. [new component A]  ← new
-3. [new component B]  ← new
-4. [existing component that follows]
+2. [new component A]  (new)
+3. [existing component that follows]
 
-### Section 10 Updates
-[Sub-features or complexity that should be explicitly deferred to keep this expansion focused]
-Example:
-- Deferred: Clan leaderboards (requires analytics system)
-- Deferred: Cross-clan tournaments (out of scope until clan system is stable)
+### Section 10 updates
+[Sub-features to defer so the expansion stays small]
+- Deferred: [sub-feature] ([reason])
 
-### Open Questions
-[Unresolved decisions — do not silently assume answers]
-1. [Question that must be answered before building this feature]
+### Open questions
+1. [Decision to settle before building. Do not assume an answer.]
 ```
 
-## Phase 4 — Update docs/mvp-first-draft.md
+The complexity bands are this command's own sizing rule: they count new components and are not a time estimate.
 
-After producing the spec, update the MVP plan document:
+## Phase 4: Update docs/mvp-first-draft.md
 
-1. **Append the expansion section** at the end of `docs/mvp-first-draft.md`:
+1. Append at the end of the file:
    ```markdown
    ---
    ## Expansion: [feature name]
-   > Added: [current date] via game-expand skill
+   Added: [current date] via /game-expand
 
    [full feature spec from Phase 3]
    ```
+2. Update Section 9. Insert the new components after their dependency. Do not renumber existing components.
+3. Update Section 10 with the deferred sub-features from the spec.
 
-2. **Update Section 9 (Build Sequence)** — integrate the new components at the correct dependency position in the existing sequence. Do not renumber existing components; append new ones after their dependency.
-
-3. **Update Section 10 (Out of Scope)** — add any sub-features identified in "Section 10 Updates" above.
-
-## Phase 5 — Output
-
-Present the completion summary:
+## Phase 5: Output
 
 ```
-✅ Feature added: [name]
-📋 MVP plan updated: docs/mvp-first-draft.md
+Done: feature added: [name]
+Plan updated: docs/mvp-first-draft.md
 
-🔗 Depends on (must be built first if not already):
-  • [existing component 1] — status: [built / not built]
-  • [existing component 2] — status: [built / not built]
+Depends on (build first if not built):
+  - [existing component 1]: [built / not built]
 
-🆕 New components to build:
-  • [component A]
-  • [component B]
+New components to build:
+  - [component A]
 
-📊 Updated MVP scope: [previous total] → [new total] components
+Updated MVP scope: [previous total] -> [new total] components
 
 Next step:
   /game-build [first-unbuilt-dependency-or-new-component]
 ```
 
-If any dependencies are not yet built, list them BEFORE the new components — the user must build dependencies first.
+List unbuilt dependencies before the new components. The user must build them first.
 
----
+## Rules
 
-## Hard Constraints
-
-1. **Never expand without mvp-first-draft.md** — the expansion must integrate into an existing plan
-2. **Always check Section 10 first** — deferred features get a warning before proceeding
-3. **Maximum 3 questions** — do not re-ask what's already in the plan
-4. **Never invent schema details** not implied by the feature description — sketch only, flag open questions
-5. **Always update Section 9 build sequence** — the expansion is only valid if it has a place in the build order
-6. **Always list deferred sub-features** in Section 10 — scope creep happens one untracked assumption at a time
+1. Never expand without `docs/mvp-first-draft.md`. The feature needs a plan to join.
+2. Check Section 10 first. A deferred feature was cut for a reason the user should see again.
+3. Ask at most 3 questions. The plan already holds the rest.
+4. Sketch schema only as far as the feature description implies. Put anything else under Open questions, so no guess becomes a design.
+5. Always update Section 9. A feature with no place in the build order cannot be built.
+6. Always list deferred sub-features in Section 10. Untracked assumptions are how scope grows.
