@@ -86,8 +86,8 @@ One room on one instance fits matches. A persistent world with crowds needs more
 
 - Redis holds transient state: presence, rate-limit counters, room-to-instance routing, caches (`redis-game-patterns`). Redis persistence can lose data on a crash: an RDB snapshot setup can lose the latest minutes, and the AOF default (fsync every second) can lose about one second. Redis's own advice is RDB plus AOF for safety comparable to PostgreSQL. Treat anything you cannot afford to lose as not Redis-only.
 - Postgres holds ledgers, balances, inventory and trades (`postgres-game-schema`, which has the tables and the guarded-spend query).
-- A two-player trade is one Postgres transaction. Lock both players' inventory rows with `SELECT ... FOR UPDATE` in a fixed order, for example by player id, so two opposite trades cannot wait on each other. Retry the transaction if Postgres aborts it for a deadlock.
-- Write to Postgres on room close, on a timer, or from a queue, never awaited inside a tick.
+- A two-player trade is one Postgres transaction. First lock the two `players` rows with `SELECT ... FOR UPDATE`, ordered by id. Locking the player rows covers rows the trade inserts, such as merged stacks, which an inventory lock cannot. Then change inventory and currencies. Two opposite trades then take their locks in the same order and cannot wait on each other. If Postgres still aborts the transaction with SQLSTATE `40P01` (`deadlock_detected`), retry the whole transaction a small, bounded number of times. The Postgres docs give the two rules (acquire locks in a consistent order; retry transactions that abort for a deadlock). Applying them to a trade through the `players` rows is this skill's rule.
+- Ledger and trade writes commit at once, unlike room-state writes. Write room state to Postgres on room close, on a timer, or from a queue, never awaited inside a tick.
 
 ## Heartbeat and presence
 
