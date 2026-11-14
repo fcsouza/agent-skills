@@ -4,15 +4,17 @@
 
 ```
 Difficulty
-10 │                                    ████
- 8 │                              ██████
- 6 │                      ████████
- 4 │            ██████████
- 2 │    ████████
- 0 │████
+10 │                                 ╱╲  ╱
+ 8 │                          ╱╲  ╱╯  ╰╯
+ 6 │                   ╱╲  ╱╯  ╰╯
+ 4 │            ╱╲  ╱╯  ╰╯
+ 2 │     ╱╲  ╱╯  ╰╯
+ 0 │╱╲╱╯╰╯
    └──────────────────────────────────────
     Tutorial  Early    Mid    Late   Endgame
 ```
+
+Each phase rises in a sawtooth (SKILL.md step 14): a step up, then a short drop where the player uses an old skill on a harder problem. The ranges below are the band the teeth stay inside.
 
 ### Phase Breakdown
 
@@ -65,7 +67,7 @@ The percentages are starting guesses, not tested values. Change a knob by doubli
 | Time limits | +50% or removed | Base | -25% |
 | Puzzle complexity | Fewer steps, hints | Base | Extra steps, no hints |
 | Checkpoint frequency | Every encounter | Every 2-3 encounters | Every area |
-| AI behavior complexity | Predictable | Mixed | Aggressive + adaptive |
+| AI behavior complexity | Predictable | Mixed | Aggressive |
 | Recovery options (healing, retry) | Abundant | Moderate | Scarce |
 
 ---
@@ -83,7 +85,7 @@ The percentages are starting guesses, not tested values. Change a knob by doubli
 
 ### Approach B: Adaptive Difficulty
 
-Adaptive difficulty has three known costs: it breaks the sense of a fixed world, players can exploit it by playing badly, and players want to improve by practice. Prefer preset modes. The thresholds below are example values.
+Prefer preset modes. `game-design-fundamentals` lists the three costs of dynamic difficulty. The thresholds below are example values.
 
 ```
 IF player.deathCount > 3 in same area:
@@ -110,7 +112,7 @@ IF player.completionTime < expected * 0.5:
 | Sudden spike | Players quit at specific point | Add transition encounters |
 | No rest areas | Player fatigue | Insert cool-down zones between challenges |
 | Tutorial too long | Players skip/quit early | Teach through play, not text |
-| Endgame cliff | Only 1% of players see final content | Offer difficulty options for story access |
+| Endgame cliff | Players stop before the final content | Offer difficulty options for story access |
 | Reverse curve | Game gets easier over time | Scale challenges with player power growth |
 
 ---
@@ -123,5 +125,4 @@ IF player.completionTime < expected * 0.5:
 - [ ] Does Hard mode feel fair (hard but achievable)?
 - [ ] Do rest areas feel like actual breaks?
 - [ ] Is the peak encounter satisfying to overcome?
-- [ ] Does adaptive difficulty (if used) feel invisible?
 - [ ] Can the game be completed on all difficulty modes?

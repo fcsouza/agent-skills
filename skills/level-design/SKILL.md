@@ -46,35 +46,31 @@ Treat the mission (what the player does, in what order, and why) and the space (
 
 ### 5. Teaching
 
-16. Teach by doing. Give each lesson at the moment the player can use it.
-17. Introduce at most three new things at once while the player is learning.
-18. Do not punish failure while the player is still learning a mechanic.
-19. Avoid false affordances: an object that looks useful and is not. Avoid tutorial text with no context.
+16. Teach by doing. Follow the onboarding rules in `ui-ux-game`.
 
 ### 6. Encounters and puzzles
 
-20. Fill in `templates/encounter-template.md` for each encounter. Answer: what does the player learn or prove, what happens on failure, and is there more than one valid approach?
-21. For puzzles: make the goal obvious, make starting easy, show progress, and raise difficulty gradually. Give parallel puzzles so a stuck player can switch. Stack small puzzles into a pyramid that feeds a final one.
-22. Check the difficulty of each encounter against the level's curve.
-23. Do not use hidden dynamic difficulty as the fix for a bad curve. It breaks the sense of a fixed world, players can exploit it by playing badly, and players want to improve by practice. If you use adaptive changes, follow the rules in `templates/difficulty-curve.md`.
+17. Fill in `templates/encounter-template.md` for each encounter. Answer: what does the player learn or prove, what happens on failure, and is there more than one valid approach?
+18. For puzzles: make the goal obvious, make starting easy, show progress, and raise difficulty gradually. Give parallel puzzles so a stuck player can switch. Stack small puzzles into a pyramid that feeds a final one.
+19. Check the difficulty of each encounter against the level's curve.
+20. Do not use hidden dynamic difficulty as the fix for a bad curve. `game-design-fundamentals` lists its three costs. If you use adaptive changes anyway, follow the rules in `templates/difficulty-curve.md`.
 
 ### 7. Environmental storytelling
 
-24. Put details in the environment that imply what happened: a locked door with claw marks says more than a log entry. Never put them on the critical path.
+21. Put details in the environment that imply what happened: a locked door with claw marks says more than a log entry. Never put them on the critical path.
 
 ### 8. Accessibility pass
 
-25. Check that every important element reads without color alone.
-26. Give each audio cue a visual alternative.
-27. Check that the critical path needs no precision timing, or offer an alternative.
-28. Check text size, subtitles and input remapping. See `ui-ux-game` for the full checklist.
+22. Check that every important element reads without color alone.
+23. Give each audio cue a visual alternative.
+24. Check that the critical path needs no precision timing, or offer an alternative.
+25. Check text size, subtitles and input remapping. See `ui-ux-game` for the full checklist.
 
 ### 9. Playtest
 
-29. Plan the test: what you want to learn, who tests (fresh players, not only the team), and what you log. Log events such as time per area and deaths per encounter.
-30. Watch silently. Record where players get lost, get stuck, get bored or miss content. Test novices and experts.
-31. Ask for the three least-liked parts, not one. Do not defend the level. Do not ask testers to design it.
-32. Change the level from what you saw, not from preference. Where players get stuck is a design failure.
+26. Plan and run the test as in `game-design-fundamentals`. For a level, log events such as time per area and deaths per encounter.
+27. Watch silently. Record where players get lost, get stuck, get bored or miss content. Test novices and experts.
+28. Change the level from what you saw, not from preference. Where players get stuck is a design failure.
 
 ## Pitfalls
 
@@ -82,14 +78,14 @@ Treat the mission (what the player does, in what order, and why) and the space (
 - A hard encounter after easy ones with no buildup. Ramp into it.
 - Empty space with no encounter, story, resource or view.
 - Visual language that changes between areas. If glowing means "interactable" in one place, it means that everywhere.
-- A boring tutorial. Players leave before the main game.
+- A boring tutorial. Players leave before the main game. See `ui-ux-game`.
 - A waypoint marker used to cover a confusing layout. Fix the layout first.
 - Designing from what you know. You know the solution. The player does not.
 - Pacing tuned in a ten-minute test. Flow shows only in long observation.
 
 ## Cross-references
 
-- `game-design-fundamentals`: pillars and mechanics framework.
+- `game-design-fundamentals`: the design loop, core loop and difficulty.
 - `quest-mission-design`: mission structure that overlays a level.
 - `worldbuilding`: lore and world rules behind an environment.
 - `ui-ux-game`: HUD, minimap, waypoints and the accessibility checklist.
