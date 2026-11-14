@@ -11,8 +11,11 @@ argument-hint: '"economy", "difficulty", "progression", "rewards", or "all" (def
 - `game-economy-design`
 - `game-design-fundamentals`
 - `skill-progression-trees`
+- `stripe-game-payments`
+- `quest-narrative-coherence`
+- `ui-ux-game`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 
