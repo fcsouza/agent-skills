@@ -52,7 +52,20 @@ redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
 return 1
 `;
 
+/**
+ * Deletes a player->lobby mapping only if it still names this lobby, so a
+ * late call for an old lobby cannot erase the player's current one.
+ * KEYS[1] mapping key; ARGV[1] lobby id.
+ */
+const DELETE_IF_EQUAL_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end
+return 0
+`;
+
 const MAX_CAS_RETRIES = 10;
+
+/** The lobby changed between the read and the write; read it again and retry. */
+export class LobbyChangedError extends Error {}
 
 /**
  * Lobby state machine: WAITING -> COUNTDOWN -> IN_PROGRESS -> COMPLETE.
@@ -137,9 +150,12 @@ export class LobbyManager {
 			if (l.state === "IN_PROGRESS" || l.state === "COMPLETE") {
 				throw new Error(`Cannot leave lobby in state ${l.state}; record it as an abandon`);
 			}
+			if (!l.players.some((p) => p.playerId === playerId)) {
+				throw new Error(`Player ${playerId} not in lobby`);
+			}
 			return this.revertToWaiting(l, [playerId]);
 		});
-		await this.redis.del(this.playerLobbyKey(playerId));
+		await this.unmapPlayers(lobbyId, [playerId]);
 		if (lobby.players.length === 0) await this.redis.del(this.lobbyKey(lobbyId));
 		await this.emit(lobbyId, "lobby:player-left", { playerId });
 		return lobby.players.map((p) => p.playerId);
@@ -149,6 +165,10 @@ export class LobbyManager {
 	 * COUNTDOWN -> IN_PROGRESS after checking every player is still connected.
 	 * `findDisconnected` returns the ids that failed the presence check. If any
 	 * did, they are removed and the lobby returns to WAITING.
+	 * The write only goes through if the lobby is still the one that was
+	 * checked: same countdown, countdown elapsed, same players. Otherwise it
+	 * throws `LobbyChangedError`; call `startMatch` again when the new
+	 * countdown ends.
 	 */
 	async startMatch(
 		lobbyId: string,
@@ -158,17 +178,28 @@ export class LobbyManager {
 		if (!current) throw new Error(`Lobby ${lobbyId} not found`);
 		const disconnected = await findDisconnected(current.players.map((p) => p.playerId));
 
+		const checkedIds = current.players.map((p) => p.playerId).sort();
 		const lobby = await this.transition(lobbyId, (l) => {
 			if (l.state !== "COUNTDOWN") throw new Error(`Cannot start match in state ${l.state}`);
+			const ids = l.players.map((p) => p.playerId).sort();
+			if (
+				l.countdownStartedAt === null ||
+				l.countdownStartedAt !== current.countdownStartedAt ||
+				ids.length !== checkedIds.length ||
+				ids.some((id, i) => id !== checkedIds[i])
+			) {
+				throw new LobbyChangedError(`Lobby ${lobbyId} changed since the presence check`);
+			}
+			if (Date.now() < l.countdownStartedAt + l.countdownDurationMs) {
+				throw new LobbyChangedError(`Lobby ${lobbyId}: countdown has not ended`);
+			}
 			return disconnected.length > 0
 				? this.revertToWaiting(l, disconnected)
 				: { ...l, state: "IN_PROGRESS" };
 		});
 
 		if (lobby.state !== "IN_PROGRESS") {
-			if (disconnected.length > 0) {
-				await this.redis.del(...disconnected.map((id) => this.playerLobbyKey(id)));
-			}
+			await this.unmapPlayers(lobbyId, disconnected);
 			await this.emit(lobbyId, "lobby:countdown-cancelled", { disconnected });
 			return { started: false, disconnected };
 		}
@@ -186,9 +217,10 @@ export class LobbyManager {
 			if (l.state !== "IN_PROGRESS") throw new Error(`Cannot complete lobby in state ${l.state}`);
 			return { ...l, state: "COMPLETE" };
 		});
-		if (lobby.players.length > 0) {
-			await this.redis.del(...lobby.players.map((p) => this.playerLobbyKey(p.playerId)));
-		}
+		await this.unmapPlayers(
+			lobbyId,
+			lobby.players.map((p) => p.playerId),
+		);
 		await this.emit(lobbyId, "lobby:complete", { lobbyId });
 	}
 
@@ -203,6 +235,12 @@ export class LobbyManager {
 	}
 
 	// --- Internal helpers ---
+
+	private async unmapPlayers(lobbyId: string, playerIds: readonly string[]): Promise<void> {
+		for (const id of playerIds) {
+			await this.redis.eval(DELETE_IF_EQUAL_SCRIPT, 1, this.playerLobbyKey(id), lobbyId);
+		}
+	}
 
 	private revertToWaiting(lobby: Lobby, removeIds: string[]): Lobby {
 		const players = lobby.players

@@ -86,7 +86,7 @@ await queue.add(
 
 Reading candidates and then removing them in separate calls lets two workers pick the same opponent, and both matches go ahead. A MULTI/EXEC of two ZREMs does not fix this: if one member is already gone, the other is still removed, and Redis transactions have no rollback.
 
-The boilerplate's claim script checks both members with ZSCORE, then ZREMs both and DELs both hashes, all inside one script. Redis runs a script atomically, so a second worker sees the pair gone and moves to its next candidate. Pass every key the script touches as a key argument. All keys of one pool share a `{mode:region}` hash tag, so the script also runs on Redis Cluster.
+The boilerplate's claim script checks both members with ZSCORE, then ZREMs both and DELs both hashes, all inside one script. Redis runs a script atomically, so a second worker sees the pair gone and moves to its next candidate. Pass every key the script touches as a key argument. Every matchmaking key shares the `{mm}` hash tag because the scripts touch a pool and the global per-player markers together; on Redis Cluster that puts all matchmaking state in one slot.
 
 ## Lobby state machine
 
@@ -110,7 +110,11 @@ Check both in your own match data before you change anything: compare predicted 
 - Resetting a requeued player's wait: keep the original `queuedAt` so the bracket stays wide.
 - One global queue: separate by mode and region.
 - Long waits: the queue entry's hash expires after `entryTtlSeconds` and the player drops out silently. Refresh it from the client heartbeat or raise the TTL.
-- Losing a claimed pair: once the claim script runs, both players are out of the queue. `startMatchmaking` handles an `onMatch` failure by calling `engine.requeue` (one MULTI, original rating and `queuedAt`), restarting both searches and rethrowing. Do the same if you call `findMatch` yourself.
+- Losing a claimed pair: once the claim script runs, both players are out of the queue. `startMatchmaking` handles an `onMatch` failure by calling `engine.requeue` (one script, original rating and `queuedAt`), restarting both searches and rethrowing. Do the same if you call `findMatch` yourself.
+- One player in two pools: a per-mode key lets the same player queue in two modes or regions and get matched twice. The boilerplate keeps a global "queued in" marker, written by the enqueue script, cleared by the claim and cancel scripts, and refuses an enqueue into a second pool.
+- Untrusted key parts: game mode and region become part of Redis keys; the boilerplate rejects anything but letters, digits, `_` and `-`.
+- Leave calls from non-members or stale clients: refuse a leave from a player not in the lobby, and delete the player-to-lobby mapping only if it still names this lobby (compare-and-delete script).
+- Starting on a stale presence check: the lobby can change while presence is checked. Start only if the countdown, its end time and the player set are the ones that were checked; otherwise `startMatch` throws `LobbyChangedError` and you call it again when the new countdown ends.
 - Skipping the presence check before IN_PROGRESS: a player who dropped during the countdown starts a match one short.
 - Priorities in BullMQ: jobs with no priority run before every prioritized job. If you boost long waiters with `priority`, give every search job a priority.
 - Tuning by opinion: test what your players care about most (latency, skill, streaks or wait time) with match data before you change the weights.

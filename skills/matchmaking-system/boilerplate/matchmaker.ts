@@ -50,24 +50,85 @@ const DEFAULT_CONFIG: MatchmakingConfig = {
 };
 
 /**
+ * Adds or refreshes players in one pool. A player is in at most one pool at a
+ * time: a global marker key holds the pool id while they are queued.
+ * For player i (1-based), KEYS[3i-2] marker, KEYS[3i-1] pool sorted set,
+ * KEYS[3i] player hash. ARGV[1] pool id, ARGV[2] TTL seconds, then per player
+ * ARGV[3 + 7(i-1) ...] = playerId, rating, deviation, gamesPlayed, gameMode,
+ * region, queuedAt.
+ * Returns one flag per player: 1 written, 0 refused because the marker points
+ * to another pool. All checks and writes run inside one script, so Redis
+ * applies them atomically.
+ */
+const ENQUEUE_SCRIPT = `
+local pool, ttl = ARGV[1], tonumber(ARGV[2])
+local n = #KEYS / 3
+local written = {}
+for i = 1, n do
+  local marker, queue, hash = KEYS[3*i-2], KEYS[3*i-1], KEYS[3*i]
+  local current = redis.call('GET', marker)
+  if current and current ~= pool then
+    written[i] = 0
+  else
+    local a = 3 + 7*(i-1)
+    redis.call('SET', marker, pool, 'EX', ttl)
+    redis.call('ZADD', queue, ARGV[a+1], ARGV[a])
+    redis.call('HSET', hash, 'playerId', ARGV[a], 'rating', ARGV[a+1],
+      'deviation', ARGV[a+2], 'gamesPlayed', ARGV[a+3], 'gameMode', ARGV[a+4],
+      'region', ARGV[a+5], 'queuedAt', ARGV[a+6])
+    redis.call('EXPIRE', hash, ttl)
+    written[i] = 1
+  end
+end
+return written
+`;
+
+/**
  * Removes two players from the queue in one step, or neither.
- * KEYS[1] queue sorted set, KEYS[2] and KEYS[3] the two player hashes.
- * ARGV[1] and ARGV[2] the two player ids.
- * Returns 1 when both were still queued and are now removed, else 0.
- * Redis runs a script atomically, so two workers can never claim the same player.
+ * KEYS[1] pool sorted set, KEYS[2] and KEYS[3] the two player hashes,
+ * KEYS[4] and KEYS[5] their markers. ARGV[1] and ARGV[2] the player ids,
+ * ARGV[3] the pool id. Returns 1 when both were still queued and are now
+ * removed, else 0. Redis runs a script atomically, so two workers can never
+ * claim the same player.
  */
 const CLAIM_PAIR_SCRIPT = `
 if redis.call('ZSCORE', KEYS[1], ARGV[1]) == false then return 0 end
 if redis.call('ZSCORE', KEYS[1], ARGV[2]) == false then return 0 end
 redis.call('ZREM', KEYS[1], ARGV[1], ARGV[2])
 redis.call('DEL', KEYS[2], KEYS[3])
+for i = 4, 5 do
+  if redis.call('GET', KEYS[i]) == ARGV[3] then redis.call('DEL', KEYS[i]) end
+end
 return 1
 `;
 
 /**
- * Two-player matchmaking on a Redis sorted set (score = rating), one set per
- * mode and region. Every key of a pool carries the same {mode:region} hash
- * tag, so the claim script also runs on Redis Cluster.
+ * Removes one player from one pool. KEYS[1] pool sorted set, KEYS[2] player
+ * hash, KEYS[3] marker; ARGV[1] player id, ARGV[2] pool id. The marker is
+ * deleted only if it still names this pool.
+ */
+const REMOVE_SCRIPT = `
+redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('DEL', KEYS[2])
+if redis.call('GET', KEYS[3]) == ARGV[2] then redis.call('DEL', KEYS[3]) end
+return 1
+`;
+
+/** Game modes and regions become part of Redis keys; allow only these characters. */
+const KEY_PART = /^[A-Za-z0-9_-]{1,64}$/;
+
+function assertKeyPart(name: string, value: string): void {
+	if (!KEY_PART.test(value)) {
+		throw new Error(`Invalid ${name} "${value}": use letters, digits, "_" or "-"`);
+	}
+}
+
+/**
+ * Two-player matchmaking on Redis sorted sets (score = rating), one set per
+ * mode and region. A player can be queued in only one pool at a time.
+ * Every key carries the `{mm}` hash tag: the scripts touch a pool and the
+ * global per-player markers together, so on Redis Cluster all matchmaking
+ * keys sit in one slot. Run one Redis per region if that slot gets too hot.
  */
 export class MatchmakingEngine {
 	private readonly redis: Redis;
@@ -78,27 +139,32 @@ export class MatchmakingEngine {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 	}
 
+	/**
+	 * Adds or refreshes a player in one pool. Throws if the player is already
+	 * queued in another pool; cancel that search first.
+	 */
 	async enqueue(player: PlayerQueueEntry): Promise<void> {
-		await this.writeEntries([player]);
+		const [written] = await this.writeEntries([player]);
+		if (!written) {
+			throw new Error(`Player ${player.playerId} is already queued in another mode or region`);
+		}
 	}
 
 	/**
 	 * Puts claimed players back after the match could not be set up. Each entry
 	 * keeps its rating and original `queuedAt`, so the player keeps their place
-	 * and their widened bracket. All writes go in one MULTI/EXEC, which Redis
-	 * runs without interleaving other clients' commands.
+	 * and their widened bracket. One script writes all of them atomically. A
+	 * player who queued elsewhere in the meantime is left there. Returns the
+	 * ids that were put back.
 	 */
-	async requeue(players: readonly PlayerQueueEntry[]): Promise<void> {
-		await this.writeEntries(players);
+	async requeue(players: readonly PlayerQueueEntry[]): Promise<string[]> {
+		const written = await this.writeEntries(players);
+		return players.filter((_, i) => written[i]).map((p) => p.playerId);
 	}
 
 	/** Player cancelled the search. */
 	async cancel(gameMode: string, region: string, playerId: string): Promise<void> {
-		await this.redis
-			.multi()
-			.zrem(this.queueKey(gameMode, region), playerId)
-			.del(this.playerKey(gameMode, region, playerId))
-			.exec();
+		await this.remove(gameMode, region, playerId);
 	}
 
 	/** Bracket half-width after waiting `waitMs`. It only grows. */
@@ -147,12 +213,15 @@ export class MatchmakingEngine {
 		for (const opponent of candidates.slice(0, this.config.candidateLimit)) {
 			const claimed = await this.redis.eval(
 				CLAIM_PAIR_SCRIPT,
-				3,
+				5,
 				this.queueKey(gameMode, region),
 				this.playerKey(gameMode, region, player.playerId),
 				this.playerKey(gameMode, region, opponent.playerId),
+				this.markerKey(player.playerId),
+				this.markerKey(opponent.playerId),
 				player.playerId,
 				opponent.playerId,
+				this.poolId(gameMode, region),
 			);
 			if (claimed !== 1) continue; // Another worker took one of the two; try the next.
 			return {
@@ -175,28 +244,47 @@ export class MatchmakingEngine {
 		return this.redis.zcard(this.queueKey(gameMode, region));
 	}
 
-	private async writeEntries(players: readonly PlayerQueueEntry[]): Promise<void> {
-		const multi = this.redis.multi();
-		for (const player of players) {
-			const dataKey = this.playerKey(player.gameMode, player.region, player.playerId);
-			multi
-				.zadd(this.queueKey(player.gameMode, player.region), player.rating, player.playerId)
-				.hset(dataKey, {
-					playerId: player.playerId,
-					rating: String(player.rating),
-					deviation: String(player.deviation),
-					gamesPlayed: String(player.gamesPlayed),
-					gameMode: player.gameMode,
-					region: player.region,
-					queuedAt: String(player.queuedAt),
-				})
-				.expire(dataKey, this.config.entryTtlSeconds);
+	/** Runs ENQUEUE_SCRIPT for players of one pool; returns a written flag per player. */
+	private async writeEntries(players: readonly PlayerQueueEntry[]): Promise<boolean[]> {
+		const first = players[0];
+		if (!first) return [];
+		const { gameMode, region } = first;
+		if (players.some((p) => p.gameMode !== gameMode || p.region !== region)) {
+			throw new Error("writeEntries: all players must share one pool");
 		}
-		const results = await multi.exec();
-		const failed = results?.find(([err]) => err !== null);
-		if (!results || failed) {
-			throw failed?.[0] ?? new Error("Queue write aborted");
+		const keys: string[] = [];
+		const args: string[] = [this.poolId(gameMode, region), String(this.config.entryTtlSeconds)];
+		for (const p of players) {
+			keys.push(
+				this.markerKey(p.playerId),
+				this.queueKey(gameMode, region),
+				this.playerKey(gameMode, region, p.playerId),
+			);
+			args.push(
+				p.playerId,
+				String(p.rating),
+				String(p.deviation),
+				String(p.gamesPlayed),
+				gameMode,
+				region,
+				String(p.queuedAt),
+			);
 		}
+		const result = await this.redis.eval(ENQUEUE_SCRIPT, keys.length, ...keys, ...args);
+		if (!Array.isArray(result)) throw new Error("Unexpected enqueue script reply");
+		return result.map((flag) => flag === 1);
+	}
+
+	private async remove(gameMode: string, region: string, playerId: string): Promise<void> {
+		await this.redis.eval(
+			REMOVE_SCRIPT,
+			3,
+			this.queueKey(gameMode, region),
+			this.playerKey(gameMode, region, playerId),
+			this.markerKey(playerId),
+			playerId,
+			this.poolId(gameMode, region),
+		);
 	}
 
 	private isProtectedMismatch(a: PlayerQueueEntry, b: PlayerQueueEntry): boolean {
@@ -215,7 +303,7 @@ export class MatchmakingEngine {
 		const data = await this.redis.hgetall(this.playerKey(gameMode, region, playerId));
 		if (!data.playerId) {
 			// The hash expired but the sorted-set member may remain; drop it.
-			await this.redis.zrem(this.queueKey(gameMode, region), playerId);
+			await this.remove(gameMode, region, playerId);
 			return null;
 		}
 		return {
@@ -229,12 +317,23 @@ export class MatchmakingEngine {
 		};
 	}
 
+	private poolId(gameMode: string, region: string): string {
+		assertKeyPart("gameMode", gameMode);
+		assertKeyPart("region", region);
+		return `${gameMode}:${region}`;
+	}
+
 	private queueKey(gameMode: string, region: string): string {
-		return `mm:{${gameMode}:${region}}:queue`;
+		return `mm:{mm}:queue:${this.poolId(gameMode, region)}`;
 	}
 
 	private playerKey(gameMode: string, region: string, playerId: string): string {
-		return `mm:{${gameMode}:${region}}:player:${playerId}`;
+		return `mm:{mm}:player:${this.poolId(gameMode, region)}:${playerId}`;
+	}
+
+	/** Global: names the one pool a player is queued in. */
+	private markerKey(playerId: string): string {
+		return `mm:{mm}:queued:${playerId}`;
 	}
 }
 
@@ -268,11 +367,11 @@ export function startMatchmaking(
 				} catch (error) {
 					// Both players are out of the queue now. Put them back with their
 					// original entries and restart both searches, then report the failure.
-					await engine.requeue(match.players);
-					for (const p of match.players) {
+					const requeued = await engine.requeue(match.players);
+					for (const id of requeued) {
 						await queue.add(
 							"search",
-							{ gameMode, region, playerId: p.playerId },
+							{ gameMode, region, playerId: id },
 							{ delay: retryDelayMs, removeOnComplete: true },
 						);
 					}
