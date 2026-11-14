@@ -30,7 +30,7 @@ Resolve from most to least specific, then the default locale: zh-Hans-CN, zh-CN,
 - Treat regional variants as separate locales: pt and pt-BR, es and es-419, zh-Hans and zh-Hant. Steam lists Portuguese and Portuguese-Brazil, and Spanish-Spain and Spanish-Latin America, as separate languages.
 - Use BCP 47 tags inside the game. Convert at the platform edge: Steam's API codes map `brazilian` to pt-BR, `latam` to es-419, `schinese` to zh-CN.
 - Resolve the chain once per message ID when the catalogs load, and log misses and failed loads in development. The boilerplate does both.
-- Intl throws RangeError on an invalid tag, currency code or time zone. Parse an Accept-Language header into one tag before passing it, and validate player-supplied values.
+- Intl throws RangeError on an invalid tag, currency code or time zone. On a server, parse the Accept-Language header, resolve it against the list of locales you ship, and pass only a shipped locale to the translator and the format helpers. Never pass a raw header value: distinct tags would also grow formatter caches. The boilerplate's cache keys on the locale's base name and holds at most 256 formatters (this skill's default).
 - Format plurals and numbers with the locale the text came from. A Russian player who falls back to English text should not get Russian plural categories applied to English branches.
 
 ## Plurals and formatting: use Intl
