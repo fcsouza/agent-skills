@@ -155,33 +155,24 @@ export const rewardWorker = new Worker<RewardJobData, RewardJobResult>(
 			return { credited: false, playerId, rewardType, appliedAt: Date.now() };
 		}
 
-		// Run steps 1-3 inside one database transaction (see checkIdempotency).
-		// Step 1: Idempotency check — has this reward already been credited?
-		const alreadyCredited = await checkIdempotency(idempotencyKey);
-		if (alreadyCredited) {
-			return {
-				credited: false,
-				playerId,
-				rewardType,
-				appliedAt: Date.now(),
-			};
+		// Check, credit and mark in one database transaction: applyRewardOnce
+		// skips the callback when the key was already recorded.
+		const credited = await applyRewardOnce(idempotencyKey, async (tx) => {
+			if (payload.currency) {
+				await tx.creditCurrency(playerId, payload.currency);
+			}
+			if (payload.items?.length) {
+				await tx.creditItems(playerId, payload.items);
+			}
+			if (payload.experience) {
+				await tx.creditExperience(playerId, payload.experience);
+			}
+		});
+		if (!credited) {
+			return { credited: false, playerId, rewardType, appliedAt: Date.now() };
 		}
 
-		// Step 2: Credit rewards to player account
-		if (payload.currency) {
-			await creditCurrency(playerId, payload.currency);
-		}
-		if (payload.items?.length) {
-			await creditItems(playerId, payload.items);
-		}
-		if (payload.experience) {
-			await creditExperience(playerId, payload.experience);
-		}
-
-		// Step 3: Mark as credited for idempotency
-		await markCredited(idempotencyKey);
-
-		// Step 4: Log reward event for analytics
+		// Log the reward event for analytics, after the commit
 		await logRewardEvent(playerId, rewardType, payload);
 
 		return {
@@ -339,25 +330,24 @@ async function fanOutReward(
 ): Promise<void> {
 	throw new Error("Implement fanOutReward");
 }
-// Check and mark in the same transaction as the credit (one DB write),
-// or a crash between credit and mark pays the player twice on retry.
-async function checkIdempotency(_key: string): Promise<boolean> {
-	throw new Error("Implement checkIdempotency");
+/** The writes a reward makes, all inside one database transaction. */
+interface RewardTx {
+	creditCurrency(playerId: string, amount: number): Promise<void>;
+	creditItems(playerId: string, items: string[]): Promise<void>;
+	creditExperience(playerId: string, xp: number): Promise<void>;
 }
-async function creditCurrency(
-	_playerId: string,
-	_amount: number,
-): Promise<void> {
-	throw new Error("Implement creditCurrency");
-}
-async function creditItems(_playerId: string, _items: string[]): Promise<void> {
-	throw new Error("Implement creditItems");
-}
-async function creditExperience(_playerId: string, _xp: number): Promise<void> {
-	throw new Error("Implement creditExperience");
-}
-async function markCredited(_key: string): Promise<void> {
-	throw new Error("Implement markCredited");
+/**
+ * In one transaction: insert `key` into the `processed_events` table from
+ * the `postgres-game-schema` skill (kind 'reward'), then run `apply`. If the
+ * insert conflicts, skip `apply` and return false. If `apply` throws, roll
+ * back everything, key included, so the job's retry can credit it. Same
+ * shape as `PaymentStore.processOnce` in `stripe-game-payments`.
+ */
+async function applyRewardOnce(
+	_key: string,
+	_apply: (tx: RewardTx) => Promise<void>,
+): Promise<boolean> {
+	throw new Error("Implement applyRewardOnce");
 }
 async function logRewardEvent(
 	_playerId: string,

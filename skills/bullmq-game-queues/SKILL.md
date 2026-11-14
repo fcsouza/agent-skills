@@ -22,7 +22,7 @@ Then copy the files in this order:
 2. `templates/queue-config.ts`: copy when you start. Producer and worker connections, the shared key prefix, retries, rate limits, concurrency.
 3. `boilerplate/queues.ts`: copy when you add jobs from the game server. One typed `Queue` per domain plus `QueueEvents` for monitoring.
 4. `boilerplate/workers.ts`: copy when you write processors. One `Worker` per queue; replace the placeholder functions at the bottom.
-5. `boilerplate/scheduler.ts`: copy when you need daily rewards, season ends, timed events or periodic snapshots.
+5. `boilerplate/scheduler.ts`: copy when you need daily rewards, season ends, timed events or periodic snapshots. It uses the queues from `queues.ts`, so `closeAllQueues()` closes them too.
 
 `references/sources.md`: read when you need the doc page and sentence behind a rule below.
 
@@ -57,9 +57,9 @@ BullMQ retries failed jobs and re-runs stalled ones, so any job can run more tha
 ## Reward fulfilment
 
 - Grants go through the `reward` queue, never inline in a request handler.
-- `rewardWorker` in `boilerplate/workers.ts` shows the order: build the key, skip if already credited, credit currency, items and experience, mark the key, then log for analytics.
+- `rewardWorker` in `boilerplate/workers.ts` shows the order: build the key, then call `applyRewardOnce(key, (tx) => ...)`, which records the key and credits currency, items and experience in one transaction, or skips everything if the key is already recorded. Log for analytics after it commits.
 - A broadcast reward (`BROADCAST_PLAYER_ID`) is a trigger. The worker enqueues one reward job per eligible player, each keyed `<run key>:<playerId>`, and grants nothing itself.
-- `stripe-game-payments` records the purchase, then enqueues reward delivery here. Key that job by the payment id so a replayed webhook cannot grant twice.
+- `stripe-game-payments` records the purchase, then enqueues reward delivery here. Key that job by the checkout session id (one-time purchase) or the invoice id (subscription period), the same keys its purchase rows are unique on, so a replayed webhook cannot grant twice.
 
 ## Schedulers for daily rewards and season ends
 
@@ -97,7 +97,7 @@ BullMQ retries failed jobs and re-runs stalled ones, so any job can run more tha
 ## Related skills
 
 - `redis-game-patterns`: Redis connection, per-player rate limiting.
-- `postgres-game-schema`: tables for idempotency keys, rewards and seasons.
+- `postgres-game-schema`: the `processed_events` table that `applyRewardOnce` writes its keys to (shared with `stripe-game-payments`), and the currency and inventory tables rewards credit.
 - `matchmaking-system`: the matching logic the matchmaking worker calls.
 - `stripe-game-payments`: purchases that enqueue reward jobs.
 - `game-backend-architecture`: the game server, rooms and tick loop that enqueue jobs.

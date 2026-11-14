@@ -3,21 +3,18 @@
 // Scheduled & Delayed Jobs — Cron-based and one-off timers
 // ============================================================
 
-import { Queue } from "bullmq";
+import type { Queue } from "bullmq";
 import {
 	ANALYTICS_JOBS,
-	type AnalyticsJobData,
 	BROADCAST_PLAYER_ID,
 	GAME_EVENT_JOBS,
-	type GameEventJobData,
-	QUEUE_NAMES,
 	REWARD_JOBS,
-	type RewardJobData,
 } from "../templates/job-types";
-import { createQueueOptions } from "../templates/queue-config";
+import { analyticsQueue, gameEventQueue, rewardQueue } from "./queues";
 
 // ============================================================
-// Scheduler Queues — Dedicated instances for repeatable jobs
+// Schedulers run on the queues from queues.ts, so they share one connection
+// setup and closeAllQueues() closes them.
 //
 // Template data is fixed when upsertJobScheduler runs and every produced job
 // inherits it. Never put per-run values (today's date, Date.now()) in it:
@@ -26,28 +23,13 @@ import { createQueueOptions } from "../templates/queue-config";
 // queue fires less often than the cron says.
 // ============================================================
 
-const schedulerRewardQueue = new Queue<RewardJobData>(
-	QUEUE_NAMES.REWARD,
-	createQueueOptions(),
-);
-
-const schedulerEventQueue = new Queue<GameEventJobData>(
-	QUEUE_NAMES.GAME_EVENT,
-	createQueueOptions(),
-);
-
-const schedulerAnalyticsQueue = new Queue<AnalyticsJobData>(
-	QUEUE_NAMES.ANALYTICS,
-	createQueueOptions(),
-);
-
 // ============================================================
 // Daily Reward Distribution
 // Runs every day at midnight UTC
 // ============================================================
 
 export const scheduleDailyRewards = async () => {
-	await schedulerRewardQueue.upsertJobScheduler(
+	await rewardQueue.upsertJobScheduler(
 		"daily-reward-scheduler",
 		{
 			pattern: "0 0 * * *", // Midnight UTC daily
@@ -80,7 +62,7 @@ export const scheduleSeasonEnd = async (seasonId: string, endsAt: Date) => {
 	const delay = endsAt.getTime() - Date.now();
 	if (delay <= 0) return;
 
-	await schedulerEventQueue.add(
+	await gameEventQueue.add(
 		GAME_EVENT_JOBS.SESSION_COMPLETE,
 		{
 			eventType: "season-end",
@@ -112,7 +94,7 @@ export const scheduleEventStart = async (
 	const delay = startsAt.getTime() - Date.now();
 	if (delay <= 0) return;
 
-	await schedulerEventQueue.add(
+	await gameEventQueue.add(
 		GAME_EVENT_JOBS.PROCESS_EVENT,
 		{
 			eventType: "scheduled-event-start",
@@ -135,7 +117,7 @@ export const scheduleEventStart = async (
 // ============================================================
 
 export const scheduleSessionCleanup = async () => {
-	await schedulerEventQueue.upsertJobScheduler(
+	await gameEventQueue.upsertJobScheduler(
 		"session-cleanup-scheduler",
 		{
 			pattern: "0 * * * *", // Every hour
@@ -160,7 +142,7 @@ export const scheduleSessionCleanup = async () => {
 // ============================================================
 
 export const scheduleLeaderboardSnapshot = async () => {
-	await schedulerAnalyticsQueue.upsertJobScheduler(
+	await analyticsQueue.upsertJobScheduler(
 		"leaderboard-snapshot-scheduler",
 		{
 			pattern: "0 */6 * * *", // Every 6 hours
@@ -200,16 +182,4 @@ export const cancelScheduledJob = async (
 	schedulerName: string,
 ) => {
 	await queue.removeJobScheduler(schedulerName);
-};
-
-// ============================================================
-// Graceful Shutdown
-// ============================================================
-
-export const closeScheduler = async (): Promise<void> => {
-	await Promise.all([
-		schedulerRewardQueue.close(),
-		schedulerEventQueue.close(),
-		schedulerAnalyticsQueue.close(),
-	]);
 };
