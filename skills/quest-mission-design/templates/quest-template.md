@@ -48,7 +48,7 @@ Complete `quest-narrative-coherence` before this brief and tick its checklist.
 
 | # | Objective | Type | Required | Success Condition | Fail Condition |
 |---|-----------|------|----------|------------------|---------------|
-| 1 | [Description] | [Go to / Interact / Defeat / Collect / Choose / Protect] | [Yes/No] | [What counts as success] | [What counts as failure, if any] |
+| 1 | [Description] | [fetch / kill / escort / explore / craft / social / puzzle / choice] | [Yes/No] | [What counts as success] | [What counts as failure, if any] |
 
 ## Branching Paths (if applicable)
 

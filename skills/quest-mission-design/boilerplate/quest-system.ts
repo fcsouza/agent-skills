@@ -31,6 +31,7 @@ export const ObjectiveType = {
 	CRAFT: "craft",
 	SOCIAL: "social",
 	PUZZLE: "puzzle",
+	CHOICE: "choice",
 } as const;
 
 export type ObjectiveType = (typeof ObjectiveType)[keyof typeof ObjectiveType];
@@ -64,10 +65,6 @@ export interface QuestObjective {
 	childRequirement: "all" | "any";
 }
 
-export interface ObjectiveTree {
-	root: QuestObjective;
-}
-
 // ============================================================
 // Quest Definition
 // ============================================================
@@ -93,15 +90,14 @@ export interface QuestDefinition {
 	name: string;
 	description: string;
 	type: QuestType;
-	objectives: ObjectiveTree;
+	/** Root of the objective tree */
+	objectives: QuestObjective;
 	prerequisites: QuestPrerequisite[];
 	rewards: QuestReward[];
 	/** Time limit in seconds, 0 = no limit */
 	timeLimit: number;
 	/** Whether the quest can be retried after failure */
 	retriable: boolean;
-	/** Chains to another quest on completion */
-	nextQuestId: string | null;
 }
 
 // ============================================================
@@ -112,12 +108,10 @@ export interface QuestInstance {
 	questId: string;
 	playerId: string;
 	state: QuestState;
-	objectives: ObjectiveTree;
+	objectives: QuestObjective;
 	startedAt: number | null;
 	completedAt: number | null;
 	failedAt: number | null;
-	/** Remaining time in seconds, null if no time limit */
-	timeRemaining: number | null;
 }
 
 // ============================================================
@@ -129,15 +123,18 @@ type TransitionMap = Record<QuestState, QuestState[]>;
 const VALID_TRANSITIONS: TransitionMap = {
 	[QuestState.AVAILABLE]: [QuestState.ACTIVE],
 	[QuestState.ACTIVE]: [QuestState.COMPLETED, QuestState.FAILED],
-	[QuestState.COMPLETED]: [],
+	// Only a repeatable quest may leave COMPLETED. See canTransition.
+	[QuestState.COMPLETED]: [QuestState.AVAILABLE],
 	[QuestState.FAILED]: [QuestState.AVAILABLE],
 };
 
 export class QuestStateMachine {
 	private instance: QuestInstance;
+	private definition: QuestDefinition;
 
-	constructor(instance: QuestInstance) {
+	constructor(instance: QuestInstance, definition: QuestDefinition) {
 		this.instance = instance;
+		this.definition = definition;
 	}
 
 	getState(): QuestState {
@@ -149,7 +146,16 @@ export class QuestStateMachine {
 	}
 
 	canTransition(to: QuestState): boolean {
-		return VALID_TRANSITIONS[this.instance.state].includes(to);
+		if (!VALID_TRANSITIONS[this.instance.state].includes(to)) {
+			return false;
+		}
+		if (this.instance.state === QuestState.COMPLETED) {
+			return this.definition.type === QuestType.REPEATABLE;
+		}
+		if (this.instance.state === QuestState.FAILED) {
+			return this.definition.retriable;
+		}
+		return true;
 	}
 
 	transition(to: QuestState): boolean {
@@ -173,6 +179,7 @@ export class QuestStateMachine {
 				this.instance.startedAt = null;
 				this.instance.completedAt = null;
 				this.instance.failedAt = null;
+				this.instance.objectives = structuredClone(this.definition.objectives);
 				break;
 		}
 
@@ -191,8 +198,18 @@ export class QuestStateMachine {
 		return this.transition(QuestState.FAILED);
 	}
 
+	/** FAILED to AVAILABLE. Needs `retriable`. Resets the objectives. */
 	retry(): boolean {
-		return this.transition(QuestState.AVAILABLE);
+		return this.instance.state === QuestState.FAILED
+			? this.transition(QuestState.AVAILABLE)
+			: false;
+	}
+
+	/** COMPLETED to AVAILABLE. Needs a repeatable quest. Resets the objectives. */
+	repeat(): boolean {
+		return this.instance.state === QuestState.COMPLETED
+			? this.transition(QuestState.AVAILABLE)
+			: false;
 	}
 }
 
@@ -200,32 +217,36 @@ export class QuestStateMachine {
 // Objective Evaluation
 // ============================================================
 
+const ratio = (progress: number, target: number): number =>
+	target <= 0 ? 1 : Math.min(1, progress / target);
+
+/** Optional children are bonuses. They never block completion. */
 export const isObjectiveComplete = (objective: QuestObjective): boolean => {
-	if (objective.children.length === 0) {
-		return objective.progress >= objective.target;
+	const selfDone = objective.progress >= objective.target;
+	const required = objective.children.filter((child) => !child.optional);
+	if (required.length === 0) {
+		return selfDone;
 	}
 
 	const childCheck =
 		objective.childRequirement === "all"
-			? objective.children.every(isObjectiveComplete)
-			: objective.children.some(isObjectiveComplete);
+			? required.every(isObjectiveComplete)
+			: required.some(isObjectiveComplete);
 
-	return childCheck && objective.progress >= objective.target;
+	return childCheck && selfDone;
 };
 
-export const isQuestComplete = (tree: ObjectiveTree): boolean => {
-	return isObjectiveComplete(tree.root);
-};
-
+/** Progress from 0 to 1. Optional children do not count. */
 export const getObjectiveProgress = (objective: QuestObjective): number => {
-	if (objective.children.length === 0) {
-		return Math.min(1, objective.progress / objective.target);
+	const selfProgress = ratio(objective.progress, objective.target);
+	const required = objective.children.filter((child) => !child.optional);
+	if (required.length === 0) {
+		return selfProgress;
 	}
 
-	const childProgresses = objective.children.map(getObjectiveProgress);
 	const childAvg =
-		childProgresses.reduce((a, b) => a + b, 0) / childProgresses.length;
-	const selfProgress = Math.min(1, objective.progress / objective.target);
+		required.map(getObjectiveProgress).reduce((a, b) => a + b, 0) /
+		required.length;
 
 	return (selfProgress + childAvg) / 2;
 };
@@ -245,5 +266,4 @@ export const createQuestInstance = (
 	startedAt: null,
 	completedAt: null,
 	failedAt: null,
-	timeRemaining: definition.timeLimit > 0 ? definition.timeLimit : null,
 });
