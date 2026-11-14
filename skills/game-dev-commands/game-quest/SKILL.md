@@ -114,7 +114,7 @@ Output the complete quest brief in GDD section format:
 
 ## Phase 5 — Register Quest
 
-Append the completed quest as a new row at the end of the table under the `## Active Quests` heading of `docs/quest-registry.md`, in the registry format. Do not add it to the Completed Quests or Planned Quests tables:
+Append the completed quest as a new row at the end of the table under the `## Active Quests` heading of `docs/quest-registry.md`, in the registry format. Do not add it to the Completed Quests or Planned Quests tables. Then append one row to the `## Economy Impact Log` table (`Quest ID | Currency Given | Items Given | Estimated Player Level`). The quest row:
 
 ```markdown
 | [QID] | [Quest Name] | [Type] | [Giver NPC] | [Location] | [Factions Affected] | [Rewards Summary] | [Prerequisites] | [Story Arc] |
