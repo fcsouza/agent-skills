@@ -51,16 +51,20 @@ const engine = new StateSyncEngine<MyGameState>(initialState, {
   interpolationDelay: 2,
 });
 
-// Each server tick
+// Each server tick. With snapshotInterval: 1, tick() already stores this
+// tick in the history; snapshot() replaces that entry (the buffer keeps one
+// entry per tick) and returns { tick, state, timestamp } to send.
 engine.tick((state, tick) => simulate(applyInputs(state, pendingInputs), tick));
-const snap = engine.snapshot(); // { tick, state }: keep it as a future baseline
+const snap = engine.snapshot();
 ```
 
 Send each client the new state as a delta (step 3), with the sequence number of the last input processed for that client.
 
 ### 3. Encode deltas against what the client has acknowledged
 
-Encode each client's delta against the last snapshot that client acknowledged, not against the previous tick. A client that lost the previous packet cannot apply a delta built on it. Keep a per-client acknowledged tick and a history of sent snapshots (`RollbackBuffer`). Send a full snapshot on join and after sustained packet loss.
+Over an unreliable transport (UDP, WebRTC data channels), encode each client's delta against the last snapshot that client acknowledged, not against the previous tick. A client that lost the previous packet cannot apply a delta built on it. Keep a per-client acknowledged tick and a history of sent snapshots (`RollbackBuffer`). Send a full snapshot on join and after sustained packet loss.
+
+Over WebSocket, deltas against the previous tick are safe: WebSocket runs on TCP, which delivers every message in order, so the client always holds the previous state. This is what `game-backend-architecture` does. Resend a full snapshot when a client reconnects.
 
 ```typescript
 import { encodeDelta, decodeDelta } from './delta-encoder';
@@ -135,6 +139,7 @@ Run the simulation at a fixed tick with an accumulator; render at display rate a
 
 - Floating-point results differ across compilers, operating systems and instruction sets. Lockstep needs fixed-point math or a deterministic physics engine. Server-authoritative sync tolerates the drift because the server's state wins.
 - A delta that names a key the client lacks means the client missed its baseline. Request a full snapshot.
+- Delta paths join keys with `.`, so a state key that contains a dot (`"x.y"`) decodes as a nested `x.y` path and the old key stays. Keep dots out of state keys.
 - `StateSyncEngine` stores state with `structuredClone`. Keep state to plain data: no class instances, functions or DOM nodes.
 - Treat every delta from the network as hostile, even from your own server. `delta-encoder.ts` refuses any path or key named `__proto__`, `constructor` or `prototype` and throws instead of applying the delta; keep that check if you change the path format.
 

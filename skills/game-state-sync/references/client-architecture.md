@@ -157,7 +157,8 @@ loop.onRender = (state, alpha) => renderer.draw(state, alpha);
 
 socket.onmessage = (event) => {
   const msg = JSON.parse(event.data);
-  // Reconciles: drops acknowledged inputs, replays the rest on msg.state
+  // Reconciles: drops acknowledged inputs, then re-runs each tick after
+  // msg.tick on msg.state: that tick's unacknowledged input, then onTick
   loop.handleServerUpdate(msg.state, msg.tick, msg.lastSeq);
 };
 
