@@ -269,6 +269,10 @@ write_skill demo "d" "$(printf '## Requires\n- `no-such-skill`\n\n## Next\n- `al
 expect_fail X1 "Requires block names an unknown skill"
 
 new_fixture
+write_skill demo "d" "$(printf '## Requires\n- `demo`\n\n## Next\n- `not-a-skill-but-after-block`\n')"
+expect_pass "X1 ignores names after the Requires block ends"
+
+new_fixture
 write_skill demo "d" "Apply the \`no-such-skill\` skill first."
 expect_fail X1 "Apply the names an unknown skill"
 
@@ -290,6 +294,26 @@ new_fixture
 mkdir -p "$FX/docs/superpowers"
 printf 'dep %s\n' "$DEP_FILE" >"$FX/docs/superpowers/plan.md"
 expect_fail P1 "file: dependency under docs/superpowers"
+
+new_fixture
+mkdir -p "$FX/skills/react-animations" "$FX/docs/research"
+write_skill react-animations "d" "Path $HOME_MAC here."
+printf 'x %s\n' "$HOME_MAC" >"$FX/docs/research/note.md"
+expect_pass "P1 ignores skills outside the game-dev list and docs/research"
+
+new_fixture
+mkdir -p "$FX/tools" "$FX/evals"
+printf '%s\n' '{"plugins":[{"name":"other"}]}' >"$FX/.claude-plugin/marketplace.json"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/tools/run.sh"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/evals/e.txt"
+run_lint
+p1n="$(printf '%s\n' "$OUT" | grep -c '^FAIL P1 ')"
+if [[ $CODE == 1 && $p1n == 2 && $OUT == *"FAIL M1 "* ]]; then
+  report 1 "P1 still scans tools/ and evals/ without a marketplace entry"
+else
+  report 0 "P1 still scans tools/ and evals/ without a marketplace entry" "exit=$CODE p1=$p1n
+$OUT"
+fi
 
 # ---------------------------------------------------------------- C1-C5
 new_fixture
@@ -338,8 +362,10 @@ new_fixture
   printf -- '---\nname: demo\ndescription: Does things. Triggers: a.\n---\n## Sources\n> "quote"\n'
   for _ in $(seq 1 600); do printf 'line\n'; done
 } >"$(skill_md)"
-mkdir -p "$FX/skills/demo/templates"
+mkdir -p "$FX/skills/demo/templates" "$FX/skills/demo/references" "$FX/skills/demo/boilerplate"
 printf 'x\n' >"$FX/skills/demo/templates/orphan.md"
+printf -- '- no link here\n' >"$FX/skills/demo/references/sources.md"
+printf "import { z } from 'zod';\n" >"$FX/skills/demo/boilerplate/a.ts"
 : >"$FX/skills/demo/.content-pending"
 expect_pass ".content-pending skips C1-C5, L2 and S1"
 

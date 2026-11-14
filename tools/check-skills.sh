@@ -73,20 +73,23 @@ fm_field() {
     }' "$1"
 }
 
-# repo_tracked_files: files P1 scans. Tracked files when ROOT is its own git
-# repo, every file in the same locations otherwise.
-repo_tracked_files() {
-  local top
+# p1_files: files P1 scans: every file under the listed game-dev skill
+# directories, plus tools/, evals/, docs/superpowers/ and bun.lock. Tracked
+# files when ROOT is its own git repo, every file in those places otherwise.
+p1_files() {
+  local top paths=(tools evals docs/superpowers bun.lock) dir
+  for dir in "${SKILLS[@]}"; do
+    paths+=("$dir")
+  done
   top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)"
   if [[ $top == "$ROOT" ]]; then
-    git -C "$ROOT" ls-files -- skills tools evals docs/superpowers bun.lock
+    git -C "$ROOT" ls-files -- "${paths[@]}"
   else
     (
       cd "$ROOT" || exit
-      for p in skills tools evals docs/superpowers; do
-        [[ -d $p ]] && find "$p" -type f
+      for p in "${paths[@]}"; do
+        if [[ -d $p ]]; then find "$p" -type f; elif [[ -f $p ]]; then printf '%s\n' "$p"; fi
       done
-      [[ -f bun.lock ]] && printf 'bun.lock\n'
     )
   fi
 }
@@ -345,7 +348,7 @@ check_p1() {
     while IFS=: read -r n _; do
       fail P1 "$label" "line $n has a machine path or a local dependency URL"
     done < <(grep -nF "${pats[@]}" "$ROOT/$file")
-  done < <(repo_tracked_files)
+  done < <(p1_files)
 }
 
 check_z1() {
