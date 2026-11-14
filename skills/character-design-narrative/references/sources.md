@@ -1,0 +1,5 @@
+# Sources
+
+- Jesse Schell, The Art of Game Design: A Book of Lenses (Morgan Kaufmann, 2008), ch. 18-19 (lenses 75-82) - https://shop.elsevier.com/books/the-art-of-game-design/schell/978-0-12-369496-6 - supports: avatar as idealised form or blank slate, listing character functions, traits shown in dialog and animation, interpersonal circumplex, character web, status, transformation, testing for inner contradiction - checked 2026-11-14
+- Richard A. Bartle, Designing Virtual Worlds (New Riders, 2003), ch. 3 "To Be, or What to Be?" and "Character slots", ch. 6 "Community Management" - https://en.wikipedia.org/wiki/Designing_Virtual_Worlds - supports: several characters per account are normal, three to five slots suggested, names need a uniqueness scope, disposable characters used to divert risk - checked 2026-11-14
+- Jill Murray, "Diverse Game Characters: Write Them Now!" (GDC 2013) - https://gdcvault.com/play/1017819/Diverse-Game-Characters-Write-Them - supports: diversity needs research and carries the risk of getting it wrong - checked 2026-11-14
