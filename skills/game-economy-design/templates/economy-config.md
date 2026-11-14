@@ -1,5 +1,7 @@
 # Economy Configuration: [Game Name]
 
+Every number below is an illustrative placeholder. Replace each one from your playtests.
+
 ## Currencies
 
 | Currency | Type | Earn Source | Spend Sink | Persistence | Cap |
@@ -46,7 +48,7 @@
 | [Legendary item] | 1 | 20 | Life-changing |
 
 ### Pity System
-- Guarantee rare+ after [50] drops without one
+- Guarantee rare+ after [50] drops without one (`pity.threshold` = 50, `pity.guarantees` = rare in `templates/loot-table.ts`)
 - Counter resets on any rare+ drop
 
 ## Monetization Map

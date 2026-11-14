@@ -10,7 +10,6 @@ export interface CurrencyFlowEntry {
 	timestamp: number;
 	currencyId: string;
 	amount: number;
-	/** Positive = faucet (currency entering), negative = sink (currency leaving) */
 	direction: "faucet" | "sink";
 	source: string;
 	playerId?: string;
@@ -45,6 +44,7 @@ export interface InflationThresholds {
 // Flow Tracker
 // ============================================================
 
+// Prototype and test tracker: this array grows without bound.
 const flows: CurrencyFlowEntry[] = [];
 
 export const trackFlow = (
@@ -115,13 +115,16 @@ export const clearFlows = (): void => {
 // Balance Calculator
 // ============================================================
 
-export const calculateBalance = (
+const summarize = (
 	currencyId: string,
-	windowMs?: number,
+	filter: { playerId?: string; windowMs?: number },
 ): FlowSummary => {
-	const since = windowMs ? Date.now() - windowMs : 0;
+	const since = filter.windowMs ? Date.now() - filter.windowMs : 0;
 	const relevant = flows.filter(
-		(f) => f.currencyId === currencyId && f.timestamp >= since,
+		(f) =>
+			f.currencyId === currencyId &&
+			f.timestamp >= since &&
+			(filter.playerId === undefined || f.playerId === filter.playerId),
 	);
 
 	let totalFaucet = 0;
@@ -147,6 +150,11 @@ export const calculateBalance = (
 		entryCount: relevant.length,
 	};
 };
+
+export const calculateBalance = (
+	currencyId: string,
+	windowMs?: number,
+): FlowSummary => summarize(currencyId, { windowMs });
 
 export const calculateAllBalances = (windowMs?: number): FlowSummary[] => {
 	const currencyIds = new Set(flows.map((f) => f.currencyId));
@@ -223,38 +231,7 @@ export const calculatePlayerBalance = (
 	playerId: string,
 	currencyId: string,
 	windowMs?: number,
-): FlowSummary => {
-	const since = windowMs ? Date.now() - windowMs : 0;
-	const relevant = flows.filter(
-		(f) =>
-			f.playerId === playerId &&
-			f.currencyId === currencyId &&
-			f.timestamp >= since,
-	);
-
-	let totalFaucet = 0;
-	let totalSink = 0;
-
-	for (const entry of relevant) {
-		if (entry.direction === "faucet") {
-			totalFaucet += entry.amount;
-		} else {
-			totalSink += entry.amount;
-		}
-	}
-
-	const netFlow = totalFaucet - totalSink;
-	const balanceRatio = totalFaucet === 0 ? 0 : netFlow / totalFaucet;
-
-	return {
-		currencyId,
-		totalFaucet,
-		totalSink,
-		netFlow,
-		balanceRatio,
-		entryCount: relevant.length,
-	};
-};
+): FlowSummary => summarize(currencyId, { playerId, windowMs });
 
 // ============================================================
 // Top Sources — identify biggest faucets/sinks

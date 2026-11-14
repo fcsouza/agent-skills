@@ -48,6 +48,17 @@ export interface LootEntry {
 }
 
 // ============================================================
+// Pity Rule
+// ============================================================
+
+export interface PityRule {
+	/** Drop events without a qualifying drop before the guarantee fires */
+	threshold: number;
+	/** Lowest rarity the guarantee grants. The next drop is this rarity or better. */
+	guarantees: LootRarity;
+}
+
+// ============================================================
 // Loot Table
 // ============================================================
 
@@ -68,6 +79,8 @@ export interface LootTable {
 	conditions: LootCondition[];
 	/** Nested sub-tables (rolled independently) */
 	subTables: LootTable[];
+	/** Optional pity rule. The game stores the counter per player and resets it on a qualifying drop. */
+	pity?: PityRule;
 }
 
 // ============================================================
