@@ -175,9 +175,9 @@ check_s1() {
   ((lines < 500)) || fail S1 "$dir/SKILL.md" "$lines lines, limit is 499"
 }
 
-# unfenced <file>: the file with the lines inside ``` code fences blanked.
+# unfenced <file>: the file with the lines inside ``` or ~~~ code fences blanked.
 unfenced() {
-  awk '/^[ \t]*```/ { fenced = !fenced; print ""; next } { print (fenced ? "" : $0) }' "$1"
+  awk '/^[ \t]*(```|~~~)/ { fenced = !fenced; print ""; next } { print (fenced ? "" : $0) }' "$1"
 }
 
 # A target ending in / may be a directory; any other target must be a file.
@@ -335,19 +335,23 @@ check_c5() {
 # `## Pitfalls`, `## Files`, `## Related skills`. Commands and the index have
 # their own layout and are skipped. Headings inside code fences do not count.
 check_o1() {
-  local dir=$1 n name canon
+  local dir=$1 n name canon key
   case $dir in skills/game-dev | skills/game-dev-commands/*) return 0 ;; esac
   unfenced "$ROOT/$dir/SKILL.md" | awk '/^## / { sub(/\r$/, ""); sub(/^## +/, ""); sub(/[ \t]+$/, ""); print NR "\t" $0 }' >"$TMP/o1-headings"
-  local last_body=0 prev_rank=0 prev_name="" rank
+  local prev_rank=0 prev_name="" rank
   while IFS=$'\t' read -r n name; do
+    # Compare without a leading "N. " and without case; "...pitfalls" is a
+    # Pitfalls heading under another spelling.
+    key="$(printf '%s' "$name" | sed -E 's/^[0-9]+\.[ \t]+//' | tr '[:upper:]' '[:lower:]')"
     canon=""
-    case $name in
-      Related) canon="Related skills" ;;
-      Cross-references) canon="Related skills" ;;
-      "Reference files" | Citations) canon="Files" ;;
+    case $key in
+      related | cross-references) canon="Related skills" ;;
+      "related skills") canon="Related skills" ;;
+      "reference files" | citations | files) canon="Files" ;;
+      pitfalls | *" pitfalls") canon="Pitfalls" ;;
     esac
     if [[ -n $canon ]]; then
-      fail O1 "$dir/SKILL.md" "line $n: heading '$name' is named '$canon'"
+      [[ $name == "$canon" ]] || fail O1 "$dir/SKILL.md" "line $n: heading '$name' is named '$canon'"
       name=$canon
     fi
     case $name in
@@ -357,7 +361,6 @@ check_o1() {
       *) rank=0 ;;
     esac
     if ((rank == 0)); then
-      ((n > last_body)) && last_body=$n
       if ((prev_rank > 0)); then
         fail O1 "$dir/SKILL.md" "line $n: '## $name' comes after '## $prev_name'; Pitfalls, Files and Related skills close the file"
       fi

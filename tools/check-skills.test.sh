@@ -857,6 +857,58 @@ link_readme skills/game-dev
 expect_pass "O1 skips the game-dev index"
 
 new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## 7. Pitfalls
+- One.
+
+## Later
+x"
+expect_fail O1 "numbered Pitfalls heading counts and must be last"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## 7. Pitfalls
+- One."
+expect_fail O1 "numbered Pitfalls heading is not the canonical spelling"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Related Skills
+- x"
+expect_fail O1 "Related Skills spelling"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+## Common pitfalls
+- One.
+
+## Later
+x"
+expect_fail O1 "Common pitfalls heading"
+case $OUT in *"'Pitfalls'"*) report 1 "O1 names Pitfalls for Common pitfalls" ;; *) report 0 "O1 names Pitfalls for Common pitfalls" "$OUT" ;; esac
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+~~~
+## Related
+## Pitfalls
+~~~
+
+## Pitfalls
+- One."
+expect_pass "O1 ignores headings inside tilde fences"
+
+new_fixture
 write_skill demo "d" "## Pitfalls
 - One.
 
