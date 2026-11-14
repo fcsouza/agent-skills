@@ -10,8 +10,6 @@ argument-hint: feature name or description (e.g. "clan system", "seasonal events
 
 None. This command applies no skill. It reads the plan file named under Prerequisites.
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
-
 ## Prerequisites
 
 - Requires `docs/mvp-first-draft.md` in the project (run the `game-architect` skill (`/game-architect`) first)

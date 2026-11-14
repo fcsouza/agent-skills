@@ -36,11 +36,11 @@ You are the **Game Architect** — an expert game designer, systems engineer, an
 - `ci-cd-game`
 - `monitoring-game-ops`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Load the skills
 
-Apply the `game-dev` skill first, then every other skill listed under Requires. Do this silently: do not tell the user and do not summarize the skills. Just absorb the knowledge, then begin the interview with Phase 2.
+Apply the `game-dev` skill at the start. Apply a topic skill only when Phase 3 Step 4 selects it. The install check above applies to `game-dev` and the selected skills only. Do this silently: do not tell the user and do not summarize the skills. Then begin the interview with Phase 2.
 
 Input: `$ARGUMENTS`. If it is empty, take it from the user's message. If it holds a brief game description or genre hint, use it to pre-fill relevant Group 1 answers and skip those sub-questions in the interview.
 
@@ -320,14 +320,13 @@ For each reference game the user mentioned (up to 3):
 
 ### Step 2: Research Genre Conventions
 - Search for "[genre] game design best practices" and "[genre] common design mistakes"
-- Cross-reference findings with knowledge from the loaded skill files
 - Identify genre-specific patterns that should inform the MVP plan
 
 ### Step 3: Select Designer Lenses
 From the Designer Philosophies table, select the 2-3 designers whose principles are MOST relevant to THIS specific game. These will be cited throughout the output.
 
 ### Step 4: Select Required Skills
-Use the Skill Selection Matrix below to determine which skills from the ecosystem THIS game actually needs. Do NOT include all 25 — only include what's relevant.
+Use the Skill Selection Matrix below to determine which skills from the ecosystem THIS game actually needs. Do NOT include every skill — only include what's relevant. Apply the selected skills now, then cross-reference the Step 2 findings with them.
 
 ---
 
@@ -459,7 +458,7 @@ If you are uncertain about a decision, flag it with `> DECISION NEEDED:` rather 
 | Payments | Stripe | [product types needed] |
 | Audio | ElevenLabs / Lyria | [what audio needed] |
 | Deploy | Fly.io | Standard |
-| Lint | Biome | Standard |
+| Lint | ultracite (wraps Biome) | Standard |
 
 > Remove rows for technologies not needed by this game.
 
@@ -552,10 +551,7 @@ project-root/
 │   ├── mvp-first-draft.md   # This document
 │   ├── world-lore.md        # World state (if narrative)
 │   └── quest-registry.md    # Quest tracking (if quests)
-├── .claude/
-│   └── settings.json
 ├── CLAUDE.md                # Project config for Claude Code
-├── biome.json
 ├── drizzle.config.ts
 ├── tsconfig.json
 └── package.json
@@ -622,7 +618,7 @@ Start from the CLAUDE.md template in the `game-dev` skill (file: templates/game-
 - **Tech Stack**: keep only the rows for technologies this game uses
 - **Skills**: below the existing sentence, list the skills selected in Phase 3 Step 4
 - **Game-Specific Context**: core loop (the 30-second loop), genre, target platforms, multiplayer mode
-- **Common Commands**: keep the commands that match the `package.json` scripts in #5 below
+- **Common Commands**: keep the commands that match the `package.json` scripts in #4 below
 
 Keep **Package Manager**, **Mandatory Rules**, **When Compacting** and **Project Files** as the template writes them.
 
@@ -658,10 +654,7 @@ Fill in World Overview from interview Group 3. Leave detailed sections as guided
 
 Create it from the registry template of the `quest-narrative-coherence` skill (templates/quest-registry.md in that skill). Keep its headers. If Section 5 has a starter quest, add it as a row in the table under the `## Active Quests` heading.
 
-### 4. `biome.json`
-Standard Biome config: single quotes, semicolons, trailing commas, tabs for indentation.
-
-### 5. `package.json`
+### 4. `package.json`
 Minimal package.json with:
 - `name`: kebab-case from game title
 - Standard scripts: `dev`, `build`, `typecheck`, `test`, `db:generate`, `db:migrate`

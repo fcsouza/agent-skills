@@ -11,7 +11,7 @@ argument-hint: type and name (e.g. "faction The Iron Court", "location Ashfall C
 - `worldbuilding`
 - `quest-narrative-coherence`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 

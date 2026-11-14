@@ -22,7 +22,7 @@ argument-hint: component name (e.g. auth, matchmaking, shop) or "status" to chec
 - `matchmaking-system`
 - `gameplay-analytics`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ Execute in this exact order:
    - If it does NOT exist: output `⛔ Cannot proceed. Run the game-architect skill (/game-architect) first to generate the MVP plan. game-build requires an existing plan to avoid architectural drift.` and stop.
 2. READ `docs/mvp-first-draft.md` (the MVP plan written by the `game-architect` skill)
    - Check Section 10 (Out of Scope / Deferred): if the component name matches any deferred item, output `⚠️ [component] was explicitly deferred: "[reason]". Building now may increase scope. Continue?` and wait for confirmation before proceeding.
-3. IDENTIFY which skills are relevant to the component name — apply only those skills from: `game-backend-architecture`, `game-design-fundamentals`, `quest-mission-design`, `quest-narrative-coherence`, `postgres-game-schema`, `redis-game-patterns`, `bullmq-game-queues`, `betterauth-integration`, `stripe-game-payments`, `elevenlabs-sound-music`, `game-state-sync`, `matchmaking-system`, `gameplay-analytics`
+3. APPLY only the skills listed under Requires that this component needs.
 4. READ `docs/build-registry.md` if it exists (create it if not, using the template below)
 5. READ `docs/world-lore.md` if component touches narrative/quests
 6. READ `docs/quest-registry.md` if component touches quests

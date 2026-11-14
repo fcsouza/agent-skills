@@ -18,7 +18,7 @@ argument-hint: Optional component name or path to review (defaults to entire src
 - `matchmaking-system`
 - `gameplay-analytics`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 Phase 0 picks which of these apply to the code under review.
 

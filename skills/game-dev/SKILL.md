@@ -71,7 +71,7 @@ Installed as the Claude Code plugin, the commands are `/game-dev:<name>`, for ex
 - `docs/mvp-first-draft.md`: the MVP plan, created by `game-architect`, then extended by `game-expand`.
 - `docs/build-registry.md`: components built so far, created and kept by `game-build`.
 - `docs/world-lore.md`: canonical world state, created by `game-architect`, then kept by `game-lore`.
-- `docs/quest-registry.md`: every quest, created by `game-architect` (or by `game-quest` when missing), then kept by `game-quest` and `game-build`.
+- `docs/quest-registry.md`: every quest, created by `game-architect` (or by `game-quest` when missing), then kept by `game-quest`.
 
 ## Rules
 
@@ -85,7 +85,7 @@ Installed as the Claude Code plugin, the commands are `/game-dev:<name>`, for ex
 If a skill in the table is not installed, run:
 
 ```bash
-npx skills add fcsouza/agent-skills --skill <name>
+bunx skills add fcsouza/agent-skills --skill <name>
 ```
 
 ## New project
