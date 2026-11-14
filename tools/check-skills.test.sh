@@ -245,6 +245,22 @@ new_fixture
 write_skill demo "d" "See game-asset-gen."
 expect_fail R1 "retired skill name"
 
+new_fixture
+write_skill demo "d" "See skills/game-dev/design for more."
+expect_fail R1 "old skills/game-dev/<group> path"
+
+new_fixture
+write_skill demo "d" "See idle-game-design."
+expect_fail R1 "retired skill name idle-game-design"
+
+new_fixture
+write_skill demo "d" "See claude-code-game-workflow."
+expect_fail R1 "retired skill name claude-code-game-workflow"
+
+new_fixture
+write_skill demo "d" "See cursor-codex-integration."
+expect_fail R1 "retired skill name cursor-codex-integration"
+
 # ---------------------------------------------------------------- R2
 new_fixture
 printf '%s\n' '{"plugins":[{"name":"game-dev","description":"Plugin with 25 skills","skills":["./skills/demo"]}]}' >"$FX/.claude-plugin/marketplace.json"
@@ -545,6 +561,36 @@ else
 $OUT"
 fi
 
+new_fixture
+printf '# Readme\n\nPath %s here.\n' "$HOME_MAC" >"$FX/README.md"
+link_readme skills/demo
+expect_fail P1 "machine path in README.md"
+
+new_fixture
+printf 'Copyright %s\n' "$HOME_MAC" >"$FX/LICENSE"
+expect_fail P1 "machine path in LICENSE"
+
+new_fixture
+printf '{"plugins":[{"name":"game-dev","homepage":"%s","skills":["./skills/demo"]}]}\n' "$DEP_FILE" >"$FX/.claude-plugin/marketplace.json"
+expect_fail P1 "local dependency URL in marketplace.json"
+
+git_fixture
+printf 'Copyright %s\n' "$HOME_MAC" >"$FX/LICENSE"
+git -C "$FX" add -- LICENSE
+expect_fail P1 "git repo: tracked LICENSE with a machine path"
+
+# A name with a space and a newline: without -z git quotes it and the file is skipped.
+git_fixture
+mkdir -p "$FX/tools"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/tools/$(printf 'a b\nc.sh')"
+git -C "$FX" add -- tools
+expect_fail P1 "git repo: path with a space and a newline"
+
+new_fixture
+mkdir -p "$FX/tools"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/tools/$(printf 'a b\nc.sh')"
+expect_fail P1 "no git: path with a space and a newline"
+
 # ---------------------------------------------------------------- C1-C5
 new_fixture
 write_skill demo "d" "$(printf '## Sources\n- https://example.com\n')"
@@ -651,6 +697,8 @@ printf "import { z } from 'zod';\n" >"$FX/skills/demo/boilerplate/a.ts"
 : >"$FX/skills/demo/.content-pending"
 expect_pass ".content-pending skips C1-C5, L2 and S1"
 
+new_fixture
+: >"$FX/skills/demo/.content-pending"
 expect_fail Z1 "--final with a .content-pending file" --final
 
 new_fixture
@@ -672,6 +720,8 @@ else
 $OUT"
 fi
 
+new_fixture
+write_skill demo "Does things. Triggers: a." "$(printf '## Sources\n')"
 run_lint --only C1,C5
 ids="$(printf '%s\n' "$OUT" | grep -oE '^FAIL [A-Z][0-9]+' | sort -u | tr '\n' ' ')"
 if [[ $CODE == 1 && $ids == "FAIL C1 FAIL C5 " ]]; then
@@ -681,6 +731,8 @@ else
 $OUT"
 fi
 
+new_fixture
+write_skill demo "Does things. Triggers: a." "$(printf '## Sources\n')"
 run_lint --only N1
 if [[ $CODE == 0 ]]; then
   report 1 "--only N1 passes when N1 holds"

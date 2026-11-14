@@ -85,23 +85,24 @@ fm_field() {
     }' "$1"
 }
 
-# p1_files: files P1 scans: every file under the listed game-dev skill
-# directories, plus tools/, evals/, docs/superpowers/ and bun.lock. Tracked
-# files when ROOT is its own git repo, every file in those places otherwise.
+# p1_files: NUL-separated files P1 scans: every file under the listed game-dev
+# skill directories, plus tools/, evals/, docs/superpowers/, bun.lock,
+# README.md, LICENSE and the marketplace manifest. Tracked files when ROOT is
+# its own git repo, every file in those places otherwise.
 p1_files() {
-  local prefix paths=(tools evals docs/superpowers bun.lock) dir
+  local prefix paths=(tools evals docs/superpowers bun.lock README.md LICENSE "$MARKETPLACE") dir
   for dir in "${SKILLS[@]}"; do
     paths+=("$dir")
   done
   # An empty prefix means ROOT is the top of a work tree. Comparing it with
   # --show-toplevel would fail where ROOT sits behind a symlink.
   if prefix="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null)" && [[ -z $prefix ]]; then
-    git -C "$ROOT" -c core.quotePath=false ls-files -- "${paths[@]}"
+    git -C "$ROOT" -c core.quotePath=false ls-files -z -- "${paths[@]}"
   else
     (
       cd "$ROOT" || exit
       for p in "${paths[@]}"; do
-        if [[ -d $p ]]; then find "$p" -type f; elif [[ -f $p ]]; then printf '%s\n' "$p"; fi
+        if [[ -d $p ]]; then find "$p" -type f -print0; elif [[ -f $p ]]; then printf '%s\0' "$p"; fi
       done
     )
   fi
@@ -454,7 +455,7 @@ check_p1() {
   # Split into fragments so P1 (which scans tools/) and the owner's pre-commit
   # path grep do not match this file.
   local pats=(-e "/Us""ers/" -e "/ho""me/" -e "li""nk:/" -e "fi""le:/")
-  while IFS= read -r file; do
+  while IFS= read -r -d '' file; do
     [[ -f $ROOT/$file ]] || continue
     grep -qI . "$ROOT/$file" 2>/dev/null || continue
     label="$file"
