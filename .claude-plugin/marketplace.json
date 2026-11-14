@@ -38,6 +38,7 @@
         "./skills/ci-cd-game",
         "./skills/elevenlabs-sound-music",
         "./skills/game-backend-architecture",
+        "./skills/game-anti-cheat",
         "./skills/game-design-fundamentals",
         "./skills/game-economy-design",
         "./skills/game-state-sync",
