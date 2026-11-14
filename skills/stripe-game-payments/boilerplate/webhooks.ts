@@ -29,7 +29,16 @@ export interface PaymentTx {
     paymentIntentId: string;
     reason: 'refund' | 'dispute';
   }): Promise<boolean>;
-  /** Store the current subscription status for the player. */
+  /**
+   * Store the current subscription status for the player. Never move a row
+   * out of a terminal status ('canceled', 'incomplete_expired'): two events
+   * for one subscription can run at once, and the one that retrieved the
+   * older status may commit last. Store example (Postgres):
+   *
+   *   INSERT INTO subscriptions (id, player_id, status) VALUES ($1, $2, $3)
+   *   ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status
+   *   WHERE subscriptions.status NOT IN ('canceled', 'incomplete_expired');
+   */
   setSubscription(input: {
     subscriptionId: string;
     playerId: string;
@@ -47,8 +56,9 @@ export interface PaymentTx {
 
 export interface PaymentStore {
   /**
-   * In one transaction: insert eventId into the processed-events table
-   * (unique on event id), then run `apply`. If the insert conflicts, skip
+   * In one transaction: insert eventId into the `processed_events` table
+   * from the `postgres-game-schema` skill (primary key on id, kind
+   * 'stripe_event'), then run `apply`. If the insert conflicts, skip
    * `apply` and return false. If `apply` throws, roll back the whole
    * transaction, event id included, so Stripe's retry can process it.
    */
@@ -66,6 +76,24 @@ export interface StripeWebhookDeps {
 
 type Apply = (tx: PaymentTx) => Promise<void>;
 
+/** The events planFor acts on. Subscribe the endpoint to exactly these. */
+export const HANDLED_EVENT_TYPES = [
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+  'checkout.session.async_payment_failed',
+  'invoice.paid',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'charge.refunded',
+  'charge.dispute.created',
+] as const satisfies readonly Stripe.Event.Type[];
+
+export type HandledEventType = (typeof HANDLED_EVENT_TYPES)[number];
+type HandledEvent = Extract<Stripe.Event, { type: HandledEventType }>;
+
+const isHandled = (event: Stripe.Event): event is HandledEvent =>
+  (HANDLED_EVENT_TYPES as readonly string[]).includes(event.type);
+
 const idOf = (ref: string | { id: string } | null): string | null =>
   typeof ref === 'string' ? ref : (ref?.id ?? null);
 
@@ -80,7 +108,9 @@ async function fulfilCheckout(
       ? syncSubscription(stripe, subscriptionId, invoiceId)
       : null;
   }
-  if (session.mode !== 'payment' || session.payment_status !== 'paid') {
+  // Stripe's fulfilment guide fulfils when payment_status is not 'unpaid':
+  // 'paid', or 'no_payment_required' (for example a 100% discount).
+  if (session.mode !== 'payment' || session.payment_status === 'unpaid') {
     return null;
   }
   const playerId = session.metadata?.playerId;
@@ -126,6 +156,7 @@ async function syncSubscription(
 }
 
 async function planFor(stripe: Stripe, event: Stripe.Event): Promise<Apply | null> {
+  if (!isHandled(event)) return null;
   switch (event.type) {
     case 'checkout.session.completed':
     case 'checkout.session.async_payment_succeeded':
@@ -190,8 +221,11 @@ async function planFor(stripe: Stripe, event: Stripe.Event): Promise<Apply | nul
       };
     }
 
-    default:
-      return null;
+    default: {
+      // A type added to HANDLED_EVENT_TYPES without a case fails to compile.
+      const unhandled: never = event;
+      return unhandled;
+    }
   }
 }
 
