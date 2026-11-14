@@ -7,6 +7,13 @@ on:
     # closed is not a default type; it triggers the Neon branch cleanup below.
     types: [opened, reopened, synchronize, closed]
 
+# One run per branch or pull request: a new push cancels the run it makes
+# stale. The closed event's Neon cleanup gets its own group, so a later
+# event cannot cancel it and leave the branch behind.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'closed' && 'cleanup' || 'test' }}
+  cancel-in-progress: true
+
 jobs:
   test:
     if: github.event.action != 'closed'
