@@ -19,8 +19,10 @@ export interface QueuedAction {
 	timestamp: number;
 }
 
-// The one socket method the room manager calls. Elysia's `ws` satisfies it.
+// What the room manager needs from a socket. Elysia's `ws` satisfies it;
+// `id` is unique per connection, so a reconnect gets a new one.
 export interface PlayerSocket {
+	readonly id: string;
 	send(data: string): unknown;
 }
 
@@ -58,7 +60,15 @@ export class RoomManager {
 			gameState: initialState,
 			previousState: structuredClone(initialState),
 			actionQueue: [],
-			gameLoop: new GameLoop(config.tickRate, (dt) => this.tickRoom(id, dt)),
+			// A throw in this room's tick or actions closes this room only.
+			gameLoop: new GameLoop(
+				config.tickRate,
+				(dt) => this.tickRoom(id, dt),
+				(error) => {
+					console.error(`room ${id}: tick failed, closing the room`, error);
+					this.beginCloseRoom(id);
+				},
+			),
 			tick: 0,
 			createdAt: Date.now(),
 			metadata: config.metadata ?? {},
@@ -139,7 +149,7 @@ export class RoomManager {
 
 	leaveRoom(roomId: string, playerId: string) {
 		const room = this.rooms.get(roomId);
-		if (!room) return;
+		if (!room?.players.has(playerId)) return;
 
 		room.players.delete(playerId);
 
@@ -164,12 +174,17 @@ export class RoomManager {
 		}
 	}
 
-	removePlayerFromAllRooms(playerId: string) {
+	// Called when `socket` closes. Leaves only the rooms where the player is
+	// still on that socket: after a reconnect, the old socket's close must not
+	// remove the player from rooms the new socket joined.
+	removePlayerFromAllRooms(playerId: string, socket: PlayerSocket) {
 		const roomIds = this.playerRooms.get(playerId);
 		if (!roomIds) return;
 
-		for (const roomId of roomIds) {
-			this.leaveRoom(roomId, playerId);
+		for (const roomId of [...roomIds]) {
+			if (this.rooms.get(roomId)?.players.get(playerId)?.id === socket.id) {
+				this.leaveRoom(roomId, playerId);
+			}
 		}
 	}
 

@@ -1,8 +1,12 @@
 // Verified against: elysia 1.4.32, @elysiajs/cors 1.4.3, better-auth 1.7.23 (2026-11-14)
 import { cors } from '@elysiajs/cors';
 import type { Auth } from 'better-auth';
-import { Elysia, t } from 'elysia';
-import type { ClientMessage, ServerMessage } from '../templates/message-types';
+import { Elysia } from 'elysia';
+import {
+  type ClientMessage,
+  clientMessage,
+  type ServerMessage,
+} from '../templates/message-types';
 import { type PlayerSocket, RoomManager } from './room-manager';
 
 // The two parts of your Better Auth instance this server uses. Pass the
@@ -10,26 +14,6 @@ import { type PlayerSocket, RoomManager } from './room-manager';
 export type GameAuth = Pick<Auth, 'handler'> & {
   api: Pick<Auth['api'], 'getSession'>;
 };
-
-// Runtime check of every client message; mirrors ClientMessage.
-const clientMessage = t.Union([
-  t.Object({ type: t.Literal('join_room'), roomId: t.String() }),
-  t.Object({ type: t.Literal('leave_room'), roomId: t.String() }),
-  t.Object({
-    type: t.Literal('action'),
-    roomId: t.String(),
-    action: t.Object({
-      type: t.String(),
-      payload: t.Record(t.String(), t.Unknown()),
-    }),
-  }),
-  t.Object({
-    type: t.Literal('room_message'),
-    roomId: t.String(),
-    content: t.String(),
-  }),
-  t.Object({ type: t.Literal('ping') }),
-]);
 
 const send = (ws: PlayerSocket, message: ServerMessage) =>
   ws.send(JSON.stringify(message));
@@ -103,7 +87,8 @@ export const createGameServer = (auth: GameAuth, trustedOrigins: string[]) => {
         route(rooms, ws, ws.data.playerId, message);
       },
       close(ws) {
-        rooms.removePlayerFromAllRooms(ws.data.playerId);
+        // Only the rooms this socket is in: a reconnect may have replaced it.
+        rooms.removePlayerFromAllRooms(ws.data.playerId, ws);
       },
     });
 

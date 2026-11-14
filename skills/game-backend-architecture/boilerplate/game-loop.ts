@@ -1,10 +1,12 @@
 type TickCallback = (dt: number) => void;
+type ErrorCallback = (error: unknown) => void;
 
 // Fixed-timestep loop after Glenn Fiedler, "Fix Your Timestep!": real time
 // fills an accumulator and the simulation drains it in equal dt steps.
 export class GameLoop {
 	private readonly tickDuration: number;
 	private readonly onTick: TickCallback;
+	private readonly onError: ErrorCallback;
 	// Longest real-time gap fed into one pass. Fiedler's example clamps the
 	// frame time at 0.25 s; longer stalls are dropped instead of replayed,
 	// which stops the spiral of death (more catch-up steps, falling further behind).
@@ -15,12 +17,16 @@ export class GameLoop {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private speedMultiplier = 1;
 
+	// A throw from onTick stops this loop and goes to onError; it never
+	// reaches the event loop, so other loops keep running.
 	constructor(
 		private readonly tickRate: number,
 		onTick: TickCallback,
+		onError: ErrorCallback = (error) => console.error("game loop stopped", error),
 	) {
 		this.tickDuration = 1000 / tickRate;
 		this.onTick = onTick;
+		this.onError = onError;
 	}
 
 	start() {
@@ -75,9 +81,16 @@ export class GameLoop {
 		this.lastTime = currentTime;
 		this.accumulator += frameTime;
 
-		while (this.accumulator >= this.tickDuration) {
-			// Game logic always sees the same dt, in seconds.
-			this.onTick(this.tickDuration / 1000);
+		// Recheck `running`: onTick or onError may stop the loop mid-pass.
+		while (this.running && this.accumulator >= this.tickDuration) {
+			try {
+				// Game logic always sees the same dt, in seconds.
+				this.onTick(this.tickDuration / 1000);
+			} catch (error) {
+				this.stop();
+				this.onError(error);
+				return;
+			}
 			this.accumulator -= this.tickDuration;
 		}
 	}

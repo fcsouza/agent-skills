@@ -29,12 +29,12 @@ The boilerplate targets `elysia` 1.4.32. Use the `elysiajs` skill if it is insta
 - `boilerplate/game-loop.ts`: copy when a room needs its tick loop; it needs no changes.
 - `boilerplate/fan-out.ts`: copy when you run more than one server instance.
 - `templates/message-types.ts`: copy when defining the client-server protocol; extend the unions with your game's messages.
-- [ARCHITECTURE.md](ARCHITECTURE.md): read when you need the connection flow or room lifecycle as a diagram.
+- `references/architecture.md`: read when you need the connection flow or room lifecycle as a diagram.
 - `references/sources.md`: read when you need the page behind a rule here.
 
 ## Wiring the server
 
-1. Define the protocol first in `templates/message-types.ts`. Every message is a member of a discriminated union on `type`. Keep the TypeBox union in `server.ts` in step with `ClientMessage`; it rejects malformed messages before your code sees them.
+1. Define the protocol first in `templates/message-types.ts`. Every message is a member of a discriminated union on `type`. Client messages are one TypeBox schema, `clientMessage`; `ClientMessage` is derived from it with `Static`, and `server.ts` validates with it, so malformed messages are rejected before your code sees them and the type cannot drift from the check.
 2. Create the server with `createGameServer(auth, trustedOrigins)`, passing the Better Auth instance and the game client origins. Put the same origins in Better Auth's `trustedOrigins` option.
 3. The upgrade check lives in `.derive()` on its own Elysia instance, so it does not run on the mounted auth routes. It returns 403 for an untrusted `Origin` and 401 without a session, and the route never upgrades. A direct `auth.api` call skips Better Auth's own origin checks, which is why the server checks `Origin` itself.
 4. Put per-request values (the player id) in `.derive()`, not in `store`. `store` is one object shared by every request.
@@ -62,7 +62,8 @@ Send the reason with a rejection; the client needs it to show the player why.
 
 - The elapsed time fed into one pass is capped at 250 ms. Without a cap, a slow tick makes the next pass run more steps, which makes it slower still: the spiral of death. With the cap, a long stall slows the game down instead of freezing it.
 - `setSpeed()` scales elapsed time, for fast-forward or slow motion. `dt` stays fixed.
-- After each tick the room diffs its state against the previous tick and broadcasts only the changed top-level keys as `state_update`. Removed keys arrive as `null`.
+- After each tick the room diffs its state against the previous tick and broadcasts only the changed top-level keys as `state_update`. Removed keys arrive as `null`. Diffing against the previous tick is safe because WebSocket runs on TCP and delivers every message in order; over an unreliable transport, encode against the client's acknowledged snapshot instead (`game-state-sync`, step 3). Send the full state again when a client reconnects (`room_joined` carries it).
+- A throw in a room's tick or in `processAction` stops that room's loop, is logged, and closes that room. Other rooms keep running.
 
 ## More than one instance
 
@@ -74,7 +75,7 @@ Redis Pub/Sub delivers at most once. A message published while an instance is do
 
 ## Heartbeat and presence
 
-The client sends `ping`; the server answers `pong` with its time. On each ping, refresh the player's presence key with a TTL of a few heartbeat intervals (`redis-game-patterns`, presence pattern). A missing key means offline, so a crashed client needs no cleanup message. When the socket closes, `close` removes the player from every room.
+The client sends `ping`; the server answers `pong` with its time. On each ping, refresh the player's presence key with a TTL of a few heartbeat intervals (`redis-game-patterns`, presence pattern). A missing key means offline, so a crashed client needs no cleanup message. When the socket closes, `close` removes the player from every room that socket is in. After a reconnect the new socket replaces the old one in the room, so the old socket's late `close` leaves the player in place (the room compares socket ids).
 
 ## Pitfalls
 
