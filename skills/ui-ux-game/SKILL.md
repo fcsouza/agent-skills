@@ -63,6 +63,6 @@ Read `templates/accessibility-checklist.md` when you design or test a settings o
 - A wait over about 10 seconds with no progress display. This limit comes from Nielsen's general interface research, not from games.
 - Accessibility bolted on at the end.
 
-## Citations
+## Files
 
-Read `references/sources.md` when you need the page behind a claim above.
+- `references/sources.md`: read when you need the page behind a claim above.
