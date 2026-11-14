@@ -97,8 +97,9 @@ export const getFlows = (filter?: {
 	if (filter?.currencyId) {
 		result = result.filter((f) => f.currencyId === filter.currencyId);
 	}
-	if (filter?.since) {
-		result = result.filter((f) => f.timestamp >= filter.since!);
+	const since = filter?.since;
+	if (since !== undefined) {
+		result = result.filter((f) => f.timestamp >= since);
 	}
 	if (filter?.playerId) {
 		result = result.filter((f) => f.playerId === filter.playerId);
@@ -156,6 +157,7 @@ export const calculateAllBalances = (windowMs?: number): FlowSummary[] => {
 // Inflation Monitor
 // ============================================================
 
+// Starting values only. Tune them from your own playtest data.
 const DEFAULT_THRESHOLDS: InflationThresholds = {
 	low: 0.05,
 	medium: 0.15,
@@ -285,3 +287,64 @@ export const getTopSources = (
 		.sort((a, b) => b.total - a.total)
 		.slice(0, limit);
 };
+
+// ============================================================
+// Stage Simulation (pure, no tracker state)
+// ============================================================
+
+export interface StageRates {
+	name: string;
+	hours: number;
+	/** Currency entering per player per hour */
+	faucetPerHour: number;
+	/** Currency leaving per player per hour */
+	sinkPerHour: number;
+}
+
+export interface StageResult {
+	name: string;
+	faucet: number;
+	sink: number;
+	net: number;
+	/** Net per faucet. 0 = balanced, above 0 = inflow, below 0 = drain */
+	balanceRatio: number;
+	/** Per-player balance at the end of the stage */
+	endBalance: number;
+}
+
+/** Walks one player through each stage and reports the flow per stage. */
+export const simulateStages = (stages: StageRates[]): StageResult[] => {
+	let balance = 0;
+	return stages.map((stage) => {
+		const faucet = stage.faucetPerHour * stage.hours;
+		const sink = stage.sinkPerHour * stage.hours;
+		const net = faucet - sink;
+		balance += net;
+		return {
+			name: stage.name,
+			faucet,
+			sink,
+			net,
+			balanceRatio: faucet === 0 ? 0 : net / faucet,
+			endBalance: balance,
+		};
+	});
+};
+
+// ============================================================
+// Example run: bun boilerplate/economy-simulator.ts
+// Replace the rates with the numbers from your economy sheet.
+// ============================================================
+
+if (import.meta.main) {
+	const results = simulateStages([
+		{ name: "early", hours: 2, faucetPerHour: 200, sinkPerHour: 150 },
+		{ name: "mid", hours: 8, faucetPerHour: 500, sinkPerHour: 450 },
+		{ name: "late", hours: 40, faucetPerHour: 1000, sinkPerHour: 700 },
+	]);
+	for (const r of results) {
+		console.log(
+			`${r.name}: faucet ${r.faucet}, sink ${r.sink}, net ${r.net}, ratio ${r.balanceRatio.toFixed(2)}, end balance ${r.endBalance}`,
+		);
+	}
+}
