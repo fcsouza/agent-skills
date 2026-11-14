@@ -62,7 +62,7 @@ Send each client the new state as a delta (step 3), with the sequence number of 
 
 ### 3. Encode deltas against what the client has acknowledged
 
-Over an unreliable transport (UDP, WebRTC data channels), encode each client's delta against the last snapshot that client acknowledged, not against the previous tick. A client that lost the previous packet cannot apply a delta built on it. Keep a per-client acknowledged tick and a history of sent snapshots (`RollbackBuffer`). Send a full snapshot on join and after sustained packet loss.
+Over an unreliable transport such as UDP, encode each client's delta against the last snapshot that client acknowledged, not against the previous tick. A client that lost the previous packet cannot apply a delta built on it. Keep a per-client acknowledged tick and a history of sent snapshots (`RollbackBuffer`). Send a full snapshot on join and after sustained packet loss.
 
 Over WebSocket, deltas against the previous tick are safe: WebSocket runs on TCP, which delivers every message in order, so the client always holds the previous state. This is what `game-backend-architecture` does. Resend a full snapshot when a client reconnects.
 

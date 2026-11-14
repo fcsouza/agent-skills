@@ -157,12 +157,18 @@ loop.onRender = (state, alpha) => renderer.draw(state, alpha);
 
 socket.onmessage = (event) => {
   const msg = JSON.parse(event.data);
+  if (msg.type === 'joined') {
+    // Count ticks from the server's tick, then start.
+    loop.syncTick(msg.tick);
+    loop.start();
+    return;
+  }
   // Reconciles: drops acknowledged inputs, then re-runs each tick after
   // msg.tick on msg.state: that tick's unacknowledged input, then onTick
   loop.handleServerUpdate(msg.state, msg.tick, msg.lastSeq);
 };
-
-loop.start();
 ```
+
+`syncTick` matters: reconciliation replays ticks by number, so the client must count the same ticks as the server. If an update arrives with a tick at or past the client's, or further behind than `inputBufferSize` ticks, the loop takes the server's state and tick instead of replaying.
 
 `onServerUpdate` is a notification hook only; reconciliation happens inside `handleServerUpdate`. `onRender` receives the current state and alpha; interpolating fields is the renderer's job, or call `getInterpolationData()` for the previous and current state.
