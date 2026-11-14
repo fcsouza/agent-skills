@@ -163,16 +163,25 @@ export class AnalyticsClient {
 		return null;
 	}
 
-	/** One bad element is skipped and logged instead of blocking the buffer. */
+	/**
+	 * One bad element is skipped and logged instead of blocking the buffer.
+	 * A row the insert would reject (missing NOT NULL field, invalid date)
+	 * counts as bad: left in, it would fail every retry of its batch and the
+	 * buffer would never drain.
+	 */
 	private parse(raw: string): NewAnalyticsEvent[] {
+		let value: unknown;
 		try {
-			const parsed: NewAnalyticsEvent & { createdAt: string } =
-				JSON.parse(raw);
-			return [{ ...parsed, createdAt: new Date(parsed.createdAt) }];
+			value = JSON.parse(raw);
 		} catch {
-			this.log("error", `Skipped unparseable event: ${raw.slice(0, 200)}`);
+			value = null;
+		}
+		const event = toEvent(value);
+		if (!event) {
+			this.log("error", `Skipped invalid event: ${raw.slice(0, 200)}`);
 			return [];
 		}
+		return [event];
 	}
 
 	private handleSessionStart(): void {
@@ -242,4 +251,39 @@ export async function closeIdleSessions(
 				lt(analyticsSessions.lastHeartbeatAt, cutoff),
 			),
 		);
+}
+
+const text = (value: unknown): string | null =>
+	typeof value === "string" && value !== "" ? value : null;
+
+/** A buffered event as the insert needs it, or null if it is not one. */
+function toEvent(value: unknown): NewAnalyticsEvent | null {
+	if (typeof value !== "object" || value === null) return null;
+	const record: Record<string, unknown> = { ...value };
+	const id = text(record.id);
+	const userId = text(record.userId);
+	const sessionId = text(record.sessionId);
+	const eventName = text(record.eventName);
+	const platform = text(record.platform);
+	const version = text(record.version);
+	const created = text(record.createdAt);
+	if (!(id && userId && sessionId && eventName && platform && version && created)) {
+		return null;
+	}
+	const createdAt = new Date(created);
+	if (Number.isNaN(createdAt.getTime())) return null;
+	const properties = record.properties ?? {};
+	if (typeof properties !== "object" || properties === null || Array.isArray(properties)) {
+		return null;
+	}
+	return {
+		id,
+		userId,
+		sessionId,
+		eventName,
+		platform,
+		version,
+		properties: { ...properties },
+		createdAt,
+	};
 }

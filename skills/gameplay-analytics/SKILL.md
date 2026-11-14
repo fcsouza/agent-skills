@@ -62,7 +62,7 @@ Related skills: `postgres-game-schema` (base schema, players table, Drizzle setu
    analytics.trackSession('end');                      // on disconnect
    ```
 
-5. In one worker process, on a schedule: `await flusher.flush()` (drains until the list is empty) and `await closeIdleSessions(db, idleMs)`. Nightly, store cohorts with `storeRetentionCohorts(db, n)` for n in 1, 7, 30, from `templates/retention-dashboard.md`.
+5. In one worker process, on a schedule: call `flush()` on one `AnalyticsClient` built for that worker (`await workerClient.flush()`; it drains until the list is empty and skips, with a log line, any buffered row that is not a valid event) and `await closeIdleSessions(db, idleMs)`. Nightly, store cohorts with `storeRetentionCohorts(db, n)` for n in 1, 7, 30, from `templates/retention-dashboard.md`.
 
 ## Retention targets
 
