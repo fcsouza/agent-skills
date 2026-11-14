@@ -1,12 +1,14 @@
+// Verified against: drizzle-orm 0.45.4 (2026-11-14)
 /**
- * Common query patterns for game schemas.
+ * Common query patterns for the game schema in ../boilerplate/schema.ts.
  *
- * These examples use Drizzle ORM's query builder and SQL operators.
- * Adapt them to your game's specific needs.
+ * Every function takes the database as its first argument. Pass the client
+ * your project builds (neon-http, postgres-js, node-postgres): each of their
+ * 0.45 database classes extends `PgDatabase`, so it fits `GameDb`. This file imports no driver.
  */
 
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
-import { db } from "../boilerplate/migrations";
+import { and, count, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
 	achievements,
 	currencies,
@@ -19,12 +21,20 @@ import {
 	players,
 } from "../boilerplate/schema";
 
-// ─── Get player with inventory ──────────────────────────────────────────────
+// Any Drizzle Postgres database. The queries use only the core query
+// builder, so the relational schema generic does not matter here.
+export type GameDb = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
 
-export const getPlayerWithInventory = async (playerId: string) => {
-	const player = await db.query.players.findFirst({
-		where: and(eq(players.id, playerId), sql`${players.deletedAt} IS NULL`),
-	});
+type LeaderboardPeriod = "daily" | "weekly" | "monthly" | "seasonal" | "alltime";
+
+// ─── Get player with inventory (skips soft-deleted players) ─────────────────
+
+export const getPlayerWithInventory = async (db: GameDb, playerId: string) => {
+	const [player] = await db
+		.select()
+		.from(players)
+		.where(and(eq(players.id, playerId), isNull(players.deletedAt)))
+		.limit(1);
 
 	if (!player) return null;
 
@@ -51,12 +61,13 @@ export const getPlayerWithInventory = async (playerId: string) => {
 
 // ─── Leaderboard: top N by category and period ──────────────────────────────
 
-export const getLeaderboardTopN = async (
+export const getLeaderboardTopN = (
+	db: GameDb,
 	category: string,
-	period: "daily" | "weekly" | "monthly" | "seasonal" | "alltime",
+	period: LeaderboardPeriod,
 	limit = 100,
-) => {
-	return db
+) =>
+	db
 		.select({
 			playerId: leaderboards.playerId,
 			score: leaderboards.score,
@@ -67,19 +78,23 @@ export const getLeaderboardTopN = async (
 		.from(leaderboards)
 		.innerJoin(players, eq(leaderboards.playerId, players.id))
 		.where(
-			and(eq(leaderboards.category, category), eq(leaderboards.period, period)),
+			and(
+				eq(leaderboards.category, category),
+				eq(leaderboards.period, period),
+				isNull(players.deletedAt),
+			),
 		)
 		.orderBy(desc(leaderboards.score))
 		.limit(limit);
-};
 
-// ─── Event aggregation: player activity in time range ───────────────────────
+// ─── Event aggregation: player activity in a time range ─────────────────────
 
-export const getPlayerActivitySummary = async (
+export const getPlayerActivitySummary = (
+	db: GameDb,
 	playerId: string,
 	since: Date,
-) => {
-	return db
+) =>
+	db
 		.select({
 			eventType: events.type,
 			eventCount: count(events.id),
@@ -88,16 +103,16 @@ export const getPlayerActivitySummary = async (
 		.where(and(eq(events.playerId, playerId), gte(events.createdAt, since)))
 		.groupBy(events.type)
 		.orderBy(desc(count(events.id)));
-};
 
-// ─── Inventory search with JSONB operators ──────────────────────────────────
+// ─── Inventory search on a JSONB property ───────────────────────────────────
 
-export const searchInventoryByProperty = async (
+export const searchInventoryByProperty = (
+	db: GameDb,
 	playerId: string,
 	propertyKey: string,
-	propertyValue: unknown,
-) => {
-	return db
+	propertyValue: string,
+) =>
+	db
 		.select()
 		.from(inventory)
 		.innerJoin(
@@ -107,53 +122,49 @@ export const searchInventoryByProperty = async (
 		.where(
 			and(
 				eq(inventory.playerId, playerId),
-				sql`${inventory.properties}->>
-${propertyKey} = ${String(propertyValue)}`,
+				sql`${inventory.properties} ->> ${propertyKey} = ${propertyValue}`,
 			),
 		);
-};
 
-// ─── Search items by base stat threshold ────────────────────────────────────
+// ─── Items whose base stat meets a threshold ────────────────────────────────
 
-export const findItemsByStatThreshold = async (
+export const findItemsByStatThreshold = (
+	db: GameDb,
 	statKey: string,
 	minValue: number,
-) => {
-	return db
+) =>
+	db
 		.select()
 		.from(itemDefinitions)
 		.where(
-			sql`(${itemDefinitions.baseStats}->>
-${statKey})::numeric >= ${minValue}`,
+			sql`(${itemDefinitions.baseStats} ->> ${statKey})::numeric >= ${minValue}`,
 		);
-};
 
 // ─── Bulk insert events (batch analytics) ───────────────────────────────────
 
-export const insertBatchEvents = async (
+export const insertBatchEvents = (
+	db: GameDb,
 	eventBatch: {
 		playerId: string;
 		type: string;
 		data: Record<string, unknown>;
 	}[],
-) => {
-	return db.insert(events).values(eventBatch);
-};
+) => db.insert(events).values(eventBatch);
 
-// ─── Get player currencies ──────────────────────────────────────────────────
+// ─── Player currencies ──────────────────────────────────────────────────────
 
-export const getPlayerCurrencies = async (playerId: string) => {
-	return db.select().from(currencies).where(eq(currencies.playerId, playerId));
-};
+export const getPlayerCurrencies = (db: GameDb, playerId: string) =>
+	db.select().from(currencies).where(eq(currencies.playerId, playerId));
 
-// ─── Update currency with atomic increment ──────────────────────────────────
+// ─── Add currency with an atomic increment ──────────────────────────────────
 
-export const addCurrency = async (
+export const addCurrency = (
+	db: GameDb,
 	playerId: string,
 	currencyType: string,
 	amount: number,
-) => {
-	return db
+) =>
+	db
 		.insert(currencies)
 		.values({
 			playerId,
@@ -171,23 +182,20 @@ export const addCurrency = async (
 						: sql`${currencies.lifetimeEarned}`,
 			},
 		});
-};
 
-// ─── Get player achievements with completion status ─────────────────────────
+// ─── Player achievements ────────────────────────────────────────────────────
 
-export const getPlayerAchievements = async (playerId: string) => {
-	return db
+export const getPlayerAchievements = (db: GameDb, playerId: string) =>
+	db.select().from(achievements).where(eq(achievements.playerId, playerId));
+
+// ─── Guild with members ─────────────────────────────────────────────────────
+
+export const getGuildWithMembers = async (db: GameDb, guildId: string) => {
+	const [guild] = await db
 		.select()
-		.from(achievements)
-		.where(eq(achievements.playerId, playerId));
-};
-
-// ─── Get guild with members ─────────────────────────────────────────────────
-
-export const getGuildWithMembers = async (guildId: string) => {
-	const guild = await db.query.guilds.findFirst({
-		where: eq(guilds.id, guildId),
-	});
+		.from(guilds)
+		.where(eq(guilds.id, guildId))
+		.limit(1);
 
 	if (!guild) return null;
 
@@ -202,27 +210,23 @@ export const getGuildWithMembers = async (guildId: string) => {
 		})
 		.from(guildMembers)
 		.innerJoin(players, eq(guildMembers.playerId, players.id))
-		.where(eq(guildMembers.guildId, guildId));
+		.where(and(eq(guildMembers.guildId, guildId), isNull(players.deletedAt)));
 
 	return { ...guild, members };
 };
 
-// ─── Upsert leaderboard score ───────────────────────────────────────────────
+// ─── Upsert leaderboard score (keeps the best score) ────────────────────────
 
-export const upsertLeaderboardScore = async (
+export const upsertLeaderboardScore = (
+	db: GameDb,
 	playerId: string,
 	category: string,
 	score: number,
-	period: "daily" | "weekly" | "monthly" | "seasonal" | "alltime" = "alltime",
-) => {
-	return db
+	period: LeaderboardPeriod = "alltime",
+) =>
+	db
 		.insert(leaderboards)
-		.values({
-			playerId,
-			category,
-			score,
-			period,
-		})
+		.values({ playerId, category, score, period })
 		.onConflictDoUpdate({
 			target: [
 				leaderboards.playerId,
@@ -234,17 +238,18 @@ export const upsertLeaderboardScore = async (
 				updatedAt: sql`now()`,
 			},
 		});
-};
 
-// ─── Count active players in time range ─────────────────────────────────────
+// ─── Count active players since a date ──────────────────────────────────────
 
-export const countActivePlayers = async (since: Date) => {
-	const result = await db
+export const countActivePlayers = async (db: GameDb, since: Date) => {
+	const [result] = await db
 		.select({
-			activeCount: sql<number>`COUNT(DISTINCT ${events.playerId})`,
+			activeCount: sql<number>`COUNT(DISTINCT ${events.playerId})`.mapWith(
+				Number,
+			),
 		})
 		.from(events)
 		.where(gte(events.createdAt, since));
 
-	return result[0]?.activeCount ?? 0;
+	return result?.activeCount ?? 0;
 };
