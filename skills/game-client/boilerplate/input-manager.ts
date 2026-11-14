@@ -147,7 +147,7 @@ export class InputManager {
 			(event) => {
 				// Keep receiving moves and the pointerup when the drag leaves the canvas.
 				this.canvas.setPointerCapture(event.pointerId);
-				this.canvas.focus();
+				this.canvas.focus({ preventScroll: true });
 				onPointer(event);
 				this.pointerDowns.push(toSample(event));
 			},

@@ -121,7 +121,9 @@ export class ClientGameLoop<
 	 * covers. Shared by the self-driven loop and step(). Returns the alpha.
 	 */
 	private advance(timestamp: number): number {
-		const dt = Math.min(timestamp - this.previousTimestamp, 250); // Cap spiral of death
+		// Cap spiral of death at 250 ms; a timestamp older than the last one
+		// adds nothing (callers must use one time source throughout).
+		const dt = Math.max(0, Math.min(timestamp - this.previousTimestamp, 250));
 		this.previousTimestamp = timestamp;
 		this.accumulator += dt;
 
@@ -138,7 +140,8 @@ export class ClientGameLoop<
 	 * Engine-driven mode: advance the loop from the engine's own frame
 	 * callback (Phaser update, a PixiJS ticker, three.js setAnimationLoop,
 	 * R3F useFrame), so only one requestAnimationFrame loop runs. Pass the
-	 * frame timestamp in milliseconds (performance.now() or the rAF time).
+	 * frame timestamp in milliseconds from one time source: the rAF time or
+	 * performance.now(), never a mix. An earlier timestamp adds no time.
 	 * Runs the same fixed ticks and 250 ms cap as start() and returns the
 	 * render alpha. It does not call onRender or schedule a frame; read
 	 * getRenderState() and draw.
@@ -252,7 +255,7 @@ export class ClientGameLoop<
 	/**
 	 * Align the client's tick counter with the server's. Call it when the
 	 * room is joined (the server's join message carries its tick), before
-	 * start(): inputs are tagged with this counter, and reconciliation
+	 * start() or the first step(): inputs are tagged with this counter, and reconciliation
 	 * replays ticks by it, so both sides must count the same ticks.
 	 */
 	syncTick(serverTick: number): void {

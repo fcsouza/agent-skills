@@ -5,8 +5,9 @@
  * events count as a gesture: keydown, mousedown, pointerup from touch or
  * pen, touchend. A touch pointerdown does not, so listen for pointerup.
  *
- * Resolves once the context runs. Rejects, and removes its listeners, when
- * the context is closed or the signal aborts.
+ * Resolves once the context runs, also when other code resumes it. Rejects,
+ * and removes its listeners, when the context is closed (here or by other
+ * code) or the signal aborts.
  */
 export interface UnlockAudioOptions {
 	target?: EventTarget;
@@ -44,6 +45,18 @@ export function unlockAudioOnGesture(
 				},
 			);
 		};
+		context.addEventListener(
+			'statechange',
+			() => {
+				if (context.state === 'running') {
+					controller.abort();
+					resolve();
+				} else if (context.state === 'closed') {
+					fail(new Error('AudioContext is closed'));
+				}
+			},
+			{ signal: controller.signal },
+		);
 		for (const type of ['pointerup', 'keydown', 'touchend', 'mousedown']) {
 			target.addEventListener(type, tryResume, { signal: controller.signal });
 		}

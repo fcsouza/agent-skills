@@ -60,8 +60,8 @@ No official page compares them. This skill's rule:
 ## Where server-state interpolation hooks in
 
 This skill's rule:
-- Plain three.js: never call `ClientGameLoop.start()`. In the `setAnimationLoop` callback, before `renderer.render()`, call `timer.update(timestamp)` and `loop.step(timestamp)`, then read `loop.getRenderState()` and the snapshot bracket from `game-state-sync`, and write position and quaternion on each entity's `Object3D`. If you set `matrixAutoUpdate = false` and write `matrix` yourself, also set `matrixWorldNeedsUpdate = true` (Migration Guide, r185).
-- R3F: one `useFrame` with a negative priority calls `loop.step(performance.now())`, reads `loop.getRenderState()`, and writes interpolated transforms into refs before other callbacks. Callbacks run in ascending priority; a negative value orders them without taking over rendering, while a positive one turns off automatic rendering (R3F hooks). Read snapshot data from a store with `getState()` inside `useFrame`, never through a reactive selector (R3F pitfalls).
+- Plain three.js: never call `ClientGameLoop.start()`. In the `setAnimationLoop` callback, before `renderer.render()`, call `timer.update(timestamp)` and, unless `gate.paused` (`engineDrivenLoop` in `boilerplate/visibility-resync.ts`), `loop.step(timestamp)`, then read `loop.getRenderState()` and the snapshot bracket from `game-state-sync`, and write position and quaternion on each entity's `Object3D`. If you set `matrixAutoUpdate = false` and write `matrix` yourself, also set `matrixWorldNeedsUpdate = true` (Migration Guide, r185).
+- R3F: one `useFrame` with a negative priority calls `loop.step(performance.now())` unless `gate.paused`, reads `loop.getRenderState()`, and writes interpolated transforms into refs before other callbacks. Callbacks run in ascending priority; a negative value orders them without taking over rendering, while a positive one turns off automatic rendering (R3F hooks). Read snapshot data from a store with `getState()` inside `useFrame`, never through a reactive selector (R3F pitfalls).
 
 ## Version traps (older three.js and R3F code from training data)
 

@@ -5,8 +5,10 @@
  * Works with any loop that has start() and stop(), such as ClientGameLoop
  * in game-state-sync: its start() resets the frame timestamp and the
  * accumulator, so the first frame back runs no burst of catch-up ticks.
- * When an engine steps ClientGameLoop (step()), pass
- * { stop() {}, start: () => loop.resetClock() } instead.
+ * When an engine steps ClientGameLoop (step()), wrap it with
+ * engineDrivenLoop() and skip step() while it is paused: engines such as
+ * Phaser resume, and the PixiJS ticker never stops, before onVisible's
+ * resync finishes, so stepping must wait for the loop's start().
  *
  * If the page is already hidden when you call watchVisibility (opened in a
  * background tab), the loop is stopped at once and resyncs on first show.
@@ -33,8 +35,33 @@ export interface VisibilityResyncOptions {
 	signal?: AbortSignal;
 }
 
+/**
+ * A PausableLoop for engine-driven mode. stop() pauses and start() resumes;
+ * both reset the clock so the first step() back runs no catch-up ticks.
+ * In the engine's frame callback: if (!gate.paused) loop.step(now).
+ */
+export function engineDrivenLoop(loop: { resetClock(): void }): PausableLoop & {
+	readonly paused: boolean;
+} {
+	let paused = false;
+	return {
+		get paused() {
+			return paused;
+		},
+		stop() {
+			paused = true;
+			loop.resetClock();
+		},
+		start() {
+			loop.resetClock();
+			paused = false;
+		},
+	};
+}
+
 /** Returns a function that removes the listener. */
 export function watchVisibility(options: VisibilityResyncOptions): () => void {
+	if (options.signal?.aborted) return () => undefined;
 	const controller = new AbortController();
 	options.signal?.addEventListener('abort', () => controller.abort(), {
 		once: true,
