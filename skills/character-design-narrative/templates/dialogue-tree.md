@@ -42,9 +42,9 @@ Conditions gate which nodes or options are available.
 | Applies To | Condition Type | Condition | Effect |
 |------------|---------------|-----------|--------|
 | N04 (option 1) | item_held | gold >= 500 | Option visible only if player has 500+ gold |
-| N06 | `dlg.merchant.n06.line` | flag_set | merchant_trust >= 1 | Node accessible only if player has merchant trust | _Speaker, register, context_ |
+| N06 | flag_set | merchant_trust >= 1 | Node accessible only if player has merchant trust |
 | N03 → N06 | quest_completed | quest_find_market | Required to ask about ruins |
-| N07 | `dlg.merchant.n07.line` | first_visit | dlg_merchant_001 | Only show sun medallion info on first conversation | _Speaker, register, context_ |
+| N07 | first_visit | dlg_merchant_001 | Only show sun medallion info on first conversation |
 
 ---
 

@@ -48,9 +48,12 @@ export type MessageArgs = Readonly<Record<string, string | number>>;
  * Most specific to least specific, then the default locale's own chain.
  * A tag with a region or script also tries its likely script, so zh-TW reaches
  * a zh-Hant catalog and zh-CN a zh-Hans one:
- * zh-TW gives zh-TW, zh-Hant-TW, zh-Hant, zh; zh-Hans-CN gives zh-Hans-CN,
+ * zh-TW gives zh-TW, zh-Hant-TW, zh-Hant; zh-Hans-CN gives zh-Hans-CN,
  * zh-CN, zh-Hans, zh; pt-BR gives pt-BR, pt-Latn-BR, pt-Latn, pt. `load`
  * returns null for the tags you do not ship.
+ * The bare language is skipped when its likely script differs from the
+ * requested one: a bare zh catalog is usually Simplified and a bare sr one
+ * Cyrillic, so zh-TW and sr-Latn never fall back to them.
  */
 export function fallbackChain(requested: string, defaultLocale: string): string[] {
 	const chain: string[] = [];
@@ -66,7 +69,7 @@ export function fallbackChain(requested: string, defaultLocale: string): string[
 		if (script && region) push(`${language}-${script}-${region}`);
 		if (region) push(`${language}-${region}`);
 		if (script) push(`${language}-${script}`);
-		push(language);
+		if (!script || new Intl.Locale(language).maximize().script === script) push(language);
 	}
 	return chain;
 }
@@ -103,7 +106,8 @@ export async function createTranslator<T extends SourceTable>(options: {
 	for (const id of ids) sourceCatalog[id] = options.source[id].message;
 
 	const settled = await Promise.allSettled(
-		chain.map((locale) => (locale === sourceLocale ? Promise.resolve(sourceCatalog) : options.load(locale))),
+		// The async wrapper turns a load that throws synchronously into a rejection.
+		chain.map(async (locale) => (locale === sourceLocale ? sourceCatalog : options.load(locale))),
 	);
 	const catalogs: Array<{ locale: string; catalog: Catalog<Id> }> = [];
 	const loadErrors: Array<{ locale: string; error: unknown }> = [];

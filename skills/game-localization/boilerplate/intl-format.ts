@@ -15,7 +15,9 @@
  * locale to these helpers. Never pass a raw header value.
  *
  * The cache keys on the locale's base name (language, script, region,
- * variants), so -u- extensions and private-use subtags share one entry, and it
+ * variants), so -u- extensions and private-use subtags share one entry. The
+ * helpers therefore ignore -u- extensions: ar-EG-u-nu-latn still prints
+ * Arabic-Indic digits. Add an Intl option to the helper if you need one. The cache
  * holds at most FORMATTER_CACHE_LIMIT formatters, dropping the least recently
  * used. The limit is this skill's default; raise it if you ship many locales.
  */
@@ -160,5 +162,6 @@ export function compareNames(locale: string): (a: string, b: string) => number {
 
 /** Native language names for the language picker: "Português (Brasil)". */
 export function languageName(tag: string): string {
-	return cached('dn', tag, (b) => new Intl.DisplayNames([b], { type: 'language' })).of(tag) ?? tag;
+	const base = new Intl.Locale(tag).baseName;
+	return cached('dn', base, (b) => new Intl.DisplayNames([b], { type: 'language' })).of(base) ?? base;
 }

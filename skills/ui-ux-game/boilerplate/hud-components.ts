@@ -98,7 +98,7 @@ export type NotificationPriority = "low" | "medium" | "high" | "critical";
 
 export interface Notification {
 	id: string;
-	/**In a localized game, a string ID resolved by the string table (see `game-localization`). */
+	/** In a localized game, a string ID resolved by the string table (see `game-localization`). */
 	message: string;
 	priority: NotificationPriority;
 	/** Duration in ms before auto-dismiss, 0 = manual dismiss */

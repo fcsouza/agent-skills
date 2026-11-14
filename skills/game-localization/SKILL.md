@@ -25,7 +25,7 @@ Copy `boilerplate/string-table.ts` when you need a typed string table: IDs typed
 
 ## Locale fallback chain
 
-Resolve from most to least specific, then the default locale: zh-Hans-CN, zh-CN, zh-Hans, zh, then en. Unreal processes cultures in that order. Add the likely script for a tag that has only a region, so zh-TW reaches a zh-Hant catalog (zh-TW, zh-Hant-TW, zh-Hant, zh); the boilerplate does this with `Intl.Locale.prototype.maximize()`. Unity lets each locale list its fallbacks. Godot falls back to a project fallback locale, or to en.
+Resolve from most to least specific, then the default locale: zh-Hans-CN, zh-CN, zh-Hans, zh, then en. Unreal processes cultures in that order. Add the likely script for a tag that has only a region, so zh-TW reaches a zh-Hant catalog (zh-TW, zh-Hant-TW, zh-Hant, then en). Skip the bare language when its likely script differs from the requested one: a bare zh catalog is usually Simplified and a bare sr one Cyrillic, so zh-TW and sr-Latn must not fall back to them. That skip is this skill's rule. The boilerplate does both with `Intl.Locale.prototype.maximize()`. Unity lets each locale list its fallbacks. Godot falls back to a project fallback locale, or to en.
 
 - Treat regional variants as separate locales: pt and pt-BR, es and es-419, zh-Hans and zh-Hant. Steam lists Portuguese and Portuguese-Brazil, and Spanish-Spain and Spanish-Latin America, as separate languages.
 - Use BCP 47 tags inside the game. Convert at the platform edge: Steam's API codes map `brazilian` to pt-BR, `latam` to es-419, `schinese` to zh-CN.

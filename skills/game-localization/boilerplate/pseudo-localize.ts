@@ -32,12 +32,37 @@ const ACCENTS: Readonly<Record<string, string>> = {
 };
 
 // Placeholders, tags, entities and printf tokens pass through unchanged.
-const PROTECTED = /(\{\w+\}|<[^<>]*>|&(?:#\d+|#x[0-9a-fA-F]+|\w+);|%(?:\d+\$)?[-+ 0#]*\d*(?:\.\d+)?[a-zA-Z%@])/;
+const PROTECTED = /(\{\w+\}|<[^<>]*>|&(?:#\d+|#x[0-9a-fA-F]+|\w+);|%(?:\d+\$)?[-+0#]*\d*(?:\.\d+)?[sdifuxXoeEgGc@%])/;
 
 export interface PseudoOptions {
 	readonly expansion?: number;
 	readonly brackets?: boolean;
 	readonly mirror?: boolean;
+}
+
+const isTag = (text: string) => text.startsWith('<');
+
+/**
+ * Reverses text and placeholders between tags; tags stay where they are, so
+ * <b>...</b> keeps its opening and closing order.
+ */
+function mirrorParts(parts: ReadonlyArray<{ keep: boolean; text: string }>): Array<{ keep: boolean; text: string }> {
+	const out: Array<{ keep: boolean; text: string }> = [];
+	let run: Array<{ keep: boolean; text: string }> = [];
+	const flush = () => {
+		for (const p of run.reverse()) out.push(p.keep ? p : { keep: false, text: Array.from(p.text).reverse().join('') });
+		run = [];
+	};
+	for (const p of parts) {
+		if (p.keep && isTag(p.text)) {
+			flush();
+			out.push(p);
+		} else {
+			run.push(p);
+		}
+	}
+	flush();
+	return out;
 }
 
 export function pseudoLocalize(text: string, options: PseudoOptions = {}): string {
@@ -48,9 +73,7 @@ export function pseudoLocalize(text: string, options: PseudoOptions = {}): strin
 		.map((part, i) => ({ keep: i % 2 === 1, text: part }))
 		.filter((p) => p.text !== '')
 		.map((p) => (p.keep ? p : { keep: false, text: Array.from(p.text, (ch) => ACCENTS[ch] ?? ch).join('') }));
-	const ordered = mirror
-		? parts.reverse().map((p) => (p.keep ? p : { keep: false, text: Array.from(p.text).reverse().join('') }))
-		: parts;
+	const ordered = mirror ? mirrorParts(parts) : parts;
 	const visible = ordered.reduce((n, p) => n + (p.keep ? 0 : Array.from(p.text).length), 0);
 	const body = ordered.map((p) => p.text).join('') + '~'.repeat(Math.ceil(visible * expansion));
 	return brackets ? `[${body}]` : body;
