@@ -1,9 +1,13 @@
-import { redis } from "../boilerplate/redis-client";
+// Verified against: ioredis 6.0.0 (2026-11-14)
+import type { Redis } from "ioredis";
 
-// --- Match State ---
-// Short-lived state for active matches/instances that expire when the match ends.
+// Short-lived game state that may vanish on restart: live match state,
+// player presence, timed buffs. Durable outcomes (results, rewards,
+// currency) go to the database, not here.
 
-interface MatchState {
+// --- Match state ---
+
+export interface MatchState {
 	matchId: string;
 	players: string[];
 	status: "waiting" | "active" | "finished";
@@ -13,14 +17,9 @@ interface MatchState {
 
 const matchKey = (matchId: string) => `match:${matchId}`;
 
-export const matchState = {
-	async create(state: MatchState, ttlSeconds = 3600) {
-		await redis.set(
-			matchKey(state.matchId),
-			JSON.stringify(state),
-			"EX",
-			ttlSeconds,
-		);
+export const createMatchState = (redis: Redis, ttlSeconds = 3600) => ({
+	async create(state: MatchState) {
+		await redis.set(matchKey(state.matchId), JSON.stringify(state), "EX", ttlSeconds);
 	},
 
 	async get(matchId: string): Promise<MatchState | null> {
@@ -28,71 +27,76 @@ export const matchState = {
 		return raw ? (JSON.parse(raw) as MatchState) : null;
 	},
 
+	// Read-modify-write with WATCH: if another server changes the key between
+	// the read and EXEC, EXEC returns null and we retry.
+	// WATCH state lives on the connection, so give this its own client
+	// (redis.duplicate()) if other code shares the connection concurrently.
 	async update(
 		matchId: string,
-		updates: Partial<MatchState>,
-		ttlSeconds = 3600,
-	) {
-		const current = await this.get(matchId);
-		if (!current) return null;
-
-		const updated = { ...current, ...updates };
-		await redis.set(
-			matchKey(matchId),
-			JSON.stringify(updated),
-			"EX",
-			ttlSeconds,
-		);
-		return updated;
+		apply: (current: MatchState) => MatchState,
+		maxAttempts = 5,
+	): Promise<MatchState | null> {
+		const key = matchKey(matchId);
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			await redis.watch(key);
+			const raw = await redis.get(key);
+			if (!raw) {
+				await redis.unwatch();
+				return null;
+			}
+			const next = apply(JSON.parse(raw) as MatchState);
+			const result = await redis
+				.multi()
+				.set(key, JSON.stringify(next), "EX", ttlSeconds)
+				.exec();
+			if (result) return next;
+		}
+		throw new Error(`match ${matchId}: update lost ${maxAttempts} races`);
 	},
 
 	async delete(matchId: string) {
 		await redis.del(matchKey(matchId));
 	},
-};
+});
 
-// --- Player Presence ---
-// Heartbeat-based presence detection. Players send periodic heartbeats;
-// absence of heartbeat = offline.
+// --- Player presence ---
+// Clients heartbeat every few seconds; a missing key means offline.
+// Set PRESENCE_TTL to about three heartbeat intervals so one dropped
+// packet does not flash the player offline.
 
 const presenceKey = (playerId: string) => `presence:${playerId}`;
-const PRESENCE_TTL = 30; // seconds — player must heartbeat within this window
 
-export const presence = {
-	async heartbeat(playerId: string, serverId?: string) {
-		const data = JSON.stringify({
-			serverId,
-			lastSeen: Date.now(),
-		});
-		await redis.set(presenceKey(playerId), data, "EX", PRESENCE_TTL);
-	},
-
-	async isOnline(playerId: string): Promise<boolean> {
-		const result = await redis.exists(presenceKey(playerId));
-		return result === 1;
+export const createPresence = (redis: Redis, presenceTtlSeconds = 30) => ({
+	async heartbeat(playerId: string, serverId: string) {
+		await redis.set(
+			presenceKey(playerId),
+			JSON.stringify({ serverId, lastSeen: Date.now() }),
+			"EX",
+			presenceTtlSeconds,
+		);
 	},
 
 	async getPresence(
 		playerId: string,
-	): Promise<{ serverId?: string; lastSeen: number } | null> {
+	): Promise<{ serverId: string; lastSeen: number } | null> {
 		const raw = await redis.get(presenceKey(playerId));
-		return raw ? JSON.parse(raw) : null;
+		return raw ? (JSON.parse(raw) as { serverId: string; lastSeen: number }) : null;
 	},
 
-	async getOnlinePlayers(playerIds: string[]): Promise<string[]> {
-		const pipeline = redis.pipeline();
-		for (const id of playerIds) {
-			pipeline.exists(presenceKey(id));
-		}
-		const results = await pipeline.exec();
-		return playerIds.filter((_, i) => results?.[i]?.[1] === 1);
+	// Friends list / party screen: one round trip for many players.
+	async filterOnline(playerIds: string[]): Promise<string[]> {
+		if (playerIds.length === 0) return [];
+		const values = await redis.mget(...playerIds.map(presenceKey));
+		return playerIds.filter((_, i) => values[i] !== null);
 	},
-};
+});
 
-// --- Temporary Buffs/Effects ---
-// Time-limited effects that auto-expire. No cleanup needed.
+// --- Timed buffs and effects ---
+// Each effect is its own key with EX, so it expires on time with no sweeper.
+// A sorted set per player, scored by expiry time, lists the effects so we
+// can read them without scanning keys.
 
-interface TempEffect {
+export interface TempEffect {
 	effectId: string;
 	type: string;
 	value: number;
@@ -103,53 +107,39 @@ const effectKey = (playerId: string, effectId: string) =>
 	`effect:${playerId}:${effectId}`;
 const effectIndexKey = (playerId: string) => `effects:${playerId}`;
 
-export const tempEffects = {
+// The index lives as long as the longest allowed effect.
+export const createTempEffects = (redis: Redis, maxEffectSeconds = 24 * 3600) => ({
 	async apply(playerId: string, effect: TempEffect, durationSeconds: number) {
-		const pipeline = redis.pipeline();
-		pipeline.set(
-			effectKey(playerId, effect.effectId),
-			JSON.stringify(effect),
-			"EX",
-			durationSeconds,
-		);
-		pipeline.sadd(effectIndexKey(playerId), effect.effectId);
-		pipeline.expire(effectIndexKey(playerId), durationSeconds + 60);
-		await pipeline.exec();
+		if (durationSeconds > maxEffectSeconds) {
+			throw new Error(`effect longer than ${maxEffectSeconds}s`);
+		}
+		const expiresAt = Date.now() + durationSeconds * 1000;
+		const results = await redis
+			.multi()
+			.set(effectKey(playerId, effect.effectId), JSON.stringify(effect), "EX", durationSeconds)
+			.zadd(effectIndexKey(playerId), expiresAt, effect.effectId)
+			.expire(effectIndexKey(playerId), maxEffectSeconds)
+			.exec();
+		if (!results) throw new Error("apply effect transaction aborted");
+		for (const [err] of results) if (err) throw err;
 	},
 
 	async getActive(playerId: string): Promise<TempEffect[]> {
-		const effectIds = await redis.smembers(effectIndexKey(playerId));
-		if (effectIds.length === 0) return [];
-
-		const pipeline = redis.pipeline();
-		for (const id of effectIds) {
-			pipeline.get(effectKey(playerId, id));
-		}
-		const results = await pipeline.exec();
-
-		const active: TempEffect[] = [];
-		const expired: string[] = [];
-
-		for (let i = 0; i < effectIds.length; i++) {
-			const raw = results?.[i]?.[1] as string | null;
-			if (raw) {
-				active.push(JSON.parse(raw) as TempEffect);
-			} else {
-				expired.push(effectIds[i]);
-			}
-		}
-
-		if (expired.length > 0) {
-			await redis.srem(effectIndexKey(playerId), ...expired);
-		}
-
-		return active;
+		const index = effectIndexKey(playerId);
+		await redis.zremrangebyscore(index, 0, Date.now());
+		const ids = await redis.zrange(index, 0, "-1");
+		if (ids.length === 0) return [];
+		const values = await redis.mget(...ids.map((id) => effectKey(playerId, id)));
+		return values
+			.filter((raw): raw is string => raw !== null)
+			.map((raw) => JSON.parse(raw) as TempEffect);
 	},
 
 	async remove(playerId: string, effectId: string) {
-		const pipeline = redis.pipeline();
-		pipeline.del(effectKey(playerId, effectId));
-		pipeline.srem(effectIndexKey(playerId), effectId);
-		await pipeline.exec();
+		await redis
+			.multi()
+			.del(effectKey(playerId, effectId))
+			.zrem(effectIndexKey(playerId), effectId)
+			.exec();
 	},
-};
+});

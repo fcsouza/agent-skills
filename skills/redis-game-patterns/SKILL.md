@@ -1,148 +1,133 @@
 ---
 name: redis-game-patterns
 description: >-
-  Use when implementing Redis patterns for games — caching, leaderboards, pub/sub messaging, session storage, rate limiting, or ephemeral game state. Triggers: Redis, cache, leaderboard, pub/sub, rate limit, session.
+  Four Redis patterns for game servers: sorted-set leaderboards, heartbeat
+  presence with short-lived match state and timed buffs, a per-player
+  per-action sliding-window rate limit, and cache-aside for player data. Use
+  when a game needs ranked scores, an online/offline indicator, action
+  cooldowns or anti-spam limits, or a fast read path in front of the player
+  database, on Redis through ioredis.
 ---
 
 # Redis Game Patterns
 
-## Purpose
+Redis holds hot, disposable game state. The database holds outcomes. If Redis
+restarts empty, players should lose nothing that matters: match results,
+rewards and currency are written to the database first.
 
-Redis usage patterns for games — leaderboards, session caching, pub/sub messaging, rate limiting, ephemeral state, and sorted sets for real-time game data.
+## Client choice
 
-## When to Use
+The code here uses `ioredis` 6, because BullMQ 6 creates its Redis connections
+with ioredis by default and most game servers in this bundle already run
+BullMQ (`bullmq-game-queues`). The ioredis README says that for new projects
+node-redis is the recommended client; if the project has no BullMQ and no
+ioredis yet, consider node-redis and port the commands. BullMQ 6 marks ioredis
+as an optional peer, so install it explicitly: `bun add ioredis`.
 
-Trigger: Redis, pub/sub, leaderboard, session cache, rate limiting, sorted sets, game cache, ephemeral state, TTL, player presence, cross-server messaging
+Every file takes the client as a parameter typed `Redis` from `ioredis`.
+Create the client once in the server and pass it in. Keep the default
+`replyMapping: "legacy"`: the parsers expect `WITHSCORES` replies as flat
+`[member, score, ...]` string arrays. The code needs Redis 6.2 or newer
+(`ZRANGE ... REV`).
 
-## Prerequisites
+## Pattern 1: leaderboard
 
-None — this is a foundational infrastructure skill.
+Copy `boilerplate/leaderboard.ts` when the game ranks players by score.
 
-## Core Principles
+- One sorted set per board and period: `lb:weekly:2026-W46`, `lb:season:3`.
+  A new period is a new key; snapshot the old one, then delete it.
+- `ZADD` overwrites the score. For "best score counts", decide on purpose:
+  `ZADD ... GT` keeps the higher value; `ZINCRBY` adds points.
+- Ties: equal scores sort by member ID bytes (reverse order under `REV`), not
+  by who reached the score first. If first-to-score must win, encode the tie
+  break into the score, and keep the whole score inside the exact integer
+  range of a double (2^53).
+- Rank from `ZREVRANK` is zero-based; the boilerplate returns rank 1 for the
+  top player.
+- At season end, call `snapshot()` with a function that writes the rows to
+  Postgres (`postgres-game-schema`), then reset the board.
 
-> Will Wright: "Simulation state must be fast, ephemeral, and disposable — persistence is for outcomes, not for process."
+## Pattern 2: presence and ephemeral state
 
-1. **Redis is for hot data, PostgreSQL is for cold data** — cache what's accessed frequently, persist what matters long-term
-2. **Every cached value needs a TTL** — stale data is worse than no data; always set expiration
-3. **Use the right data structure** — sorted sets for leaderboards, hashes for sessions, pub/sub for events, strings for simple counters
-4. **Cache-aside pattern by default** — check cache, miss, load from DB, populate cache; never assume cache is populated
-5. **Atomic operations prevent race conditions** — use pipelines and Lua scripts for multi-step operations, never read-then-write
-6. **Separate Redis connections for pub/sub** — subscriber connections are blocked; use dedicated connections for subscriptions
-7. **Namespace all keys** — prefix keys by domain (`lb:`, `session:`, `rl:`, `presence:`) to avoid collisions and enable selective flushing
+Copy `templates/ephemeral-state.ts` when the game shows who is online, keeps
+live match state outside the database, or applies timed buffs.
 
-## Step-by-Step Instructions
+- Presence: the client heartbeats every few seconds; the server writes
+  `presence:<playerId>` with `EX`. A missing key means offline, so a crashed
+  client goes offline without cleanup code. Set the TTL to a few heartbeat
+  intervals so one lost packet does not flash the player offline.
+- Match state: one JSON key per match with a TTL longer than the longest
+  match. Two servers can update the same match, so `update()` uses
+  `WATCH`/`MULTI` and retries when another writer got there first.
+- Timed buffs: one key per effect with `EX`, plus a per-player sorted set
+  scored by expiry time to list them. Expiry needs no sweeper job.
+- `SET` clears an existing TTL unless you pass `EX` again. Every write in the
+  template passes it.
 
-### 1. Install Dependencies
+## Pattern 3: per-action rate limit
 
-```bash
-bun add ioredis
-```
+Copy `templates/rate-limiter.ts` when an action needs a cooldown or spam cap:
+attacks, chat, trades, crafting.
 
-### 2. Configure Redis Connection
+- Key per player and action: `rl:<action>:<playerId>`. Limits differ per
+  action, so one global limit per player is the wrong shape.
+- Sliding window on a sorted set: each attempt is a member scored by its
+  timestamp. The template runs remove-old, add, count and expire in one
+  `MULTI`, so two concurrent attempts cannot both pass.
+- A denied attempt is removed again. Otherwise a player who spams the button
+  stays locked out past the window.
+- Check the limit on the server for every action message, including actions
+  that arrive over WebSocket (`game-backend-architecture`).
 
-Use `boilerplate/redis-client.ts` for the base connection with reconnection logic and error handling. All other modules import from this file.
+## Pattern 4: cache-aside for player data
 
-### 3. Set Up Leaderboards
+No file; the code is short enough to write in place.
 
-Use `boilerplate/leaderboard.ts` for sorted-set-based leaderboards. Supports adding scores, fetching top N, getting player rank, and fetching nearby ranks. Includes periodic snapshot to PostgreSQL for historical data.
+1. Read `player:<id>` from Redis. On a hit, parse and return it.
+2. On a miss, load from the database, write it with `SET key value EX ttl`,
+   and return it. A missing row stays uncached unless you cache a "not found"
+   marker with a short TTL.
+3. On every database write to that player, delete the cache key after the
+   write commits. Do not update the cache in place from game logic.
+4. If the cached JSON fails to parse, delete the key and fall through to the
+   database.
 
-### 4. Implement Session Caching
+Cache only what the game reads often and can tolerate seeing a few seconds
+late (profile, loadout, cosmetics). Wallet balances and inventory counts are
+read from the database inside the transaction that changes them.
 
-Use `boilerplate/session-cache.ts` for player session caching with TTL. Follows cache-aside pattern: check cache → miss → load from DB → populate cache.
+## Pitfalls
 
-### 5. Configure Pub/Sub
+- Treating Redis as the record of truth for match results, rewards or
+  currency. Write those to the database; Redis may lose them.
+- Read-then-write on shared keys from more than one server. Use `MULTI`,
+  `WATCH` or a single command; a plain pipeline does not stop another client's
+  command running between yours.
+- Using Pub/Sub for events a server must not miss. Redis Pub/Sub delivers at
+  most once: a server that is down or disconnected loses the message. Send
+  match results and purchases through a queue (`bullmq-game-queues`).
+- Subscribing on the shared command connection. Under RESP2 a subscribed
+  connection accepts only subscribe-family commands, and the ioredis README
+  says to create a separate connection for subscribing. Give subscribers their
+  own client (`redis.duplicate()`).
+- Prefix Pub/Sub channels with the environment (`prod:match-events`). Pub/Sub
+  ignores database numbers, so staging and production on one Redis hear each
+  other.
 
-Use `boilerplate/pub-sub.ts` for cross-server messaging. Requires separate Redis connections for publishing and subscribing. Typed event handlers ensure type safety.
+## Files
 
-### 6. Add Rate Limiting
+- `boilerplate/leaderboard.ts`: copy when building a ranked board; read when
+  checking how ranks and snapshots are computed.
+- `templates/rate-limiter.ts`: copy when adding per-action limits.
+- `templates/ephemeral-state.ts`: copy when adding presence, live match state
+  or timed buffs.
+- `references/sources.md`: read when you need the Redis or ioredis page behind
+  a rule above.
 
-Use `templates/rate-limiter.ts` for per-player per-action sliding window rate limiting using sorted sets. Configurable window size and max requests.
+## Related skills
 
-### 7. Manage Ephemeral State
-
-Use `templates/ephemeral-state.ts` for short-lived game state: match state with TTL, player presence via heartbeat, and temporary buffs/effects.
-
-## Code Examples
-
-### Adding a player score to a leaderboard
-
-```typescript
-import { leaderboard } from './leaderboard';
-
-await leaderboard.addScore('weekly', 'player_123', 4500);
-const top10 = await leaderboard.getTopN('weekly', 10);
-const rank = await leaderboard.getPlayerRank('weekly', 'player_123');
-```
-
-### Caching a player session
-
-```typescript
-import { sessionCache } from './session-cache';
-
-const session = await sessionCache.get('player_123');
-if (!session) {
-  const fromDb = await db.query.players.findFirst({ where: eq(players.id, 'player_123') });
-  await sessionCache.set('player_123', fromDb, 3600);
-}
-```
-
-### Publishing a game event across servers
-
-```typescript
-import { publisher, subscriber } from './pub-sub';
-
-await publisher.publish('match-events', {
-  type: 'match-started',
-  matchId: 'match_456',
-  players: ['player_123', 'player_789'],
-});
-
-subscriber.on('match-events', (event) => {
-  console.log('Match event:', event.type);
-});
-```
-
-### Rate limiting a player action
-
-```typescript
-import { checkRateLimit } from './rate-limiter';
-
-const result = await checkRateLimit('player_123', 'attack', {
-  maxRequests: 1,
-  windowSeconds: 5,
-});
-
-if (!result.allowed) {
-  throw new Error(`Rate limited. Retry after ${result.retryAfter}s`);
-}
-```
-
-See `boilerplate/` for full implementations and `templates/` for rate limiting and ephemeral state patterns.
-
-## Cross-References
-
-- `game-backend-architecture` for integrating Redis into the game server
-- `bullmq-game-queues` for job queues built on Redis
-- `postgres-game-schema` for persisting leaderboard snapshots and session fallback data
-
-## Pitfalls & Anti-Patterns
-
-- **Don't use Redis as a primary database** — Redis is a cache and message broker; always have a persistence layer backing it
-- **Don't forget TTLs** — keys without expiration accumulate forever and eventually exhaust memory
-- **Don't use `KEYS *` in production** — it blocks Redis; use `SCAN` for key enumeration
-- **Don't share a single connection for pub/sub and commands** — subscriber connections are blocked and cannot execute other commands
-- **Don't store large objects in Redis** — keep values small (< 1MB); store IDs and fetch details from the database
-- **Don't assume cache is populated** — always implement cache-aside; never trust that a key exists
-
-## Designer Philosophy
-
-**Will Wright** (SimCity, The Sims): Simulation state management is about speed and disposability. In SimCity, the game constantly recalculates traffic, power, and zoning — none of that intermediate state needs to survive a restart. Redis serves this exact role in multiplayer games: it holds the hot, fast-changing state that drives the simulation, while the database records outcomes that matter. The moment you treat cache as truth, you've confused process with product.
-
-## Sources
-
-- [Redis Official Documentation](https://redis.io/docs/)
-- [Redis Data Types and Abstractions](https://redis.io/docs/data-types/)
-- [ioredis GitHub Repository](https://github.com/redis/ioredis)
-- [Redis Sorted Sets for Leaderboards](https://redis.io/docs/data-types/sorted-sets/)
-- [Redis Pub/Sub Documentation](https://redis.io/docs/interact/pubsub/)
-- [Redis Best Practices](https://redis.io/docs/management/optimization/)
+- `bullmq-game-queues`: durable jobs and events on the same Redis.
+- `matchmaking-system`: queue and lobby state on Redis.
+- `gameplay-analytics`: event buffering on Redis.
+- `postgres-game-schema`: where leaderboard snapshots and player data live.
+- `game-backend-architecture`: where the client is created and passed in.
