@@ -326,7 +326,7 @@ For each reference game the user mentioned (up to 3):
 From the Designer Philosophies table, select the 2-3 designers whose principles are MOST relevant to THIS specific game. These will be cited throughout the output.
 
 ### Step 4: Select Required Skills
-Use the Skill Selection Matrix below to determine which skills from the ecosystem THIS game actually needs. Do NOT include every skill — only include what's relevant.
+Use the Skill Selection Matrix below to choose the skills this game needs. Include only the relevant ones, not every skill.
 
 Check which selected skills are installed. If any are missing, do not stop and do not discard the interview answers. List the missing skills, give one install line that covers them (`bunx skills add fcsouza/agent-skills --skill <name> --skill <name>`), and ask the user to choose:
 

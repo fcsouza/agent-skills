@@ -24,7 +24,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 
 | Need | Skill |
 |---|---|
-| Login, OAuth, sessions, roles | `betterauth-integration` |
+| Login, sessions, roles, WebSocket auth | `betterauth-integration` |
 | Queues, delayed jobs, scheduled work | `bullmq-game-queues` |
 | Sound effects, music, voice | `elevenlabs-sound-music` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |

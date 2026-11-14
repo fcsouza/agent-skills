@@ -15,7 +15,7 @@ description: >-
 
 Generate audio assets offline with the vendor SDKs, then play them through one state machine that the game drives.
 
-Related skills: `game-backend-architecture` (asset storage and CDN delivery), `game-design-fundamentals` (audio as player feedback).
+Related skills: `game-design-fundamentals` (audio as player feedback).
 
 ## Choose the provider
 
