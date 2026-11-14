@@ -31,19 +31,39 @@ const rolesOf = (user: object): string[] =>
     ? user.role.split(',').map((name) => name.trim())
     : [];
 
-// Mirrors the endpoints' `z.coerce.string()` on userId, so a numeric id
-// cannot slip past the guard and still reach the endpoint.
+// Where each guarded endpoint reads its target, from the body schemas in
+// better-auth 1.7.23 (dist/plugins/admin/routes.mjs). Read only that field:
+// a request that also carries the other field must not sway the decision.
+// Any other non-allowed /admin/* path has no entry and fails closed.
+const TARGET_FIELD: Record<string, 'userId' | 'sessionToken'> = {
+  '/admin/set-role': 'userId',
+  '/admin/update-user': 'userId',
+  '/admin/list-user-sessions': 'userId',
+  '/admin/unban-user': 'userId',
+  '/admin/ban-user': 'userId',
+  '/admin/impersonate-user': 'userId',
+  '/admin/revoke-user-sessions': 'userId',
+  '/admin/remove-user': 'userId',
+  '/admin/set-user-password': 'userId',
+  '/admin/revoke-user-session': 'sessionToken',
+};
+
 const targetUserId = async (ctx: HookContext): Promise<string | null> => {
+  const field = TARGET_FIELD[ctx.path];
   const body: unknown = ctx.body;
-  if (typeof body !== 'object' || body === null) return null;
-  if ('userId' in body && body.userId !== undefined && body.userId !== null) {
+  if (!field || typeof body !== 'object' || body === null) return null;
+  if (field === 'userId') {
+    // The endpoints parse userId with z.coerce.string(); mirror it so a
+    // numeric id cannot slip past the guard and still reach the endpoint.
+    if (!('userId' in body) || body.userId === undefined || body.userId === null) {
+      return null;
+    }
     return String(body.userId);
   }
-  if ('sessionToken' in body && typeof body.sessionToken === 'string') {
-    const found = await ctx.context.internalAdapter.findSession(body.sessionToken);
-    return found?.user.id ?? null;
-  }
-  return null;
+  // revoke-user-session parses sessionToken with z.string(): no coercion.
+  if (!('sessionToken' in body) || typeof body.sessionToken !== 'string') return null;
+  const found = await ctx.context.internalAdapter.findSession(body.sessionToken);
+  return found?.user.id ?? null;
 };
 
 const forbid = (): never => {
