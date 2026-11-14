@@ -468,3 +468,32 @@ After Task 22: `tools/check-skills.sh` exits 0; open PR 3.
 
 - `react-animations` (`framer-motion` to `motion`) and the Foundry boilerplate pins. Reported in the spec.
 - Codex's second opinion on versions and code. Its account hit the usage limit; rerun it if wanted before PR 2.
+
+## Amendments after the PR 1 review
+
+The whole-branch review of PR 1 found work that belongs to later tasks. Each line names the task that owns it.
+
+**Task 7 (typecheck workspace)**
+- Lint check `C4` reads only `.ts` files. If any kept boilerplate is `.tsx` or `.js`, extend `C4` to it in this task.
+
+**Task 21 (quest ownership)**
+- The registry template's Active table lost its `Status` column in PR 1. Decide whether it returns, and give the Completed and Planned tables the same column names as the Active table.
+- `skills/quest-narrative-coherence/SKILL.md:79-82` still describes the registry fields in the old terms.
+- The world-lore section names differ between the `quest-narrative-coherence` template and what `game-architect` writes. Make them one list.
+
+**Task 23 (command content)**
+- Four command descriptions still say "Extract ... from the user's message" (`game-quest`, `game-lore`, `game-build`, `game-expand`), which contradicts the `$ARGUMENTS` input sentence. `game-quest`'s description says it requires `docs/quest-registry.md`, but the command creates that file.
+- `game-architect` applies all 23 topic skills, so a user who installed only some of them is stopped by the Requires rule. Loading on demand (Step 3) must also make the Requires check apply only to the skills the selection matrix picks.
+- `game-architect` asks for a hand-written `biome.json` and also runs `ultracite init`, which writes the linter config. Keep the `ultracite init` step and remove the hand-written file.
+- Procedure P5 applies to the commands too: `game-quest` (around lines 100-102) and the "Designer Philosophies" table in `game-architect` carry attributed quotes with no source.
+- Decide whether `game-build` applies the `game-dev` index before it starts.
+
+**Task 25 (CI and final check)**
+- `P1` does not scan `README.md`, `LICENSE` or `.claude-plugin/marketplace.json`. Add them.
+- Clean up the lint minors the reviews deferred: the duplicate `M1` line for a listed path with no `SKILL.md`; the unused `rel()` helper; `L1` accepting a directory; `git ls-files` without `-z`; the four `R1` patterns with no fixture; the two tests that depend on the previous fixture's state.
+
+**Versions**
+- The `game-dev` marketplace entry has no `version` key, so plugin users follow the branch head. No per-PR bump is needed. `metadata.version` stays `2.0.0` until the owner tags a release.
+
+**Open with the owner**
+- The nine `mods/*/.claude-plugin/plugin.json` files declare `GPL-3.0`; the root `LICENSE` is MIT. This plan does not edit `mods/`.
