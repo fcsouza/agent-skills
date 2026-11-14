@@ -122,6 +122,8 @@ skills/<skill-name>/
 └── ARCHITECTURE.md     # System design decisions (optional)
 ```
 
+The seven workflow commands sit under `skills/game-dev-commands/<name>/`.
+
 - `SKILL.md` is always the entry point — read this first
 - `references/` holds deep-dive files that `SKILL.md` links to
 - `templates/` are document/config templates to fill in
@@ -189,7 +191,7 @@ npx skills remove -g -y \
 
 Run the same command without `-g` in each project that has them. The command skips names that are not installed. If you use the Claude Code plugin, run `/plugin marketplace update fcsouza-agent-skills` and then `/plugin install game-dev@fcsouza-agent-skills`. Otherwise install the skills you want with `npx skills add`, as shown above.
 
-The marketplace maps the five old entry names to `game-dev`, so Claude Code moves an enabled old entry to `game-dev`. If `claude plugin list` still shows an old entry, uninstall it in your shell:
+The marketplace maps the five old entry names to `game-dev`, so Claude Code should move an enabled old entry to `game-dev`. If `claude plugin list` still shows an old entry, uninstall it in your shell:
 
 ```bash
 claude plugin uninstall game-dev-design@fcsouza-agent-skills
