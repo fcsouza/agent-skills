@@ -10,8 +10,9 @@ argument-hint: quest name (e.g. "The Merchant's Debt", "Rescue at the Crossroads
 
 - `quest-narrative-coherence`
 - `quest-mission-design`
+- `game-economy-design`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 
@@ -95,11 +96,7 @@ Output the full brief in GDD section format:
 
 ## Phase 5: Register the quest
 
-Append the finished quest as a new row at the end of the table under `## Active Quests` in `docs/quest-registry.md`, in the registry format. Do not add it to Completed Quests or Planned Quests. Then append one row to the `## Economy Impact Log` table (`Quest ID | Currency Given | Items Given | Estimated Player Level`). The quest row:
-
-```markdown
-| [QID] | [Quest Name] | [Type] | [Giver NPC] | [Location] | [Factions Affected] | [Rewards Summary] | [Prerequisites] | [Story Arc] |
-```
+Append the finished quest as a new row to the Active Quests table in `docs/quest-registry.md`, and one row to the Economy Impact Log, in the format `quest-narrative-coherence` owns. Do not add it to Completed Quests or Planned Quests.
 
 Then output: "Done: quest registered in docs/quest-registry.md".
 
