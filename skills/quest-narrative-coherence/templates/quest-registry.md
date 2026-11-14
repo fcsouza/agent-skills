@@ -1,6 +1,6 @@
 # Quest Registry
 
-The table a quest sits in is its status. All three tables use the same columns.
+The table a quest sits in is its status. The three quest tables (Active, Completed, Planned) use the same columns.
 
 ## Active Quests
 

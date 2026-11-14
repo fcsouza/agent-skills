@@ -27,7 +27,7 @@ The output is `docs/world-lore.md`, the file `quest-narrative-coherence` checks 
 5. **Factions.** Fill `templates/faction-bible.md` per faction. Write at least three, with ally, enemy and neutral ties that force the player to choose.
 6. **Culture.** For each major group write customs, belief, language and norms. Derive them from its geography, history and goals.
 7. **Tone guide.** List what fits and what does not, plus reference media. Contributors use it to avoid drift.
-8. **Write `docs/world-lore.md`.** Copy the `world-lore` template from `quest-narrative-coherence` and keep exactly its seven sections. Fill each from the world bible:
+8. **Write `docs/world-lore.md`.** If the file is missing, copy the `world-lore` template from `quest-narrative-coherence`. If it exists, keep what is there and fill the empty sections. Either way keep exactly its seven sections. Fill each from the world bible:
    - World Overview: the bible's World Overview and Tone Guide.
    - Factions: the bible's Factions and each filled faction file.
    - Locations: the bible's Geography and each filled location file.

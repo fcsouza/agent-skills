@@ -8,7 +8,7 @@
 ## 2. Registry loaded
 
 - [ ] Read `docs/quest-registry.md`
-- [ ] Noted busy NPCs, used hubs and rewards already issued
+- [ ] Noted busy NPCs, used hubs, and rewards already issued (Economy Impact Log)
 
 ## 3. Validated
 
@@ -29,3 +29,5 @@
 ## 5. Registered
 
 - [ ] Row added to `docs/quest-registry.md` with all nine columns
+- [ ] Row added to the Economy Impact Log
+- [ ] On completion: row moved to Completed, and its world consequence written to `docs/world-lore.md`

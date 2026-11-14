@@ -36,9 +36,9 @@ flowchart TD
     ACT2_C --> MIDPOINT
 
     MIDPOINT --> ACT3{Act 3: Final choice}
-    ACT3 -->|Sacrifice| FINALE[Final scene, text shaped by flags]
-    ACT3 -->|Compromise| FINALE
-    ACT3 -->|Seize power| FINALE
+    ACT3 -->|Sacrifice: sets a flag| FINALE[Final scene, text shaped by flags]
+    ACT3 -->|Compromise: sets a flag| FINALE
+    ACT3 -->|Seize power: sets a flag| FINALE
     FINALE --> ENDING([One ending, shaped by the flags set earlier])
 
     %% Styling

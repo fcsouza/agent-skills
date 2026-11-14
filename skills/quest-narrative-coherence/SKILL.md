@@ -34,7 +34,7 @@ If step 3 flags anything, stop. Describe the conflict, propose a fix and wait fo
 
 ## Registry columns
 
-Every table in the registry uses these columns, in this order:
+Every quest table (Active, Completed, Planned) uses these columns, in this order:
 
 `Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc`
 
