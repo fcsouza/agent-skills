@@ -44,6 +44,12 @@ Writing a diverse cast takes research and care, and carries the risk of getting 
 - Static cast: nobody changes across the game.
 - Everyone talks the same.
 
+## Files
+
+- `templates/character-bible.md`: copy when documenting a significant character.
+- `templates/dialogue-tree.md`: copy when authoring branching dialogue.
+- `references/sources.md`: read when you need the citations behind the design steps.
+
 ## Related skills
 
 - `worldbuilding`: the world's rules.
@@ -51,9 +57,3 @@ Writing a diverse cast takes research and care, and carries the risk of getting 
 - `story-structure-game`: where character arcs sit in the plot.
 - `quest-mission-design`: characters as quest givers.
 - `elevenlabs-sound-music`: voice acting.
-
-## Files
-
-- `templates/character-bible.md`: copy when documenting a significant character.
-- `templates/dialogue-tree.md`: copy when authoring branching dialogue.
-- `references/sources.md`: read when you need the citations behind the design steps.

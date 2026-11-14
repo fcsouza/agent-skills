@@ -6,8 +6,6 @@ description: >-
 
 # Game UI and UX
 
-Related skills: `game-design-fundamentals` (feedback loops and rewards), `level-design` (tutorial levels), `elevenlabs-sound-music` (audio feedback).
-
 ## Principles
 
 1. Show only what the player needs now. Ask, for each element: what must the player know, what do they want to know, and what feedback gets that across. Cut the element if nothing answers. (Schell, ch. 13)
@@ -66,3 +64,9 @@ Read `templates/accessibility-checklist.md` when you design or test a settings o
 ## Files
 
 - `references/sources.md`: read when you need the page behind a claim above.
+
+## Related skills
+
+- `game-design-fundamentals` (feedback loops and rewards)
+- `level-design` (tutorial levels)
+- `elevenlabs-sound-music` (audio feedback).

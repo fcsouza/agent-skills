@@ -39,13 +39,6 @@ The output is `docs/world-lore.md`, the file `quest-narrative-coherence` checks 
 
    New quests, characters and locations then go through `quest-narrative-coherence`.
 
-## Files
-
-- `templates/world-bible.md`: read when starting a world or adding a rule, era, culture or economy section.
-- `templates/faction-bible.md`: read when designing or revising a faction.
-- `templates/location-template.md`: read when designing a region or a single location.
-- `references/sources.md`: read when you need the support for a claim above, or before adding one.
-
 ## Pitfalls
 
 - Stock genre races with no twist and no reason to exist in this world. Give each a role only this world creates.
@@ -55,6 +48,13 @@ The output is `docs/world-lore.md`, the file `quest-narrative-coherence` checks 
 - Factions with a look but no goals or internal politics.
 - Regions that feel the same. Change terrain, climate, resources and what the player can do there.
 - Tone shifts with no purpose, such as grim drama broken by slapstick.
+
+## Files
+
+- `templates/world-bible.md`: read when starting a world or adding a rule, era, culture or economy section.
+- `templates/faction-bible.md`: read when designing or revising a faction.
+- `templates/location-template.md`: read when designing a region or a single location.
+- `references/sources.md`: read when you need the support for a claim above, or before adding one.
 
 ## Related skills
 

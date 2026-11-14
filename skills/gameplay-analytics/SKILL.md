@@ -8,16 +8,6 @@ description: >-
 
 Events go from the game server into a Redis list, a single worker drains the list into PostgreSQL in batches, and retention and funnels run as SQL over the stored tables.
 
-Files:
-
-- `boilerplate/analytics-schema.ts`: copy when adding the three analytics tables (events, sessions, stored retention cohorts) to a Drizzle schema.
-- `boilerplate/analytics-client.ts`: copy when wiring `track()`, session tracking, the buffer flush and the idle-session closer. It takes the Drizzle database and the ioredis client as parameters, so it works with any Drizzle Postgres driver.
-- `templates/retention-dashboard.md`: read when writing retention, funnel, session-length or DAU/MAU queries. Every query in it was run on PostgreSQL 16.
-- `templates/event-catalog.md`: copy when starting the list of events the team agrees to track.
-- `references/sources.md`: read when you need the doc pages behind the Redis and PostgreSQL behaviour this skill relies on.
-
-Related skills: `postgres-game-schema` (base schema, players table, Drizzle setup), `redis-game-patterns` (Redis connection), `bullmq-game-queues` (scheduled flush and nightly cohort jobs).
-
 ## Rules
 
 1. **Name events `noun_verb`, snake_case, past tense for finished actions**: `level_completed`, `item_purchased`, `match_ended`. Keep a finite catalog in `templates/event-catalog.md`; an event not in the catalog does not ship.
@@ -82,3 +72,17 @@ This skill gives no D1, D7 or D30 target numbers. A benchmark only compares if i
 - **Archiving the wrong table.** Retention reads first-seen from `analytics_sessions`. Archive old `analytics_events` rows, keep sessions, or every archived player re-enters as a new cohort.
 - **Hard-coded funnels.** Keep step lists in configuration so designers change them without a deploy.
 - **Independent step counts.** Counting each funnel event on its own counts players who skipped earlier steps. Use the ordered query.
+
+## Files
+
+- `boilerplate/analytics-schema.ts`: copy when adding the three analytics tables (events, sessions, stored retention cohorts) to a Drizzle schema.
+- `boilerplate/analytics-client.ts`: copy when wiring `track()`, session tracking, the buffer flush and the idle-session closer. It takes the Drizzle database and the ioredis client as parameters, so it works with any Drizzle Postgres driver.
+- `templates/retention-dashboard.md`: read when writing retention, funnel, session-length or DAU/MAU queries. Every query in it was run on PostgreSQL 16.
+- `templates/event-catalog.md`: copy when starting the list of events the team agrees to track.
+- `references/sources.md`: read when you need the doc pages behind the Redis and PostgreSQL behaviour this skill relies on.
+
+## Related skills
+
+- `postgres-game-schema` (base schema, players table, Drizzle setup)
+- `redis-game-patterns` (Redis connection)
+- `bullmq-game-queues` (scheduled flush and nightly cohort jobs).

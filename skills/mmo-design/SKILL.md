@@ -96,7 +96,7 @@ Where to go: `skill-progression-trees` for trees, costs and prestige mechanics.
 5. **Read reaction to a change with care.** Bartle: most departures are quiet drift, not a public row. The loudest complainers care most and usually return within two weeks if they leave. Players misjudge their own type, so a poll of self-described explorers misleads.
 6. **Test changes against the whole design.** Bartle: spreadsheets fix numbers but not fun. Write a dummy log or mock diary of weeks of play for each type before you ship.
 
-## 7. Pitfalls
+## Pitfalls
 
 - One process owns a world that grows past it, with no overload policy.
 - Watching only inflation.
@@ -108,4 +108,6 @@ Where to go: `skill-progression-trees` for trees, costs and prestige mechanics.
 - A season that resets without a written list.
 - A patch cadence the team cannot staff.
 
-Citations are in `references/sources.md`. Read it when you need the source, edition or date behind a claim before you repeat it.
+## Files
+
+- `references/sources.md`: read when you need the source, edition or date behind a claim before you repeat it.

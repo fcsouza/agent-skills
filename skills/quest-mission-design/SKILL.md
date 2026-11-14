@@ -69,10 +69,15 @@ Quest: [Name]
 - An NPC who talks for minutes while the player does nothing.
 - A prerequisite the player cannot discover.
 
-## Related
+## Files
+
+- `templates/quest-template.md`: copy when you start a brief.
+- `boilerplate/quest-system.ts`: read when you implement the tree and the quest state machine. It has the types, the transitions between states and the completion logic.
+- `references/sources.md`: read when you need the support for the rules above.
+
+## Related skills
 
 - `quest-narrative-coherence`: the check and the registry.
-- `references/sources.md`: read when you need the support for the rules above.
 - `game-economy-design`: reward scale.
 - `worldbuilding`: world context for the setting.
 - `character-design-narrative`: NPC roles.

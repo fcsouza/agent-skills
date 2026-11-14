@@ -85,13 +85,15 @@ A direct `auth.api` call skips Better Auth's origin checks, even with the browse
 - Cookie-only (stateless) deployments with no database. There the caller's role comes from the cookie, so a demotion takes effect only when the cookie cache expires.
 - Forgetting `trustedOrigins` and CORS when the game client runs on another origin. Better Auth rejects auth requests from origins it does not trust.
 
+## Files
+
+- `templates/role-definitions.ts`: read when you set up roles or add a game permission.
+- `templates/staff-guard.ts`: read when you give moderators ban or session powers.
+- `references/sources.md`: read when you need the documentation page behind a claim in this skill.
+
 ## Related skills
 
 - `postgres-game-schema` for the player tables that reference the auth user
 - `game-backend-architecture` for the server and the WebSocket endpoint
 - `redis-game-patterns` for game session state
 - `stripe-game-payments` for payments tied to an authenticated player
-
-## Reference files
-
-Read `references/sources.md` when you need the documentation page behind a claim in this skill.

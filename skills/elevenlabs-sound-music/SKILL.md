@@ -15,8 +15,6 @@ description: >-
 
 Generate audio assets offline with the vendor SDKs, then play them through one state machine that the game drives.
 
-Related skills: `game-design-fundamentals` (audio as player feedback).
-
 ## Choose the provider
 
 | Asset | Use | Model id (set explicitly) |
@@ -47,24 +45,6 @@ From https://elevenlabs.io/docs/overview/models#deprecated-models:
 4. Save one manifest entry per accepted file: provider, model id, prompt, length, plan or seed. Without it you cannot regenerate a track.
 5. Lyria returns WAV. Convert it to a compressed format before shipping.
 6. In the client, create the `AudioManager`, call `unlockMobile()` at startup, call `transition()` on every game-state change, and `preload()` the tracks the next state is likely to need.
-
-## Files
-
-- Copy when generating voice, sound effects or music with ElevenLabs: `boilerplate/elevenlabs-audio.ts`.
-- Copy when generating instrumental clips with Lyria 2: `boilerplate/lyria-client.ts`. It needs `@google-cloud/aiplatform` and Application Default Credentials.
-- Copy when wiring playback in the browser: `boilerplate/audio-manager.ts`.
-- Copy when defining the game's audio states: `templates/sound-config.ts`.
-- Read when writing prompts or a regeneration manifest: `templates/prompt-catalog.md`.
-- Read when checking a model id, limit or date: `references/sources.md`.
-
-Vendor docs for anything beyond these files:
-
-- Use the `text-to-speech` skill if it is installed, otherwise https://elevenlabs.io/docs/api-reference/text-to-speech/convert.
-- Use the `sound-effects` skill if it is installed, otherwise https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert.
-- Use the `music` skill if it is installed, otherwise https://elevenlabs.io/docs/eleven-api/guides/cookbooks/music.
-- Lyria 2 API reference: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/lyria-music-generation.
-
-The three ElevenLabs skills come from https://github.com/elevenlabs/skills.
 
 ## Code examples
 
@@ -154,3 +134,25 @@ audio.playVoice('/audio/voice/merchant/greeting.mp3'); // ducks the music
 8. One volume slider. Players need separate music, SFX, voice and ambient controls; the manager stores them in `localStorage`.
 9. Not preloading combat audio. If combat starts while its track is still loading, the player hears silence. Preload combat and boss tracks during exploration.
 10. Hardcoded track paths in game code. Keep the state-to-path map in `sound-config.ts` so swapping a track is one edit.
+
+## Files
+
+- Copy when generating voice, sound effects or music with ElevenLabs: `boilerplate/elevenlabs-audio.ts`.
+- Copy when generating instrumental clips with Lyria 2: `boilerplate/lyria-client.ts`. It needs `@google-cloud/aiplatform` and Application Default Credentials.
+- Copy when wiring playback in the browser: `boilerplate/audio-manager.ts`.
+- Copy when defining the game's audio states: `templates/sound-config.ts`.
+- Read when writing prompts or a regeneration manifest: `templates/prompt-catalog.md`.
+- Read when checking a model id, limit or date: `references/sources.md`.
+
+Vendor docs for anything beyond these files:
+
+- Use the `text-to-speech` skill if it is installed, otherwise https://elevenlabs.io/docs/api-reference/text-to-speech/convert.
+- Use the `sound-effects` skill if it is installed, otherwise https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert.
+- Use the `music` skill if it is installed, otherwise https://elevenlabs.io/docs/eleven-api/guides/cookbooks/music.
+- Lyria 2 API reference: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/models/lyria-music-generation.
+
+The three ElevenLabs skills come from https://github.com/elevenlabs/skills.
+
+## Related skills
+
+- `game-design-fundamentals` (audio as player feedback).

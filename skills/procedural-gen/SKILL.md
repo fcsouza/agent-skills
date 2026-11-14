@@ -5,8 +5,6 @@ description: Covers seeded procedural generation of dungeons, maps, terrain and 
 
 # Procedural generation
 
-Related skills: `game-economy-design` (loot tables, drop rates), `postgres-game-schema` (stored generated content), `redis-game-patterns` (session caches), `game-backend-architecture` (server-side generation).
-
 ## Decide before you build
 
 State these for each generator. They set where validation effort goes.
@@ -72,13 +70,6 @@ const generateWithValidation = <T>(
 
 Pick two or three metrics that do not simply echo your input parameters (for example, linearity or density, not "difficulty" if difficulty is an input). Generate a large sample, plot a 2D histogram of the metrics and read the hot spots. Compare the plots across parameter settings to see how much control the parameters give. This finds bias. It does not prove quality.
 
-## Files
-
-- `boilerplate/dungeon-generator.ts`: copy when you need a seeded BSP dungeon generator with rooms, corridors, entrance, exits and a cell grid. It retries up to 20 times and throws when the budget is too tight.
-- `templates/world-seed-config.md`: read when you design seed derivation, generation order and the store-or-regenerate split.
-- `references/algorithms.md`: read when you implement BSP, cellular automata, noise octaves or the witness-path check.
-- `references/sources.md`: read when you need the source behind a claim.
-
 ## Usage
 
 ```typescript
@@ -103,3 +94,17 @@ const dungeon = new DungeonGenerator().generate('my-seed-123', {
 - Storing the content and the seed both. The two drift apart when the generator changes.
 - Generating and discarding in a hot loop. Batch the attempts and cap them.
 - Seeds shared as 32-bit numbers collide at scale. Use longer or string seeds.
+
+## Files
+
+- `boilerplate/dungeon-generator.ts`: copy when you need a seeded BSP dungeon generator with rooms, corridors, entrance, exits and a cell grid. It retries up to 20 times and throws when the budget is too tight.
+- `templates/world-seed-config.md`: read when you design seed derivation, generation order and the store-or-regenerate split.
+- `references/algorithms.md`: read when you implement BSP, cellular automata, noise octaves or the witness-path check.
+- `references/sources.md`: read when you need the source behind a claim.
+
+## Related skills
+
+- `game-economy-design` (loot tables, drop rates)
+- `postgres-game-schema` (stored generated content)
+- `redis-game-patterns` (session caches)
+- `game-backend-architecture` (server-side generation).

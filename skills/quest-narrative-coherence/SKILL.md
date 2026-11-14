@@ -9,12 +9,6 @@ This skill owns the coherence check, the quest registry format and the world-lor
 
 The registry is the only record of which NPCs are busy, which locations are hubs and how much reward the game has issued. A quest written without reading it contradicts something. Reject a quest that skipped the check.
 
-Files, in the game project:
-
-- `docs/world-lore.md`: the world as established. Copy `templates/world-lore.md` when the file does not exist. Read it when you need the section list.
-- `docs/quest-registry.md`: every quest, by status. Copy `templates/quest-registry.md` when the file does not exist. Read it when you need the column list.
-- `templates/coherence-checklist.md`: copy it once per quest and tick it as you go.
-
 ## The five-step check
 
 1. **Load the world.** Read `docs/world-lore.md`. Note the factions and how they relate, the characters and their status, the locations, the active conflicts and the timeline. If the file is missing, stop and create it from the template first.
@@ -55,9 +49,18 @@ The Economy Impact Log is a separate table: `Quest ID | Currency Given | Items G
 - Events that cannot coexist in time.
 - A world whose own logic contradicts itself. Keep the world's rules consistent from quest to quest.
 
-## Related
+## Files
 
+Files, in the game project:
+
+
+- `docs/world-lore.md`: the world as established. Copy `templates/world-lore.md` when the file does not exist. Read it when you need the section list.
+- `docs/quest-registry.md`: every quest, by status. Copy `templates/quest-registry.md` when the file does not exist. Read it when you need the column list.
+- `templates/coherence-checklist.md`: copy it once per quest and tick it as you go.
 - `references/sources.md`: read when you need the book support for this skill.
+
+## Related skills
+
 - `quest-mission-design`: type list, objective trees, rewards. Read it after this check passes.
 - `worldbuilding`: creates the lore this check reads.
 - `character-design-narrative`: character motives for step 3.

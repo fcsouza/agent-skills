@@ -17,17 +17,6 @@ player in this room". Metrics answer "is the server healthy right now".
 Player behaviour (DAU, session length, D1/D7/D30 retention, funnels) is
 analytics, not ops: use `gameplay-analytics` for it.
 
-## Files
-
-- `boilerplate/logger.ts`: copy when the server needs structured logs. It has
-  `GameLogger` (JSON lines, child loggers that carry `playerId`, `sessionId`,
-  `roomId`), the `requestLogger` Elysia plugin, and `createSessionLogger` for
-  WebSocket connections.
-- `templates/alert-config.ts`: copy when you define metrics and alerts. It
-  names the game signals, the `AlertRule` shape, and three rule builders
-  (tick overrun, capacity, baseline). None of them has a default threshold.
-- `references/sources.md`: read when you need the source behind a rule here.
-
 ## Logging
 
 - One JSON object per line, written to stdout/stderr. Fields: `level`,
@@ -95,6 +84,18 @@ what players feel as lag.
    Everything else is a ticket. Every rule has a `runbook` line saying what
    the responder does first.
 
+## Post-deploy check
+
+- [ ] Tick p99 and overruns per mode match the previous release at the first
+      peak after deploy.
+- [ ] 1006 closes did not rise.
+- [ ] No new `messageType` appears in `game.messages.errors`.
+- [ ] No rise in failed or stalled jobs.
+- [ ] Currency minted against spent stays inside the `game-economy-design`
+      targets.
+
+`ci-cd-game` runs the deploy; this list is what to look at afterwards.
+
 ## Pitfalls
 
 - Request id or start time in `store`: wrong ids and durations under load.
@@ -107,14 +108,13 @@ what players feel as lag.
 - Thresholds copied from another game: tick rate, room size and message rate
   differ. Measure your own.
 
-## Post-deploy check
+## Files
 
-- [ ] Tick p99 and overruns per mode match the previous release at the first
-      peak after deploy.
-- [ ] 1006 closes did not rise.
-- [ ] No new `messageType` appears in `game.messages.errors`.
-- [ ] No rise in failed or stalled jobs.
-- [ ] Currency minted against spent stays inside the `game-economy-design`
-      targets.
-
-`ci-cd-game` runs the deploy; this list is what to look at afterwards.
+- `boilerplate/logger.ts`: copy when the server needs structured logs. It has
+  `GameLogger` (JSON lines, child loggers that carry `playerId`, `sessionId`,
+  `roomId`), the `requestLogger` Elysia plugin, and `createSessionLogger` for
+  WebSocket connections.
+- `templates/alert-config.ts`: copy when you define metrics and alerts. It
+  names the game signals, the `AlertRule` shape, and three rule builders
+  (tick overrun, capacity, baseline). None of them has a default threshold.
+- `references/sources.md`: read when you need the source behind a rule here.

@@ -8,13 +8,6 @@ description: >-
 
 General GitHub Actions syntax comes from the vendor: use the `github-actions-templates` skill if it is installed, otherwise https://docs.github.com/en/actions. This skill covers the parts a game backend adds.
 
-## Files
-
-- `boilerplate/ci.yml`: copy when setting up CI. Lint, type check and tests on every push to `main` and every pull request; each pull request gets its own Neon branch, deleted when the pull request closes.
-- `boilerplate/deploy.yml`: copy when setting up deploys. Migrate, then deploy to Fly.io, then smoke test.
-
-Both go in `.github/workflows/`. They expect the project's `package.json` to define `lint:biome` (`ultracite check`), `format` (`ultracite fix`), `typecheck` and `smoke`, and `drizzle.config.ts` to read `DATABASE_URL`. Secrets: `NEON_API_KEY`, `DATABASE_URL`, `DATABASE_URL_TEST`, `REDIS_URL_TEST`, `FLY_API_TOKEN`. Variables: `NEON_PROJECT_ID`, `NEON_CI_PARENT_BRANCH`, `GAME_URL`.
-
 ## Rules
 
 1. **Migrate before deploy.** A separate `migrate` job runs `bunx drizzle-kit migrate`; `deploy` declares `needs: migrate`. If migrations fail, GitHub skips the deploy and the old server keeps running.
@@ -35,6 +28,13 @@ Both go in `.github/workflows/`. They expect the project's `package.json` to def
 - **Destructive migration in the same release as the code change.** The rollback image then reads a column that no longer exists. Split it across two releases (rule 2).
 - **Health check only.** `/health` passes while WebSocket upgrades or matchmaking fail. Keep the smoke script.
 - **Cache key on a missing file.** `hashFiles` returns an empty string when no file matches, so the key stops changing when dependencies change. Hash `bun.lock`, the file Bun writes.
+
+## Files
+
+- `boilerplate/ci.yml`: copy when setting up CI. Lint, type check and tests on every push to `main` and every pull request; each pull request gets its own Neon branch, deleted when the pull request closes.
+- `boilerplate/deploy.yml`: copy when setting up deploys. Migrate, then deploy to Fly.io, then smoke test.
+
+Both go in `.github/workflows/`. They expect the project's `package.json` to define `lint:biome` (`ultracite check`), `format` (`ultracite fix`), `typecheck` and `smoke`, and `drizzle.config.ts` to read `DATABASE_URL`. Secrets: `NEON_API_KEY`, `DATABASE_URL`, `DATABASE_URL_TEST`, `REDIS_URL_TEST`, `FLY_API_TOKEN`. Variables: `NEON_PROJECT_ID`, `NEON_CI_PARENT_BRANCH`, `GAME_URL`.
 
 ## Related skills
 

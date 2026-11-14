@@ -6,14 +6,6 @@ description: >-
 
 # Level Design
 
-## Files
-
-- Copy `templates/level-design-doc.md` when you start a level. It holds the layout sketch, beats and encounter list.
-- Copy `templates/encounter-template.md` when you design one encounter: win, fail and recovery.
-- Read `templates/difficulty-curve.md` when you plan difficulty across the game or one level, or pick difficulty modes.
-- Copy `boilerplate/difficulty-curve.ts` when code must compute a difficulty value from a level number or from the gap between player and area level. Treat the curve shapes as starting points to tune, not as tested values.
-- Read `references/sources.md` when you need the source behind a claim here.
-
 ## Procedure
 
 ### 1. Concept
@@ -83,7 +75,15 @@ Treat the mission (what the player does, in what order, and why) and the space (
 - Designing from what you know. You know the solution. The player does not.
 - Pacing tuned in a ten-minute test. Flow shows only in long observation.
 
-## Cross-references
+## Files
+
+- Copy `templates/level-design-doc.md` when you start a level. It holds the layout sketch, beats and encounter list.
+- Copy `templates/encounter-template.md` when you design one encounter: win, fail and recovery.
+- Read `templates/difficulty-curve.md` when you plan difficulty across the game or one level, or pick difficulty modes.
+- Copy `boilerplate/difficulty-curve.ts` when code must compute a difficulty value from a level number or from the gap between player and area level. Treat the curve shapes as starting points to tune, not as tested values.
+- Read `references/sources.md` when you need the source behind a claim here.
+
+## Related skills
 
 - `game-design-fundamentals`: the design loop, core loop and difficulty.
 - `quest-mission-design`: mission structure that overlays a level.

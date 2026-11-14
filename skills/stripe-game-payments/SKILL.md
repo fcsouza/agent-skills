@@ -53,11 +53,16 @@ For client setup, Checkout Sessions and the API itself, use the `stripe-docs` sk
 - Missing `playerId` metadata means a bug in session creation. Flag it; do not throw.
 - Rate-limit purchases per player and turn on Radar for fraud (https://docs.stripe.com/radar).
 
+## Files
+
+- `templates/product-catalog.ts`: copy when starting the store.
+- `boilerplate/webhooks.ts`: copy when wiring the webhook endpoint.
+- `templates/webhook-events.ts`: read when designing the payment audit log. It holds the audit row type.
+- `references/sources.md`: read when checking a claim or a field path.
+
 ## Related skills
 
 - `postgres-game-schema`: inventory and currency tables, table conventions, and the `processed_events` idempotency table.
 - `betterauth-integration`: the authenticated player whose id goes in Checkout metadata.
 - `bullmq-game-queues`: reward delivery after the purchase is recorded.
 - `game-economy-design`: currency pricing and balance.
-
-Read when checking a claim or a field path: `references/sources.md`.
