@@ -71,8 +71,8 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [betterauth-integration](skills/betterauth-integration/) | Player login, staff roles, session checks on WebSocket |
 | [bullmq-game-queues](skills/bullmq-game-queues/) | Job queues, async events, scheduled tasks |
 | [elevenlabs-sound-music](skills/elevenlabs-sound-music/) | SFX generation, adaptive music, voice acting |
-| [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
 | [game-anti-cheat](skills/game-anti-cheat/) | Defend an online game against cheating: server-side validation, hidden-state filtering, detection, enforcement |
+| [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
 | [game-state-sync](skills/game-state-sync/) | Client-server sync: prediction, reconciliation, interpolation, delta compression |
 | [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
 | [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, rating systems, skill-based queues |

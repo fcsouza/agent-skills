@@ -36,14 +36,14 @@ Client checks are for feedback. The server repeats every check.
 
 1. **Syntax.** Validate each message against its schema before anything reads it (TypeBox in `game-backend-architecture`). Use allowlists: known message types, known fields, bounded numbers and strings.
 2. **Size.** Bun closes a WebSocket with code 1009 when a message exceeds `maxPayloadLength`, which defaults to 16 MB. Set it near your largest valid message. This value is this skill's rule; measure your messages.
-3. **Order.** Each input carries a sequence number. Drop any number that is not higher than the last one processed on that connection (`acceptSequence`). This stops a naive replay of captured inputs (this skill's rule).
+3. **Order.** Each input carries a sequence number. Drop any number that is not higher than the last one processed on that connection (`acceptSequence`). This stops a naive replay of captured inputs (this skill's rule). Sequence numbers must not wrap: send an unbounded integer, never a counter that rolls over.
 4. **Movement.** Take a direction, not a position. Re-run the move on the server with the server's speed limit and the world bounds (`simulateMove`). If the client predicts, compare its reported end position with yours: the server's result wins, a small error needs no correction, a large one gets a correction, and a jump past a teleport distance also raises a flag (`checkClaimedPosition`; the flag is this skill's rule).
 5. **Clock.** Compute elapsed time from server timestamps. Unreal's movement component discards moves whose timestamp drifts too far from the server's and does most of its timing maths with the server's timestamps. Beyond that, this skill's rule: clamp the step each input claims, and charge it to a per-connection budget of simulated time that banks only a little idle time. A client that claims more input time than the server clock allows is running fast (`consumeInputTime`). Move with the step the budget returned, never the raw claim.
 6. **Semantics.** In `validateAction`, check the value makes sense in the current state: cooldown ready, target in range and in line of sight, item owned, enough currency.
 7. **Rate.** Cap messages per connection in memory (`takeMessage`): one socket lives on one instance, so a Redis round trip per message is waste (this skill's rule). Cap costly actions per player in Redis (`redis-game-patterns`, pattern 3).
 8. **Record.** Every rejection or flag goes to the detection log with the player id from the session, never from the message. One rejection is often lag; a stream of them is evidence.
 
-Copy `boilerplate/input-guards.ts` for steps 3, 4, 5 and 7. Its limits are placeholders, not sourced numbers.
+Copy `boilerplate/input-guards.ts` for steps 3, 4, 5 and 7. Its limits are placeholders, not sourced numbers. Pass the server's time from a monotonic clock (`performance.now()`), not `Date.now()`.
 
 ### 2. Send each client only what it may know
 
@@ -60,7 +60,7 @@ The server decides every hit. With lag compensation the server keeps past world 
 
 1. Store history in `RollbackBuffer` (`game-state-sync`).
 2. Cap how far back the server rewinds. Riot's example: without a cap, a player with 500 ms latency could kill you half a second after you moved behind cover.
-3. Clamp the time a client claims for its action to between now minus the allowed rewind and now, where the allowed rewind is the smaller of the cap and that connection's measured latency plus the interpolation delay its client renders remote players with (`clampClaimedTime`). Clamping per connection is this skill's rule.
+3. Clamp the time a client claims for its action to between now minus the allowed rewind and now, where the allowed rewind is the smaller of the cap and that connection's measured round-trip time plus the interpolation delay its client renders remote players with (`clampClaimedTime`, which requires that value). Clamping per connection, and using round-trip rather than one-way time because the server can measure it from ping and pong, is this skill's rule.
 4. Validate the rest of the shot against server state: weapon ready, ammunition, line of sight at the rewound time.
 
 ### 4. Make transfers atomic and replay-safe
@@ -69,7 +69,7 @@ Dupes come from two requests racing or one request applied twice (this skill's r
 
 1. Every operation that moves value (trade, gift, market sale, reward claim, craft) is one Postgres transaction. Follow the trade rule in `game-backend-architecture` ("What lives where"): lock both `players` rows with `SELECT ... FOR UPDATE` in id order, then change inventory and currencies.
 2. Debit with the guarded `spendCurrency` and record each applied operation in `processed_events` in the same transaction (`postgres-game-schema`). A repeated operation id then fails on the primary key instead of paying twice.
-3. Under Serializable isolation, retry on SQLSTATE `40001`, and treat nothing read as valid until the transaction commits.
+3. Retry on SQLSTATE `40P01` (deadlock) as `game-backend-architecture` does. If you choose Serializable isolation instead, also retry on `40001` and treat nothing read as valid until the transaction commits.
 4. Keep an append-only ledger of transfers with sender, receiver, amount, item and time. Enforcement needs it to trace a ring and reverse it (this skill's rule).
 5. Check stack splits, trades and drop paths as dupe surfaces (`game-economy-design`, step 10).
 

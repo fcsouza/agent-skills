@@ -1,6 +1,7 @@
 // Server-side guards for player input. Pure functions: no imports, no clock
 // reads. The caller passes the server's time (`nowMs`) in, so the client's
-// clock never decides anything.
+// clock never decides anything. Take `nowMs` from a monotonic clock
+// (`performance.now()`), not `Date.now()`, which can jump backwards.
 //
 // Every number in PLACEHOLDER_LIMITS is a placeholder to tune for your game.
 // None of them comes from a source.
@@ -52,9 +53,12 @@ const finite = (...values: number[]) => values.every(Number.isFinite);
 /**
  * Sequence numbers must rise. A repeated or lower number is a duplicate or a
  * replayed input: drop it. Returns the new last sequence, or null to drop.
+ * Sequence numbers must not wrap: the client sends an unbounded integer,
+ * starting above the connection's initial lastSeq, never a counter that
+ * rolls over to 0.
  */
 export function acceptSequence(lastSeq: number, seq: number): number | null {
-  if (!Number.isInteger(seq) || seq <= lastSeq) return null;
+  if (!Number.isInteger(lastSeq) || !Number.isInteger(seq) || seq <= lastSeq) return null;
   return seq;
 }
 
@@ -147,15 +151,18 @@ export interface ClampedTime {
 /**
  * Clamps the time a client claims for an action (for example a shot, for
  * lag compensation) to [nowMs - rewindMs, nowMs]. rewindMs is the smaller of
- * maxRewindMs and this connection's allowed rewind: its measured latency plus
- * the interpolation delay its client renders remote players with. Leave the
- * argument out to allow the full cap.
+ * maxRewindMs and this connection's allowed rewind: its measured round-trip
+ * time plus the interpolation delay its client renders remote players with.
+ * Round-trip, not one-way, is this skill's choice: it is what the server can
+ * measure (ping to pong), and it over-allows rather than clamping honest
+ * shots. The argument is required, so a caller cannot fall back to the full
+ * cap by forgetting it.
  */
 export function clampClaimedTime(
   claimedMs: number,
   nowMs: number,
   limits: GuardLimits,
-  connectionRewindMs: number = limits.maxRewindMs,
+  connectionRewindMs: number,
 ): ClampedTime {
   if (!finite(claimedMs, nowMs, connectionRewindMs)) return { timeMs: nowMs, flag: 'non_finite' };
   const rewindMs = Math.min(limits.maxRewindMs, Math.max(connectionRewindMs, 0));
@@ -167,7 +174,10 @@ export function clampClaimedTime(
 
 /**
  * Per-connection message cap: a token bucket held in memory, since one socket
- * lives on one server instance. Refill and capacity are placeholders.
+ * lives on one server instance. Refill and capacity are placeholders. A
+ * non-finite argument refuses the message. If nowMs is earlier than the last
+ * update, nothing refills and updatedAtMs stays put, so the same interval is
+ * never refilled twice.
  */
 export interface MessageBudget {
   tokens: number;
@@ -179,10 +189,12 @@ export function createMessageBudget(nowMs: number, capacity: number): MessageBud
 }
 
 export function takeMessage(budget: MessageBudget, nowMs: number, capacity: number, refillPerSecond: number): boolean {
-  if (!finite(nowMs)) return false;
-  const elapsedMs = Math.max(nowMs - budget.updatedAtMs, 0);
-  budget.tokens = Math.min(capacity, budget.tokens + (elapsedMs * refillPerSecond) / 1000);
-  budget.updatedAtMs = nowMs;
+  if (!finite(nowMs, capacity, refillPerSecond)) return false;
+  if (nowMs > budget.updatedAtMs) {
+    const elapsedMs = nowMs - budget.updatedAtMs;
+    budget.tokens = Math.min(capacity, budget.tokens + (elapsedMs * refillPerSecond) / 1000);
+    budget.updatedAtMs = nowMs;
+  }
   if (budget.tokens < 1) return false;
   budget.tokens -= 1;
   return true;
