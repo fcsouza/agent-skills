@@ -98,9 +98,9 @@ export interface BandwidthBudgetConfig {
 	deltaCompression: boolean;
 	/** Minimum change threshold before including a field in a delta */
 	deltaThreshold: number;
-	/** Number of priority classes. Each entity's class weight is added to its accumulator every tick; skipped entities keep their value (SKILL.md, step 8) */
+	/** Input for your own scheduler: how many priority classes you define. Nothing here applies a weight or a send rate; the accumulator in SKILL.md, step 8 does that */
 	priorityLevels: number;
-	/** Floor for the lowest class: send it at least every N ticks */
+	/** Input for your own scheduler: a send interval, in ticks, for the lowest class. Nothing here enforces it, and step 8 sets no minimum rate */
 	lowPriorityTickInterval: number;
 }
 
@@ -185,7 +185,6 @@ export const MMO_PRESET: SyncStrategyConfig = {
 	interpolation: { ...DEFAULT_INTERPOLATION, delayTicks: 3, easing: "cubic" },
 	prediction: {
 		...DEFAULT_PREDICTION,
-		maxExtrapolationMs: 500,
 		correctionBlendRate: 0.15,
 	},
 	rollback: { ...DEFAULT_ROLLBACK, bufferSize: 64, maxRollbackTicks: 5 },
