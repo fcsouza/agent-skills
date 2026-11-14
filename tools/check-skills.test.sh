@@ -866,6 +866,7 @@ Do it.
 ## Later
 x"
 expect_fail O1 "numbered Pitfalls heading counts and must be last"
+case $OUT in *"comes after"*) report 1 "O1 ranks a numbered Pitfalls heading after normalizing" ;; *) report 0 "O1 ranks a numbered Pitfalls heading after normalizing" "$OUT" ;; esac
 
 new_fixture
 write_skill demo "d" "## Steps
@@ -893,6 +894,7 @@ Do it.
 ## Later
 x"
 expect_fail O1 "Common pitfalls heading"
+case $OUT in *"comes after"*) report 1 "O1 ranks a Common pitfalls heading after normalizing" ;; *) report 0 "O1 ranks a Common pitfalls heading after normalizing" "$OUT" ;; esac
 case $OUT in *"'Pitfalls'"*) report 1 "O1 names Pitfalls for Common pitfalls" ;; *) report 0 "O1 names Pitfalls for Common pitfalls" "$OUT" ;; esac
 
 new_fixture
@@ -907,6 +909,34 @@ Do it.
 ## Pitfalls
 - One."
 expect_pass "O1 ignores headings inside tilde fences"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+~~~
+\`\`\`
+> quote
+## Pitfalls
+~~~
+
+## Pitfalls
+- One."
+expect_pass "a backtick line inside a tilde fence does not close it"
+
+new_fixture
+write_skill demo "d" "## Steps
+Do it.
+
+\`\`\`\`
+\`\`\`
+> quote
+## Pitfalls
+\`\`\`\`
+
+## Pitfalls
+- One."
+expect_pass "a short fence line inside a four-backtick fence does not close it"
 
 new_fixture
 write_skill demo "d" "## Pitfalls

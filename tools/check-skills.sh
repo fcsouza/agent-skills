@@ -176,8 +176,19 @@ check_s1() {
 }
 
 # unfenced <file>: the file with the lines inside ``` or ~~~ code fences blanked.
+# A fence closes on the same character, at least as long as its opener.
 unfenced() {
-  awk '/^[ \t]*(```|~~~)/ { fenced = !fenced; print ""; next } { print (fenced ? "" : $0) }' "$1"
+  awk '
+    {
+      line = $0; sub(/^[ \t]+/, "", line)
+      c = substr(line, 1, 1)
+      if (c == "`" || c == "~") {
+        run = line; sub("^[" c "]+", "", run); n = length(line) - length(run)
+        if (n >= 3 && !fenced) { fenced = 1; fchar = c; flen = n; print ""; next }
+        if (fenced && c == fchar && n >= flen && run ~ /^[ \t\r]*$/) { fenced = 0; print ""; next }
+      }
+      print (fenced ? "" : $0)
+    }' "$1"
 }
 
 # A target ending in / may be a directory; any other target must be a file.
