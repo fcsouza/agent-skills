@@ -34,6 +34,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Player events, retention, funnels | `gameplay-analytics` |
 | Pairing players, lobbies, ranks | `matchmaking-system` |
 | Tables, player data, inventory, Drizzle | `postgres-game-schema` |
+| Saves, slots, save versions and migration, cloud sync conflicts | `game-save-load` |
 | Leaderboards, presence, rate limits, cache-aside | `redis-game-patterns` |
 | Skill trees, talent trees, unlock graphs | `skill-progression-trees` |
 | Payments, purchases, subscriptions, webhooks | `stripe-game-payments` |

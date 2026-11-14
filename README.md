@@ -77,6 +77,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
 | [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, rating systems, skill-based queues |
 | [postgres-game-schema](skills/postgres-game-schema/) | Game DB schemas, Drizzle ORM, inventory |
+| [game-save-load](skills/game-save-load/) | Save and load: browser and server saves, versioned format with migrations, atomic writes, cross-device conflicts |
 | [redis-game-patterns](skills/redis-game-patterns/) | Leaderboards, presence, rate limits, cache-aside |
 | [skill-progression-trees](skills/skill-progression-trees/) | Skill trees, talent trees, unlock graphs |
 | [stripe-game-payments](skills/stripe-game-payments/) | In-app purchases, subscriptions, webhooks |

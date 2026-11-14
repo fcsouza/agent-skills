@@ -48,6 +48,7 @@
         "./skills/mmo-design",
         "./skills/monitoring-game-ops",
         "./skills/postgres-game-schema",
+        "./skills/game-save-load",
         "./skills/procedural-gen",
         "./skills/quest-mission-design",
         "./skills/quest-narrative-coherence",
