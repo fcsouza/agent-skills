@@ -1,6 +1,8 @@
 # Game-dev skills restructure: design
 
-Date: 2026-11-14. Status: decisions taken by the owner in the planning session; awaiting plan approval.
+Status: PR 1 is pull request 13. PRs 2 to 4 are pending.
+
+Date: 2026-11-14. Decisions taken by the owner in the planning session.
 
 Evidence for every claim below lives in `docs/research/2026-11-14-gamedev-skills/`. By the owner's decision that directory stays out of the repository (local git exclude).
 
@@ -16,16 +18,16 @@ Evidence for every claim below lives in `docs/research/2026-11-14-gamedev-skills
 
 ## Decisions (owner's, 2026-11-14)
 
-The owner's rule, in his words: "nao quero que inventa nada da cabeca, por isso precismos ter fontes". Every source, quote and version claim needs a URL someone opened.
+The owner's rule: no claim without a source someone opened. Every source, quote and version claim needs a URL.
 
 1. Install path is `npx skills` (cherry-pick).
 2. Remove MCP and agents from the bundle.
 3. Shape: one flat tree in `skills/`, plus one index skill `game-dev`. Delete the copy under `plugins/game-dev/`.
 4. The 7 commands become skills only. They fire by slash and by the model (no `disable-model-invocation`).
-5. Delete all five hooks.
+5. Delete all the hooks.
 6. License: MIT.
 7. A source the web check cannot confirm is replaced by a real, verified source with its URL. If none exists, the claim goes too.
-8. Code: "enxugar e atualizar mesmo, a prefiria usar o sdk dos caras que tem mesmo". Delete boilerplate that only restates a vendor API and point to the official docs. Keep and update what is game-specific. Where code talks to a vendor, use the vendor's official SDK, not a hand-written HTTP client.
+8. Code: delete boilerplate that restates a vendor API; keep and update what is game-specific; use the vendor's official SDK. Deleted boilerplate points to the official docs instead. Where code talks to a vendor, use the vendor's official SDK, not a hand-written HTTP client.
 9. Delete `claude-code-game-workflow` and `cursor-codex-integration`. Keep the game-project CLAUDE.md template and the worktree + Neon note.
 10. Research tables stay out of the public repository.
 11. Verified citations live in `skills/<name>/references/sources.md`, not in `SKILL.md`.
@@ -60,7 +62,7 @@ evals/game-dev/                 cases for `claude plugin eval`
 - **Redis client stays ioredis**, because BullMQ 6 defaults to it and a game that uses both should share one client library. The skill says so and links both READMEs.
 - **Lyria code targets `lyria-002` (GA) through the official Google SDK.** Lyria 3 is preview; the skill mentions it with a link.
 - **WebSocket auth uses the Better Auth session**, not `@elysiajs/jwt`. This removes the contradiction between two skills.
-- **One marketplace entry.** The five category entries (`game-dev-design`, `game-dev-engineering`, `game-dev-narrative`, `game-dev-infrastructure`, `game-dev-commands`) are removed; `game-dev` lists all 31 skills. Anyone who installed a category entry as a Claude Code plugin must reinstall `game-dev`.
+- **One marketplace entry.** The five category entries (`game-dev-design`, `game-dev-engineering`, `game-dev-narrative`, `game-dev-infrastructure`, `game-dev-commands`) are removed; `game-dev` lists all 31 skills. A top-level `renames` map in the manifest points the five old entry names at `game-dev`.
 - **Manifests carry no skill counts.** The lint derives the list from the marketplace entry.
 - **Copyright line:** `Copyright (c) 2026 Fabricio Cavalcante`.
 

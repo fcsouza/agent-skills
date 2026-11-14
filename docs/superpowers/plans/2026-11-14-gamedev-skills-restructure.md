@@ -1,5 +1,7 @@
 # Game-dev Skills Restructure Implementation Plan
 
+Status: PR 1 is pull request 13. PRs 2 to 4 are pending.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** One flat, lint-checked tree of game-dev skills with an index skill, verified sources and boilerplate that compiles against current library versions.
@@ -109,18 +111,18 @@ Checks:
 | `N1` | Frontmatter `name` equals the directory name and matches `^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters |
 | `N2` | `description` exists, at most 1,024 characters |
 | `S1` | `SKILL.md` has fewer than 500 lines |
-| `R1` | None of these appear in the skill set, `README.md` or `.claude-plugin/marketplace.json`: `skills/game-dev/(design\|engineering\|narrative\|infrastructure)`, `plugins/game-dev`, `CLAUDE_HOOK_INPUT`, `CLAUDE_PLUGIN_ROOT`, `bunx biome`, `bun.lockb`, `game-asset-gen`, `idle-game-design`, `claude-code-game-workflow`, `cursor-codex-integration`, and `(design\|engineering\|narrative\|infrastructure)-<dir>` for every skill directory name. The README section "Upgrading from 1.x" is exempt, because it must name the old directories |
+| `R1` | None of these appear in the skill set, `README.md` or the `game-dev` entry of `.claude-plugin/marketplace.json` (the other entries are not read): `skills/game-dev/(design\|engineering\|narrative\|infrastructure)`, `plugins/game-dev`, `CLAUDE_HOOK_INPUT`, `CLAUDE_PLUGIN_ROOT`, `bunx biome`, `bun.lockb`, `game-asset-gen`, `idle-game-design`, `claude-code-game-workflow`, `cursor-codex-integration`, and `(design\|engineering\|narrative\|infrastructure)-<dir>` for every skill directory name. `npx skills` is banned in the skill set only; `README.md` keeps it for the public install lines. The README section "Upgrading from 1.x" is exempt, because it must name the old directories |
 | `R2` | The `game-dev` marketplace entry and `README.md` contain no `<number> skills` count |
 | `L1` | Every relative link or backticked `templates/...`, `boilerplate/...`, `references/...` path in a `SKILL.md` resolves to a file |
 | `L2` | Every file under a skill's `templates/`, `boilerplate/`, `references/` is mentioned in its `SKILL.md` |
 | `M1` | Every path in the marketplace `game-dev` entry's `skills` array exists and holds a `SKILL.md` |
-| `M2` | Every directory under `skills/` that the `game-dev` set should contain is listed. The expected set: all directories under `skills/` and `skills/game-dev-commands/` except `claude-agent-sdk`, `database-performance-tuning`, `foundry-vtt-module-dev`, `foundry-vtt-system-dev`, `nuvemshop-sdk`, `openclaw-genie`, `react-animations` |
-| `X1` | Every skill named in a "`Requires`" block or after "Apply the" resolves to a `skills/**/SKILL.md` |
-| `P1` | No tracked file under `skills/`, `tools/`, `evals/`, `docs/superpowers/`, nor the root `bun.lock`, contains a home-directory path or a `link:` / `file:` dependency URL (the owner's machine-path patterns). The script builds these patterns from fragments so it does not match itself |
+| `M2` | Every directory under `skills/` that the `game-dev` set should contain is listed. The expected set: all directories under `skills/` and `skills/game-dev-commands/` except `claude-agent-sdk`, `database-performance-tuning`, `foundry-vtt-module-dev`, `foundry-vtt-system-dev`, `nuvemshop-sdk`, `openclaw-genie`, `react-animations`. Every listed skill also has a README link to `skills/<name>/` (commands: `skills/game-dev-commands/<name>/`) |
+| `X1` | Every skill named in a "`Requires`" block or after "Apply the" resolves to a `skills/**/SKILL.md`. A command has a `## Requires` heading, and every skill it applies is listed there. Every name in the Skill column of the `game-dev` Route table resolves, and, in a full-repo run, every skill the marketplace lists (except `game-dev`) appears in that column |
+| `P1` | No tracked file under the listed game-dev skill directories, `tools/`, `evals/`, `docs/superpowers/`, nor the root `bun.lock`, contains a home-directory path or a `link:` / `file:` dependency URL (the owner's machine-path patterns). The script builds these patterns from fragments so it does not match itself |
 | `C1` | No `## Sources` heading in `SKILL.md` |
-| `C2` | No line in `SKILL.md` matching `^>\s*["“]` |
+| `C2` | No block-quote line (a line starting with `>`) in `SKILL.md` |
 | `C3` | Every line starting with `- ` in `references/sources.md` contains `https://` |
-| `C4` | Every `.ts` under `boilerplate/` or `templates/` that imports a non-relative, non-`node:` module starts with `// Verified against:` |
+| `C4` | Every `.ts` under `boilerplate/` or `templates/` that imports a non-relative, non-`node:` module starts with `// Verified against: <pkg> <version> (<YYYY-MM-DD>)`. Several packages are separated by `, `, each with a version, and one date ends the line |
 | `C5` | `description` contains no `Triggers:` |
 
 `C1`-`C5`, `L2` and `S1` are skipped for a skill that contains a `.content-pending` file. The marker exists only between PR 1 and PR 4. A repo-level check `Z1` fails when any `.content-pending` file exists and `--final` is passed.
@@ -194,12 +196,13 @@ The `skills/game-dev-commands/` variant is the base, because it names skills whe
   "name": "game-dev",
   "source": "./",
   "description": "Game development skills: design, engineering, narrative, infrastructure and seven workflow commands, with an index skill that routes to them.",
-  "version": "2.0.0",
   "keywords": ["game-dev", "game-design", "elysia", "drizzle", "typescript", "multiplayer", "mvp"],
   "category": "development",
   "skills": ["./skills/game-dev", "./skills/<each of the 23 topic skills>", "./skills/game-dev-commands/<each of the 7>"]
 }
 ```
+
+The entry carries no `version`, so users follow the branch head. The manifest has a top-level `renames` map from the five old entry names to `game-dev`.
 
 - [ ] **Step 5:** Run `tools/check-skills.sh --only M1,M2`. Expected: exit 0.
 - [ ] **Step 6:** Read `claude plugin validate --help` for the target form, then validate the marketplace at the repo root. Expected: no errors.
@@ -482,7 +485,10 @@ The whole-branch review of PR 1 found work that belongs to later tasks. Each lin
 - The world-lore section names differ between the `quest-narrative-coherence` template and what `game-architect` writes. Make them one list.
 
 **Task 23 (command content)**
-- Four command descriptions still say "Extract ... from the user's message" (`game-quest`, `game-lore`, `game-build`, `game-expand`), which contradicts the `$ARGUMENTS` input sentence. `game-quest`'s description says it requires `docs/quest-registry.md`, but the command creates that file.
+- Six command descriptions still say "Extract ... from the user's message" (`game-quest`, `game-lore`, `game-build`, `game-expand`, `game-balance`, `game-review`), which contradicts the `$ARGUMENTS` input sentence. `game-quest`'s description says it requires `docs/quest-registry.md`, but the command creates that file.
+- Nested parentheses like "(run the `game-architect` skill (`/game-architect`) first)" become "(run `/game-architect` first)".
+- The `## Prerequisites` bullets that start with "Requires" need another word, because `## Requires` now means skills.
+- `game-review` tells the user to rebuild a component with `/game-build`, but `game-build` refuses to regenerate a component marked `built`.
 - `game-architect` applies all 23 topic skills, so a user who installed only some of them is stopped by the Requires rule. Loading on demand (Step 3) must also make the Requires check apply only to the skills the selection matrix picks.
 - `game-architect` asks for a hand-written `biome.json` and also runs `ultracite init`, which writes the linter config. Keep the `ultracite init` step and remove the hand-written file.
 - Procedure P5 applies to the commands too: `game-quest` (around lines 100-102) and the "Designer Philosophies" table in `game-architect` carry attributed quotes with no source.
