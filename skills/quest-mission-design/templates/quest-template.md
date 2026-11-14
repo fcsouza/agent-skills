@@ -8,6 +8,8 @@ Complete `quest-narrative-coherence` before this brief and tick its checklist.
 
 - **Quest ID**: [Unique identifier]
 - **Name**: [Display name]
+- **Name string ID**: [e.g., `quest.ruins.name`; every player-facing line gets one, see `game-localization`]
+- **Translator notes**: [Context translators need: who speaks, what placeholders hold]
 - **Type**: [main / faction / side / chain / repeatable / discovery / social / timed / collection / escort]
 - **Story Arc**: [Which story arc this belongs to]
 - **Difficulty**: [1-10]
@@ -37,8 +39,8 @@ Complete `quest-narrative-coherence` before this brief and tick its checklist.
 
 ```
 [Quest Name]
-├── Obj 1: [Description] — [Required/Optional]
-├── Obj 2: [Description] — [Choice A / Choice B]
+├── Obj 1: [Description] [`quest.<id>.obj1`] — [Required/Optional]
+├── Obj 2: [Description] [`quest.<id>.obj2`] — [Choice A / Choice B]
 │   ├── A: [Path and consequence]
 │   └── B: [Path and consequence]
 └── Obj 3: [Final objective]
@@ -46,9 +48,9 @@ Complete `quest-narrative-coherence` before this brief and tick its checklist.
 
 ### Detailed Objectives
 
-| # | Objective | Type | Required | Success Condition | Fail Condition |
-|---|-----------|------|----------|------------------|---------------|
-| 1 | [Description] | [fetch / kill / escort / explore / craft / social / puzzle / choice] | [Yes/No] | [What counts as success] | [What counts as failure, if any] |
+| # | Objective | String ID | Type | Required | Success Condition | Fail Condition |
+|---|-----------|-----------|------|----------|------------------|---------------|
+| 1 | [Description] | [`quest.<id>.obj1`] | [fetch / kill / escort / explore / craft / social / puzzle / choice] | [Yes/No] | [What counts as success] | [What counts as failure, if any] |
 
 ## Branching Paths (if applicable)
 
@@ -75,6 +77,8 @@ Complete `quest-narrative-coherence` before this brief and tick its checklist.
 | [Location] | [Where objective happens] | [Yes — existing / No — needs creation] |
 
 ## Dialogue Summary
+
+These are design summaries. Shipped lines go in a dialogue tree, each with a string ID.
 
 | Beat | Speaker | Content Summary | Player Choices |
 |------|---------|----------------|---------------|
