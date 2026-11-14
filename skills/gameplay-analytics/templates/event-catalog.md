@@ -1,6 +1,6 @@
 # Event Catalog
 
-Document all tracked gameplay events here. Share this with your entire team (engineering, design, product, QA) so everyone agrees on event names, triggers, and required properties.
+Document all tracked gameplay events here. Share it with engineering, design, product and QA so everyone agrees on event names, triggers, and required properties.
 
 ## Naming Convention
 
@@ -20,7 +20,7 @@ These fields are attached automatically by the `AnalyticsClient` and must be pre
 |---|---|---|
 | `userId` | `string` | Opaque player identifier (UUID) |
 | `sessionId` | `string` | Current session identifier (UUID) |
-| `timestamp` | `ISO 8601` | When the event occurred |
+| `createdAt` | `Date` (stored as UTC) | When the event occurred |
 | `version` | `string` | Game build version (e.g., `1.2.3`) |
 | `platform` | `string` | Platform identifier (e.g., `web`, `ios`, `android`, `steam`) |
 
