@@ -156,32 +156,59 @@ export const insertBatchEvents = (
 export const getPlayerCurrencies = (db: GameDb, playerId: string) =>
 	db.select().from(currencies).where(eq(currencies.playerId, playerId));
 
-// ─── Add currency with an atomic increment ──────────────────────────────────
+// ─── Credit currency with an atomic increment ───────────────────────────────
 
+// Credits only. A debit goes through spendCurrency, which refuses to overdraw.
 export const addCurrency = (
 	db: GameDb,
 	playerId: string,
 	currencyType: string,
 	amount: number,
-) =>
-	db
+) => {
+	if (!Number.isInteger(amount) || amount <= 0) {
+		throw new Error("addCurrency takes a positive integer; use spendCurrency to debit");
+	}
+	return db
 		.insert(currencies)
-		.values({
-			playerId,
-			currencyType,
-			amount,
-			lifetimeEarned: amount > 0 ? amount : 0,
-		})
+		.values({ playerId, currencyType, amount, lifetimeEarned: amount })
 		.onConflictDoUpdate({
 			target: [currencies.playerId, currencies.currencyType],
 			set: {
 				amount: sql`${currencies.amount} + ${amount}`,
-				lifetimeEarned:
-					amount > 0
-						? sql`${currencies.lifetimeEarned} + ${amount}`
-						: sql`${currencies.lifetimeEarned}`,
+				lifetimeEarned: sql`${currencies.lifetimeEarned} + ${amount}`,
 			},
 		});
+};
+
+// ─── Spend currency without overdrawing ─────────────────────────────────────
+
+// One UPDATE with `amount >= cost` in its WHERE: two parallel spends cannot
+// both pass, because the second re-checks the row after the first commits.
+// Returns false when the balance was too low (or the wallet row is missing);
+// the caller refuses the purchase. Pass a transaction to spend and grant
+// together.
+export const spendCurrency = async (
+	db: GameDb,
+	playerId: string,
+	currencyType: string,
+	cost: number,
+): Promise<boolean> => {
+	if (!Number.isInteger(cost) || cost <= 0) {
+		throw new Error("spendCurrency takes a positive integer cost");
+	}
+	const spent = await db
+		.update(currencies)
+		.set({ amount: sql`${currencies.amount} - ${cost}` })
+		.where(
+			and(
+				eq(currencies.playerId, playerId),
+				eq(currencies.currencyType, currencyType),
+				gte(currencies.amount, cost),
+			),
+		)
+		.returning({ id: currencies.id });
+	return spent.length === 1;
+};
 
 // ─── Player achievements ────────────────────────────────────────────────────
 

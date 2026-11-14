@@ -12,9 +12,9 @@ Target the stable Drizzle line, `drizzle-orm` 0.45.x. The Drizzle docs install l
 
 ## Files
 
-- `boilerplate/schema.ts`: copy when starting a game database. Eleven tables (players, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members) and their enums.
+- `boilerplate/schema.ts`: copy when starting a game database. Twelve tables (players, sessions, item definitions, inventory, events, leaderboards, achievements, currencies, social relations, guilds, guild members, processed events) and their enums.
 - `templates/entity-template.ts`: copy when adding a new game entity. Three patterns: an entity a player owns, a definition catalog with player instances, and an enum-driven timed entity.
-- `templates/query-patterns.ts`: read when writing queries against the schema: inventory join, leaderboard top N, event aggregation, JSONB filters, atomic currency increment, best-score upsert. Each function takes the database as its first argument (`GameDb`, any Drizzle Postgres database), so it works with whichever driver the project uses.
+- `templates/query-patterns.ts`: read when writing queries against the schema: inventory join, leaderboard top N, event aggregation, JSONB filters, atomic currency credit, guarded spend, best-score upsert. Each function takes the database as its first argument (`GameDb`, any Drizzle Postgres database), so it works with whichever driver the project uses.
 
 ## Conventions
 
@@ -28,7 +28,8 @@ Every table and query in a game project follows these. Other skills (`stripe-gam
 - **Enums.** `pgEnum` for fixed sets that code switches on (rarity, guild role, leaderboard period). Plain `text` for open sets designers extend (event type, currency type).
 - **Foreign keys.** `onDelete: "cascade"` from player-owned rows to `players`. Analytics rows (`events`) use `onDelete: "set null"` so history survives. Catalog references (`itemDefinitionId`) have no cascade.
 - **Indexes.** Index the owner key (`playerId`) of every player-owned table. Add a composite index for each common filter, leading with the owner: `events (playerId, type)`, `leaderboards (category, period, score)`. Put a unique index on every natural key an upsert targets (`currencies (playerId, currencyType)`): PostgreSQL infers the `ON CONFLICT` target from a unique index.
-- **Money and currency.** Integer amounts. Change balances with an atomic `amount = amount + n` upsert (`addCurrency` in `templates/query-patterns.ts`), never read-modify-write.
+- **Money and currency.** Integer amounts, never read-modify-write. Credit with the atomic `amount = amount + n` upsert (`addCurrency` in `templates/query-patterns.ts`). Debit with `spendCurrency`: one `UPDATE ... WHERE amount >= cost`, and it reports failure when no row was updated, so two parallel spends cannot overdraw. The `currencies` table also has `CHECK (amount >= 0)`, so a debit that bypasses the guard fails instead of going negative.
+- **Idempotency.** `processed_events` holds one row per external event or job already applied (a Stripe event id, a reward job key), with `id` as the primary key, a `kind` and `created_at`. Insert it in the same transaction as the change it guards; a primary-key conflict means the change already happened. `stripe-game-payments` and `bullmq-game-queues` use this table.
 
 ## Procedure
 
