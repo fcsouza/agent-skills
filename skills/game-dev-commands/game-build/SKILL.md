@@ -1,15 +1,18 @@
 ---
 name: game-build
-description: Builds a game component from the MVP plan — production TypeScript + Vitest tests + mock dependencies + build registry tracking. Extract the component name from the user's message (or "status" to check progress). Requires docs/mvp-first-draft.md — run game-architect first.
-argument-hint: component name (e.g. auth, matchmaking, shop) or "status" to check progress
+description: Builds one game component from the MVP plan as typed TypeScript with tests and mocks for unbuilt dependencies, then records it in the build registry. Use when the user wants to implement a planned component (for example auth, matchmaking, shop), check build progress with "status", or redo a built component with "--rebuild". Takes `$ARGUMENTS` (falls back to the user's message); needs `docs/mvp-first-draft.md`, which `/game-architect` writes.
+argument-hint: component name (e.g. auth, matchmaking, shop), "<component> --rebuild", or "status"
 ---
 
-# Game Build — Component Builder
+# Game Build
+
+Input: `$ARGUMENTS`; if empty, use the user's message. It holds a component name, `<component> --rebuild`, or `status`.
+
+This command skips the `game-dev` index. The skill table in Phase 3 picks the skills.
 
 ## Requires
 
 - `game-backend-architecture`
-- `game-design-fundamentals`
 - `quest-mission-design`
 - `quest-narrative-coherence`
 - `postgres-game-schema`
@@ -22,194 +25,108 @@ argument-hint: component name (e.g. auth, matchmaking, shop) or "status" to chec
 - `matchmaking-system`
 - `gameplay-analytics`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Load a skill from this list only when the Phase 3 table picks it. Before you apply one, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 
-- Requires `docs/mvp-first-draft.md` in the project (run the `game-architect` skill (`/game-architect`) first)
+- `docs/mvp-first-draft.md` in the project (run `/game-architect` first)
 
----
+## Phase 0: Load context
 
-## Phase 0 — Context Load (silent, mandatory before writing a single line of code)
+Do this before writing code.
 
-Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the component name, or "status".
+1. If `docs/mvp-first-draft.md` is missing, say: "Stopped: no MVP plan. Run `/game-architect` first, so the build follows one plan." Then stop.
+2. Read the plan. If the component matches an item in Section 10 (Out of Scope for MVP), say "Deferred: [component] was deferred because [reason]. Building it now widens scope. Continue?" and wait.
+3. Read `docs/build-registry.md`. If it is missing, copy the registry skeleton from `templates/build-registry.md`.
+4. If the component touches quests or story, read `docs/world-lore.md` and `docs/quest-registry.md`.
 
-Execute in this exact order:
+`status`: before step 3, read the registry if it exists (do not create it), print a table of built, rebuilding, mocked and remaining components, build nothing, stop.
 
-1. Check if `docs/mvp-first-draft.md` exists in the project
-   - If it does NOT exist: output `⛔ Cannot proceed. Run the game-architect skill (/game-architect) first to generate the MVP plan. game-build requires an existing plan to avoid architectural drift.` and stop.
-2. READ `docs/mvp-first-draft.md` (the MVP plan written by the `game-architect` skill)
-   - Check Section 10 (Out of Scope / Deferred): if the component name matches any deferred item, output `⚠️ [component] was explicitly deferred: "[reason]". Building now may increase scope. Continue?` and wait for confirmation before proceeding.
-3. APPLY only the skills listed under Requires that this component needs.
-4. READ `docs/build-registry.md` if it exists (create it if not, using the template below)
-5. READ `docs/world-lore.md` if component touches narrative/quests
-6. READ `docs/quest-registry.md` if component touches quests
+## Phase 1: Dependencies
 
-**Special case: component name is "status"**
-Read `docs/build-registry.md` and output a progress table showing built/mocked/remaining components. Do not build anything. Stop after outputting the status.
+Resolve the component's dependencies from the plan. For each one, check the registry.
 
-**Build registry initial template** (create at `docs/build-registry.md` if missing):
-```markdown
-# Build Registry
-> Managed by game-build skill — do not edit manually
+- `built`: import it from its registered path. Do not regenerate it.
+- Not built: write a typed mock with the interface the real one will have and realistic fake data. Mark it `// MOCK: replace with real implementation via /game-build [dependency-name]` and register it as `status: mock`.
 
-## Summary
-- Total components planned: [from MVP plan]
-- Built: 0 | Mocked: 0 | Remaining: 0
+List the mocks at the top of your output.
 
-## Components
+**Component already `built` or `rebuilding`.** Stop and say: "[component] is built (docs/build-registry.md). To redo it, run `/game-build [component] --rebuild`." For `rebuilding`, say instead: "[component] has a rebuild in progress. Run `/game-build [component] --rebuild` to resume it." Regenerating would overwrite code other components import, so only `--rebuild` proceeds. `--rebuild` on a component with no registry entry builds it as new. With `--rebuild`:
+1. List the components that depend on it (the registry entries whose "Depends on" names it) and tell the user they will need a re-check.
+2. Set its registry status to `rebuilding`, build as normal, and set it back to `built` in Phase 5.
+3. Keep its public exports and types unless the user asked to change them; flag any change you make.
 
-<!-- entries added automatically by game-build -->
-```
+## Phase 2: Clarify (at most 2 questions)
 
-## Phase 1 — Dependency Check
+Ask only when the plan cannot answer, for example REST or WebSocket when it lists both. Never ask about naming or style.
 
-Before writing any code, resolve the component's dependency graph from the MVP plan:
+## Phase 3: Build
 
-For each dependency of the component:
-- CHECK `docs/build-registry.md` for status
-- If already **built**: import from its registered path — do not regenerate
-- If **NOT built**: generate a typed mock/stub:
-  - Same TypeScript interface as the real implementation will have
-  - Returns realistic fake data matching the expected types
-  - Clearly marked with: `// MOCK — replace with real implementation via /game-build [dependency-name]`
-  - Register in `docs/build-registry.md` as `status: "mock"`
-
-List all mocks generated at the top of your output so the user knows what to build next.
-
-**Special case: component already in build-registry as "built"**
-Warn the user: `⚠️ [component] is already marked as built in docs/build-registry.md. Do you want to refactor it instead?` Stop and wait for confirmation before regenerating.
-
-## Phase 2 — Pre-Build Clarification (only if truly ambiguous)
-
-Ask **at most 2 questions** if critical decisions cannot be inferred from the MVP plan.
-If the MVP plan has the answer, use it — do not ask.
-
-Valid questions:
-- "The MVP plan lists both REST and WebSocket for this component — which should this implementation use?"
-- "[feature] was listed as out-of-scope in MVP Section 10 — confirm you want it now?"
-
-Never ask about naming conventions, code style, or anything the skill files already define.
-
-## Phase 3 — Build the Component
-
-### Code Standards
-- **TypeScript strict mode** — no `any`, no implicit types
-- **Production-ready** — error handling, edge cases, input validation included
-- **Minimal** — only what the MVP plan specifies for this component, nothing beyond
-- **No premature abstraction** — optimize for clarity at MVP stage
-- **Cite the skill** in inline comments for every major decision:
+Code standards:
+- TypeScript strict. No `any`, no implicit types.
+- Error handling and input validation included.
+- Build what the plan specifies for this component and nothing more. If you need schema, queues, routes or features the plan lacks, mark them `NOT IN PLAN` and ask.
+- Cite the skill that drove each major decision in a comment:
   ```typescript
-  // [→ bullmq-game-queues: retry with exponential backoff]
-  const retryConfig = { attempts: 3, backoff: { type: 'exponential', delay: 1000 } }
+  // [-> bullmq-game-queues: retry with exponential backoff]
+  const retryConfig = { attempts: 3, backoff: { type: 'exponential', delay: 1000 } };
   ```
 
-### File Output Structure
+Files:
 ```
-src/
-  [component-name]/
-    index.ts           ← main entry point / public API
-    [component].ts     ← core logic
-    [component].test.ts ← Vitest tests (required, no exceptions)
-    types.ts           ← all TypeScript types/interfaces for this component
-  __mocks__/
-    [dependency].mock.ts  ← any mocks generated in Phase 1
+src/[component-name]/
+  index.ts              public API
+  [component].ts        core logic
+  [component].test.ts   tests
+  types.ts              types for this component
+src/__mocks__/[dependency].mock.ts   mocks from Phase 1
 ```
 
-### Testing Standards (Vitest)
-Every component ships with tests. No exceptions.
-Required coverage:
-1. **Happy path** — core functionality works as expected
-2. **Edge cases** — boundary conditions from the skill files
-3. **Failure path** — what happens when dependencies throw or return bad data
-4. **Mock validation** — confirm mocks match the interface they stand in for
+Skill table:
 
-No snapshot tests for game logic — assert on behavior, not structure.
-
-### Technology Integration
-
-| If component involves... | Apply skill + patterns |
+| Component involves | Apply |
 |---|---|
-| DB reads/writes | `postgres-game-schema` — Drizzle typed queries, no raw SQL strings |
-| Cache / realtime | `redis-game-patterns` — correct data structure, key naming `{entity}:{id}:{field}` |
-| Background jobs | `bullmq-game-queues` — typed job payload, processor, retry config with `attempts`+`backoff` |
-| Auth / sessions | `betterauth-integration` — `auth.api.getSession()`, never trust client-sent user IDs |
-| Payments | `stripe-game-payments` — verify `Stripe-Signature` before processing, never fulfill on checkout redirect |
-| Audio / SFX | `elevenlabs-sound-music` — audio state machine, API call with fallback |
-| Quest / mission logic | `quest-mission-design` + `quest-narrative-coherence` — coherence check FIRST |
-| Client-server sync | `game-state-sync` — server-authoritative, delta encoding, rollback buffer |
-| Matchmaking | `matchmaking-system` — expanding bracket, BullMQ queue, atomic dequeue |
-| Analytics | `gameplay-analytics` — event emit pattern, sessionId not userId for funnels |
+| DB reads/writes | `postgres-game-schema` |
+| Cache, realtime | `redis-game-patterns` |
+| Background jobs | `bullmq-game-queues` |
+| Auth, sessions | `betterauth-integration` |
+| Payments | `stripe-game-payments` |
+| Audio, SFX | `elevenlabs-sound-music` |
+| Quests, missions | `quest-mission-design`, `quest-narrative-coherence` (coherence check first) |
+| Client-server sync, multiplayer | `game-state-sync`, `game-backend-architecture` (server decides; the client sends intentions) |
+| Matchmaking | `matchmaking-system` |
+| Analytics | `gameplay-analytics` |
 
-## Phase 4 — Narrative Coherence Check (only if component touches story/quests)
+Tests cover: the happy path, boundary cases, failure when a dependency throws or returns bad data, and that each mock matches the interface it replaces. Assert on behavior, not snapshots. A component without tests is incomplete.
 
-Skip this phase entirely if the component has no narrative content.
+### Test runner
 
-If the component creates or modifies quests, characters, or lore:
-1. READ `docs/world-lore.md`
-2. READ `docs/quest-registry.md`
-3. Verify:
-   - No faction/character/location contradictions with existing lore
-   - At least one existing world element referenced
-   - New content will be registered in `docs/quest-registry.md`
-4. If conflict detected: output `⚠️ LORE CONFLICT: [description]` and propose resolution before writing the final implementation
+Read `package.json`.
+- If `vitest` is a dependency, write tests with Vitest and run them with `bun run test` (add a `test` script of `vitest run` if missing). Vitest's guide says to use `bun run test` with Bun, because `bun test` starts Bun's own runner instead. Docs: https://vitest.dev/guide/
+- Otherwise, import `describe`, `it` and `expect` from `bun:test` and run `bun test src/[component-name]/`. Docs: https://bun.com/docs/test
 
-## Phase 5 — Update Build Registry
+## Phase 4: Narrative check (only if the component has story or quest content)
 
-After every successful build, add/update the component entry in `docs/build-registry.md`:
+Check the new content against `docs/world-lore.md` and `docs/quest-registry.md` using the checklist in `quest-narrative-coherence`. On a conflict, say "Conflict: [description]" and propose a fix before the final code. Register new content in `docs/quest-registry.md`.
 
-```markdown
-## [component-name]
-- **Status:** built
-- **Path:** src/[component-name]/index.ts
-- **Built at:** [ISO timestamp]
-- **Depends on:** [list of real dependencies used]
-- **Depended on by:** [leave empty — populated as other components reference this one]
-- **Mocks generated:** [list any mocks this build created, or "none"]
-- **Skills applied:** [list of skills that informed this build]
-- **Open TODOs:** [anything flagged ⚠️ NOT IN PLAN or left incomplete]
-```
+## Phase 5: Verify, then update the registry
 
-Also update the Summary section counts.
+1. Run the typecheck: `bun run typecheck` if the script exists, else `bunx tsc --noEmit`.
+2. Run the component's tests with the Phase 3 command.
+3. Read both outputs. Fix failures that come from your code. If something fails and you cannot fix it, report it as it is; do not mark the component `built`.
+4. Run `bun run format` if the script exists.
+5. Read `templates/build-registry.md` when you write the entry. Add or update the entry in `docs/build-registry.md` in its entry format with `status: built` (this also ends a rebuild), and update the Summary counts.
 
-## Phase 6 — Output to User
+## Phase 6: Report
 
-Present in this order:
+1. Summary: component, files created, test count, dependencies (real and mocked), typecheck and test results from Phase 5, mocks to replace.
+2. The code: each file in a labeled block, in full.
+3. How to run it: the typecheck and test commands.
+4. Next: the mocks this build created, in dependency order, then the next item in the plan's build sequence (Section 9), as `/game-build [name]` lines.
 
-### 1. Build Summary
-```
-✅ Built: [component-name]
-📁 Files created: [list with paths]
-🧪 Tests: [X test cases written]
-🔗 Dependencies: [real: X | mocked: Y]
-⚠️  Mocks to replace (build these next): [list in dependency order]
-```
+## Rules
 
-### 2. The Code
-Output each file in a clearly labeled fenced code block with the filename as the label. Full file — no truncation, no "// rest of file here" shortcuts.
-
-### 3. How to Run It
-```bash
-# Commands to run and test this component right now
-bun run dev
-bun vitest run src/[component-name]/
-```
-
-### 4. What to Build Next
-Based on the MVP plan build sequence (Section 9) and the mocks generated:
-```
-Recommended next:
-  /game-build [mock-dependency]   ← replaces mock created today
-  /game-build [next-in-sequence]  ← next item from MVP plan Section 9
-```
-
----
-
-## Hard Constraints
-
-1. **Never regenerate** a component marked `built` in `docs/build-registry.md` — warn the user and stop
-2. **Never invent** schema, queue names, routes, or features not in the MVP plan — flag with `⚠️ NOT IN PLAN:` and ask
-3. **Never skip tests** — a component without tests is considered incomplete
-4. **Never remove mock markers** — `// MOCK —` comments must stay until replaced with real implementations
-5. **Always cite the skill** that informed each major decision in inline comments
-6. **Server-authoritative** for any multiplayer component — client sends intentions, server validates and broadcasts
+1. Never regenerate a `built` or `rebuilding` component without `--rebuild`.
+2. Never invent schema, queue names, routes or features outside the plan.
+3. Keep `// MOCK` markers until the real implementation replaces the mock.
+4. Report typecheck and test output as you read it. Do not report a component as built with errors outstanding.

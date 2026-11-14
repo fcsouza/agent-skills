@@ -1,10 +1,10 @@
 ---
 name: game-review
-description: Audits existing game code against design principles — checks server-authority, schema conventions, auth security, payment safety, narrative coherence, and MVP scope drift. Extract the optional component name or path from the user's message (defaults to entire src/). Use after building components or before committing.
+description: Audits game code read-only against the engineering skills' rules (server authority, schema, auth, payments, queues, Redis), lore consistency and MVP scope, and writes a severity-ranked report. Takes an optional component name or path in `$ARGUMENTS` (falls back to the user's message, then all of `src/`). Use after building a component or before committing game code.
 argument-hint: Optional component name or path to review (defaults to entire src/)
 ---
 
-# Game Review — Code Auditor
+# Game Review
 
 ## Requires
 
@@ -18,140 +18,117 @@ argument-hint: Optional component name or path to review (defaults to entire src
 - `matchmaking-system`
 - `gameplay-analytics`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 Phase 0 picks which of these apply to the code under review.
 
----
+## Prerequisites
 
-## Phase 0 — Context Load (silent)
+- `docs/mvp-first-draft.md` and `docs/build-registry.md` improve the scope check. Without them the command skips that check and says so.
+- `docs/world-lore.md` enables the lore check. Without it the command skips that check and says so.
+
+This command only reads. It writes the report to the chat and changes no file.
+
+## Phase 0: scope and context
 
 Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds an optional component name or path.
 
-1. READ `docs/mvp-first-draft.md` if it exists (provides architectural intent for comparison)
-2. READ `docs/build-registry.md` if it exists (tracks what's built vs mocked)
-3. Determine scope from the input:
-   - If a component name or path was provided: focus on `src/[component]/` or the specified path
-   - If nothing provided: review all of `src/`
-4. Scan the target scope to identify which technology domains are present (auth, payments, WebSocket, Redis, BullMQ, quests, etc.)
-5. Apply only the skills relevant to the detected domains:
-   - Auth detected → Apply the `betterauth-integration` skill
-   - Payments/Stripe detected → Apply the `stripe-game-payments` skill
-   - WebSocket/game state detected → Apply the `game-state-sync` skill
-   - Redis detected → Apply the `redis-game-patterns` skill
-   - BullMQ detected → Apply the `bullmq-game-queues` skill
-   - Quest/narrative code detected → Apply the `quest-narrative-coherence` skill
-   - Database/Drizzle detected → Apply the `postgres-game-schema` skill
-   - Matchmaking detected → Apply the `matchmaking-system` skill
-   - Analytics detected → Apply the `gameplay-analytics` skill
+1. Read `docs/mvp-first-draft.md` and `docs/build-registry.md` if they exist.
+2. Set the scope: the named path or `src/<component>/`, else all of `src/`.
+3. Scan the scope for the domains it contains, then apply only the matching skill:
+   - Auth: the `betterauth-integration` skill
+   - Stripe or payments: the `stripe-game-payments` skill
+   - WebSocket or game state: the `game-state-sync` skill
+   - Redis: the `redis-game-patterns` skill
+   - BullMQ: the `bullmq-game-queues` skill
+   - Quest or narrative code: the `quest-narrative-coherence` skill
+   - Drizzle or SQL: the `postgres-game-schema` skill
+   - Matchmaking: the `matchmaking-system` skill
+   - Analytics events: the `gameplay-analytics` skill
 
-## Phase 1 — Engineering Review
+## Phase 1: engineering review
 
-Read all TypeScript files in the target scope. Apply these checks. For every finding, record: severity, file path, line number (approximate), description, fix suggestion, and the skill it violates.
+Read every TypeScript file in scope. Each applied skill has a Pitfalls section (and some a Checklist). Flag code that matches a listed pitfall or breaks a numbered decision in the skill. The skill owns the rule, so do not invent a rule it does not state.
 
-### State Authority (multiplayer/WebSocket code)
-- 🔴 CRITICAL: Any WebSocket handler that trusts `message.userId` or `message.playerId` from the client — must derive identity from server session
-- 🔴 CRITICAL: Any game state mutation triggered directly by client message without server validation
-- 🟡 WARNING: Game loop tick rate over 60Hz without justification
+For every finding record: severity, file, approximate line, what is wrong, the fix, and the skill and section it comes from.
 
-### Database / Schema
-- 🔴 CRITICAL: Raw SQL template literals (`sql\`SELECT...\``) outside of Drizzle's `sql` tagged helper — must use Drizzle typed query builder
-- 🟡 WARNING: Missing `deletedAt` soft-delete column on player-facing tables (players, inventory, characters)
-- 🟡 WARNING: Hardcoded column names for game-specific attributes that should be in JSONB (e.g., `manaPoints`, `fireResistance` as top-level columns)
-- 🟢 SUGGESTION: Indexes missing on `(playerId, type)` composite for event/log tables
+Severity:
 
-### Auth & Sessions
-- 🔴 CRITICAL: Any endpoint reading `req.body.userId` or `req.query.userId` to identify the actor — must use `auth.api.getSession()` and derive from session
-- 🔴 CRITICAL: JWT verification without checking expiry
-- 🟡 WARNING: No rate limiting on `/auth/login` or `/auth/signup` routes
-- 🟡 WARNING: Admin/moderator role stored in a cookie or JWT claim (must be fetched from DB on each request)
+- Critical: a player can cheat, take another player's identity, get currency or items without paying, or expose a secret.
+- Warning: the code breaks a skill rule, but no exploit follows from it by itself.
+- Suggestion: a skill's recommended pattern is missing.
 
-### Payments (Stripe)
-- 🔴 CRITICAL: Any purchase fulfillment triggered on checkout success redirect (GET `/success`) — must be webhook-driven
-- 🔴 CRITICAL: Webhook handler that doesn't call `stripe.webhooks.constructEvent()` to verify the signature
-- 🔴 CRITICAL: Stripe secret key referenced in client-side code (any file in `public/`, `client/`, `frontend/`)
-- 🟡 WARNING: Missing idempotency check for `checkout.session.completed` events — could double-grant rewards on webhook replay
+Always check, in any scope. These three are this command's own baseline; no skill states them:
 
-### Job Queues (BullMQ)
-- 🟡 WARNING: BullMQ processor with no `attempts` config — all jobs should have retry policy
-- 🟡 WARNING: BullMQ processor with no `backoff` config — should use exponential backoff
-- 🟢 SUGGESTION: Consider adding `removeOnComplete` and `removeOnFail` options to prevent queue bloat
+- A secret or `.env` value in source, or a Stripe secret key in code the client receives. Critical: anyone can read it.
+- `eval()` or `new Function()` on user input. Critical: it runs attacker code.
+- User-controlled data accepted by an endpoint without validation. Warning.
 
-### Redis
-- 🟡 WARNING: Redis keys that don't follow `{entity}:{id}:{field}` naming convention
-- 🟡 WARNING: Session keys stored in Redis without `EXPIRE` — ephemeral state must have TTL
-- 🟢 SUGGESTION: Leaderboard sorted sets should use `ZADD NX` or `GT` to only update when score improves
+Where the domain is present, check these first (each skill gives the detail):
 
-### General Security
-- 🔴 CRITICAL: Any `.env` values or secrets hardcoded in source files
-- 🔴 CRITICAL: `eval()` or `Function()` constructor called with user input
-- 🟡 WARNING: Missing input validation on API endpoints that accept user-controlled data
+- Identity comes from the server session, never from a body, query or message field (`betterauth-integration`, `game-state-sync`). Critical.
+- Game state changes only after the server validates the action (`game-state-sync`). Critical.
+- Purchases are granted only from verified webhooks, with an idempotency check (`stripe-game-payments`). Critical.
+- Schema follows the table conventions: soft delete, JSONB for per-genre extras, owner-key indexes (`postgres-game-schema`). Warning.
+- Redis keys expire when the state is ephemeral (`redis-game-patterns`). Warning.
+- Queue processors are idempotent and set their retry policy as the skill describes (`bullmq-game-queues`). Warning.
 
-## Phase 2 — Narrative Coherence Check
+## Phase 2: narrative coherence
 
-If `docs/world-lore.md` and `docs/quest-registry.md` both don't exist, output:
-`📋 Narrative coherence check: skipped (docs/quest-registry.md not found — run the game-quest skill (/game-quest) to create it)`
-Then skip to Phase 3.
+If `docs/world-lore.md` is missing, print `Narrative check skipped: docs/world-lore.md not found (run /game-architect)` and go to Phase 3. If `docs/quest-registry.md` is missing, run the check against the lore file only and say so.
 
-If either file exists:
-1. Read `docs/world-lore.md` and `docs/quest-registry.md`
-2. Scan source files for quest IDs, character names, faction names, location names
-3. Check: do any hardcoded quest/character/faction/location strings in code contradict what's registered in the world lore?
-4. Flag: `⚠️ LORE CONFLICT: Character "Mira" referenced in src/quests/main.ts but not registered in quest-registry.md`
+1. Read both files.
+2. Collect quest IDs, character, faction and location names from the source.
+3. Compare each against the lore and the registry using steps 3 and 4 of `quest-narrative-coherence`. Report each failure.
+4. Format each finding as `Lore conflict: character "Mira" is used in src/quests/main.ts but is not in docs/quest-registry.md`.
 
-## Phase 3 — MVP Scope Drift Check
+## Phase 3: MVP scope drift
 
-If `docs/mvp-first-draft.md` doesn't exist, output:
-`📋 Scope audit: skipped (docs/mvp-first-draft.md not found — run the game-architect skill (/game-architect) first)`
-Then skip to Phase 4.
+If `docs/mvp-first-draft.md` is missing, print `Scope check skipped: docs/mvp-first-draft.md not found (run /game-architect)` and go to Phase 4.
 
-1. Read Section 10 (Out of Scope) from `docs/mvp-first-draft.md`
-2. Scan `src/` for implementations of explicitly deferred features
-3. Flag: `⚠️ SCOPE DRIFT: [feature] found in [file] but listed as out-of-scope in MVP plan Section 10`
+1. Read Section 10 (Out of Scope).
+2. Search `src/` for each deferred feature.
+3. Report `Scope drift: <feature> in <file> is out of scope in MVP plan Section 10`.
+4. In `docs/build-registry.md`, find components marked built that are not in the Section 9 build sequence. Report them as possible extra work.
 
-Also check `docs/build-registry.md` for components marked "built" that don't appear in the MVP build sequence (Section 9) — these may be gold-plating.
+## Phase 4: report
 
-## Phase 4 — Report Output
-
-Output a structured review report:
+Use this shape:
 
 ```
 # Game Review Report
-Scope: [path reviewed]
-Generated: [timestamp]
+Scope: <path>
+Generated: <timestamp>
 
 ## Summary
-🔴 Critical: X | 🟡 Warning: Y | 🟢 Suggestion: Z
+Critical: X | Warning: Y | Suggestion: Z
 ```
 
-Then list all findings grouped by category (Engineering, Narrative, Scope). For each finding:
+List findings by category (Engineering, Narrative, Scope), each as:
+
 ```
-### [🔴/🟡/🟢] [Title]
-**File:** `src/path/to/file.ts` (line ~42)
-**Issue:** [what's wrong]
-**Fix:** [concrete fix description]
-**Skill ref:** [→ stripe-game-payments: webhook-first fulfillment]
+### [Critical|Warning|Suggestion] <title>
+File: src/path/to/file.ts (line ~42)
+Issue: <what is wrong>
+Fix: <concrete change>
+Skill: <skill name and the section it comes from, or "baseline" for an always-check item>
 ```
+
+If a category has no findings, write `<Category>: no issues found`.
 
 End with:
+
 ```
 ## Next Steps
-- Fix all 🔴 CRITICAL issues before committing
-- Review the [top-violation-category] skill for correct patterns
-- Run the game-build skill (/game-build) to rebuild any component with critical violations
+- Fix every Critical finding before committing.
+- Read the <most-violated skill> skill for the correct pattern.
+- Rebuild a component with Critical findings: `/game-build <component> --rebuild`.
 ```
 
-If no issues found in a category, output:
-```
-### ✅ [Category] — No issues found
-```
+## Rules
 
----
-
-## Hard Constraints
-
-1. **Never modify code** — this is a read-only audit command. Output findings only.
-2. **Never report false positives** — if a pattern looks like a violation but context makes it acceptable, skip it or downgrade to 🟢
-3. **Always link to a skill** — every finding must reference the skill that defines the correct pattern
-4. **Be specific** — include file path and approximate line number for every finding
-5. **Prioritize signal** — 5 real critical issues is more useful than 30 noise suggestions
+1. Never change code. This is an audit, and a fix made during review hides what the review found.
+2. Skip a pattern that looks wrong but is fine in context. A false positive costs the reader's trust in the report.
+3. Every finding names the skill and section that defines the correct pattern, except the three baseline items, which say "baseline".
+4. Every finding names a file and an approximate line.
+5. Report few real findings, not many doubtful ones.

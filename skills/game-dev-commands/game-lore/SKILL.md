@@ -1,183 +1,106 @@
 ---
 name: game-lore
-description: Adds or updates a single world lore entry (faction, location, NPC, or event) — validates against existing lore for consistency, applies the right template, and updates docs/world-lore.md. Extract the entry type (faction/location/npc/event) and name from the user's message.
-argument-hint: type and name (e.g. "faction The Iron Court", "location Ashfall Crossing", "npc Mira the Keeper", "event The Founding War")
+description: Adds or updates one world lore entry (faction, location, NPC, event, conflict or rule) in docs/world-lore.md after a consistency check against the existing lore. Takes the entry type and name as `$ARGUMENTS`, or from the user's message. Use when the world needs a new faction, place, character, historical event, active conflict or world rule, or when an existing entry must change.
+argument-hint: type and name (e.g. "faction The Iron Court", "location Ashfall Crossing", "npc Mira the Keeper", "event The Founding War", "conflict The Salt Dispute", "rule Magic needs iron")
 ---
 
-# Game Lore — Lore Entry Command
+# Game Lore: Lore Entry Command
 
 ## Requires
 
 - `worldbuilding`
 - `quest-narrative-coherence`
 
-Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it appears in your available skills list. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 
-- Requires `docs/world-lore.md` in the project (run the `game-architect` skill (`/game-architect`) first, or create it manually)
+- `docs/world-lore.md` in the project (run `/game-architect` first, or create it by hand)
 
----
-
-## Phase 0 — Context Load (silent, mandatory)
+## Phase 0: Context load (silent)
 
 Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the entry type and name.
 
-Execute in this exact order:
+In this order:
 
-1. Apply the `worldbuilding` skill
-2. Apply the `quest-narrative-coherence` skill
-3. READ `docs/world-lore.md`
-   - If it does NOT exist: output `⛔ Cannot proceed. docs/world-lore.md not found. Run the game-architect skill (/game-architect) first to generate the world foundation, or create docs/world-lore.md manually with a World Overview, Factions, Locations, Characters, and History sections.` and stop.
-4. Parse the input to detect entry type:
-   - Contains "faction" → FACTION mode
-   - Contains "location" → LOCATION mode
-   - Contains "npc" or "character" → NPC mode
-   - Contains "event" or "history" → HISTORICAL EVENT mode
-   - Not recognized → ask: "What type of lore entry is this? Reply with: faction / location / npc / event"
-5. Extract the entry name from the input (the text after the type keyword)
-6. READ `docs/quest-registry.md` if it exists (for cross-reference in Phase 4)
+1. Apply the `worldbuilding` skill.
+2. Apply the `quest-narrative-coherence` skill. Its "World-lore sections" list gives the section names this command writes to.
+3. Read `docs/world-lore.md`. If it does not exist, say: "Cannot proceed. docs/world-lore.md not found. Run `/game-architect` to generate the world foundation, or create the file from the world-lore template of `quest-narrative-coherence`." Then stop.
+4. Detect the entry type from the input:
+   - "faction": faction
+   - "location": location
+   - "npc" or "character": NPC
+   - "event" or "history": historical event
+   - "conflict": active conflict
+   - "rule" or "constraint": rule or constraint
+   - Anything else: ask "What type of lore entry is this? Reply with: faction / location / npc / event / conflict / rule".
+5. Take the entry name from the text after the type keyword.
+6. Read `docs/quest-registry.md` if it exists (used in Phase 4).
 
-## Phase 1 — Consistency Check (mandatory before creating anything)
+## Phase 1: Consistency check (before writing anything)
 
-Validate the proposed entry against the existing content of `docs/world-lore.md`.
-
-Run through each check — output the checklist explicitly:
+Check the proposed entry against `docs/world-lore.md`. Print the checklist with a result per line: "pass", "note" (minor, proceed and say so) or "conflict" (resolve first).
 
 ```
-## Consistency Check: [entry type] — [entry name]
+## Consistency Check: [entry type] - [entry name]
 
-[ ] No name collision — "[name]" does not already exist in world-lore.md
-[ ] Faction alignment — faction relationships don't contradict existing alliances/enmities
-[ ] Geographic plausibility — location fits within established world geography
-[ ] NPC faction match — NPC's stated faction exists and their alignment is consistent with it
-[ ] Timeline consistency — any historical events respect the established world timeline
-[ ] Tone consistency — entry matches the world's established tone (dark/whimsical/gritty/etc.)
+[ ] No name collision: "[name]" is not already in world-lore.md
+[ ] Faction alignment: relationships do not contradict existing alliances or enmities
+[ ] Geographic plausibility: the location fits the established geography
+[ ] NPC faction match: the NPC's faction exists and their alignment fits it
+[ ] Timeline consistency: events respect the established timeline
+[ ] Conflict and rule consistency: the entry does not contradict an Active Conflicts or Rules and Constraints entry
+[ ] Tone consistency: the entry matches the world's established tone
 ```
 
-Mark each as ✅ (passed), ⚠️ (minor concern — proceed with note), or 🔴 (conflict — must resolve before proceeding).
+On any conflict, say: "Lore conflict: [the contradiction]. Proposed resolution: [specific fix]. Proceed with the fix?" Wait for the user's confirmation before you continue.
 
-For any 🔴 conflict:
-Output `⚠️ LORE CONFLICT: [describe the contradiction clearly]. Proposed resolution: [specific suggestion that would fix it]. Proceed with the proposed fix? (confirm to continue with correction)`
+## Phase 2: Write the entry
 
-Wait for user confirmation before continuing if any 🔴 conflicts exist.
+Copy the template for the detected type from `templates/lore-entries.md`. Fill every field. A genuinely unknown field reads "Unknown / to be determined" and goes on the open-questions list.
 
-## Phase 2 — Entry Creation
+Write NPC personality as concrete traits. Vague words ("nice", "mean", "mysterious") give the next writer nothing to act on.
 
-Apply the appropriate template based on the entry type detected in Phase 0:
+## Phase 3: Update docs/world-lore.md
 
-### FACTION template:
+Append the entry under the section for its type. Take the section names from World-lore sections in `quest-narrative-coherence`:
 
-```markdown
-## Faction: [name]
+| Entry type | Section |
+|---|---|
+| Faction | the factions section |
+| Location | the locations section |
+| NPC | the characters section |
+| Event | the history section |
+| Conflict | the active conflicts section |
+| Rule | the rules section |
 
-**Public goal:** [what they publicly claim to want — the face they show to others]
-**Hidden goal:** [what they actually want — internal motivation the player can discover]
-**Territory:** [regions, cities, or areas they control or heavily influence]
-**Resources:** [what they control: trade goods, military, information, wealth, magic, tech]
-**Allies:** [faction names — and why they're allied]
-**Enemies:** [faction names — and what the conflict is about]
-**Neutral toward:** [faction names — and why there's no strong relationship]
-**Gameplay role:** [how players interact with them: quest giver, merchant, enemy, obstacle, ally]
-**Internal politics:** [sub-factions, internal tensions, succession disputes, or ideological splits]
-**Distinguishing trait:** [one thing that makes this faction memorable and unique]
-```
+If the section is missing, create it with that heading.
 
-### LOCATION template:
+Relationships go both ways. If the new entry names an enemy, ally or other tie to an existing entry, open that entry and add the matching note. List each such edit in the report below.
 
-```markdown
-## Location: [name]
+After writing, report:
 
-**Region:** [which larger geographic area this is part of]
-**Type:** [city / dungeon / wilderness / settlement / landmark / ruin / outpost]
-**Climate & Terrain:** [brief environmental description that affects gameplay/mood]
-**Notable NPCs:** [named characters who live, work, or frequent this location]
-**Factions present:** [which factions control or operate here, and in what capacity]
-**Gameplay role:** [what players do here: quest hub, combat zone, trading post, dungeon, safe house]
-**Lore significance:** [why this location matters to world history or current events]
-**Atmosphere note:** [1-2 sentences on the feeling — helps with future dialogue and description writing]
-```
-
-### NPC template:
-
-```markdown
-## NPC: [name]
-
-**Faction:** [primary faction affiliation — must exist in world-lore.md Factions section]
-**Role:** [their function: merchant, quest giver, antagonist, ally, informant, guard, etc.]
-**Personality:** [3 traits that define how they interact — keep it concrete, not vague]
-**Current status:** [alive/dead/unknown, current location, what they're actively doing]
-**Relationships:**
-  - [NPC name]: [relationship type and why]
-  - [Faction name]: [loyal / disillusioned / secretly opposed / etc.]
-**Quest involvement:** [quests they're part of — reference quest-registry.md IDs if applicable, or "none yet"]
-**Voice & Dialogue notes:** [speech patterns, vocabulary level, what topics they avoid, verbal tics]
-**Personal secret:** [something about them the player can discover — makes them feel real]
-```
-
-### HISTORICAL EVENT template:
-
-```markdown
-## Event: [name]
-
-**When:** [relative timeline — "~50 years ago", "before the Founding", "during the Third Era", etc. — use the world's own time markers]
-**What happened:** [factual summary — 2-4 sentences, no editorializing]
-**Factions involved:** [who participated and what role they played]
-**Casualties/Cost:** [scale of the event — optional, include if significant]
-**Consequences:** [direct effects on the present world: borders changed, factions formed/dissolved, power shifted, locations destroyed]
-**Player-facing traces:** [ruins, surviving NPCs, items, architecture, or lore fragments the player can find today]
-**Common knowledge vs. hidden truth:** [what most people believe happened vs. what actually happened — optional but adds depth]
-```
-
-Fill in all fields completely. Do not leave placeholders — if a field is genuinely unknown, write "Unknown / to be determined" and flag it as an open question.
-
-## Phase 3 — Update docs/world-lore.md
-
-Append the completed entry to the appropriate section of `docs/world-lore.md`:
-- Factions → append under the Factions section
-- Locations → append under the Locations/Geography section
-- NPCs/Characters → append under the Characters/Notable NPCs section
-- Events → append under the History/Timeline section
-
-If the appropriate section doesn't exist in world-lore.md, create it with a clear heading.
-
-**Bidirectional consistency:** If the new entry creates a relationship with an existing entry (e.g., "Enemy of The Silver Hand"), find The Silver Hand's entry in world-lore.md and add the reciprocal relationship note:
-```
-// Updated: [The Silver Hand] entry — added enemy relationship with [new faction]
-```
-
-After writing, output:
 ```
 Updated: docs/world-lore.md
-  ✅ Added [type]: [name]
-  [If any existing entries modified]: ✏️ Updated: [entry name] — [what was added]
+  Added [type]: [name]
+  [If existing entries changed]: Updated: [entry name] - [what was added]
 ```
 
-## Phase 4 — Cross-Reference Check
+## Phase 4: Cross-reference
 
-If `docs/quest-registry.md` exists:
-- Scan it for any references to the entry name (or close variants)
-- List any quests that now directly reference or are affected by this new entry
+If `docs/quest-registry.md` exists, scan it for the entry name and close variants. Report:
 
-Output:
 ```
-🔗 Quest registry cross-reference:
-  Quests referencing this entry: [list with quest IDs and names, or "none found"]
-  [If quests reference it]: Consider running the game-quest skill (/game-quest) to update those quests with the new lore.
+Quest registry cross-reference:
+  Quests referencing this entry: [quest IDs and names, or "none found"]
+  [If any]: Run `/game-quest` to update those quests with the new lore.
 ```
 
-If `docs/quest-registry.md` doesn't exist:
-```
-🔗 Quest registry: not yet created — run the game-quest skill (/game-quest) to start creating quests that use this lore.
-```
+If it does not exist: "Quest registry: not yet created. Run `/game-quest` to start quests that use this lore."
 
----
+## Rules
 
-## Hard Constraints
-
-1. **Never skip Phase 1** — writing new lore without a consistency check leads to contradictions
-2. **Never use vague personality traits** for NPCs ("nice", "mean", "mysterious") — always use concrete, actionable descriptions
-3. **Faction relationships must be bidirectional** — if faction A is enemy of faction B, check faction B and update if needed
-4. **Tone must match the world** — extract the tone from world-lore.md before writing; whimsy in a grim dark world is a bug
-5. **Never invent new factions or major locations inside an NPC or Event entry** — if a new faction is implied, stop and ask if user wants to run the `game-lore` skill (`/game-lore`) for that faction first
-6. **All timeline references must use the world's own time markers** — never use real-world dates (AD/BC/CE)
+1. Run Phase 1 every time. New lore written without a check contradicts old lore.
+2. Match the world's tone. Read it from `docs/world-lore.md` before writing; a whimsical entry in a grim world breaks the setting.
+3. Do not invent a new faction or major location inside an NPC or event entry. If the entry implies one, stop and ask whether to run `/game-lore` for that faction or location first.
+4. Date events with the world's own time markers. Real-world dates (AD, BC, CE) break the setting.

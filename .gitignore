@@ -26,3 +26,6 @@ node_modules/
 # Claude Code mods: types the engine writes beside each loaded mod (they list local MCP tools)
 mods/*/.claude-plugin/types/
 mods/*/tsconfig.json
+
+# Eval reports
+evals/results/

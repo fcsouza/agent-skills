@@ -44,7 +44,8 @@ count_lines() {
 # write_skill <dir-name> <description> <body>
 write_skill() {
   mkdir -p "$FX/skills/$1"
-  printf -- '---\nname: %s\ndescription: %s\n---\n# %s\n%s\n' "$1" "$2" "$1" "$3" \
+  # Folded block, so a description holding ": " stays valid YAML (N3).
+  printf -- '---\nname: %s\ndescription: >-\n  %s\n---\n# %s\n%s\n' "$1" "$2" "$1" "$3" \
     >"$FX/skills/$1/SKILL.md"
 }
 
@@ -181,6 +182,15 @@ new_fixture
 printf -- '---\r\nname: demo\r\ndescription: %s\r\n  %s\r\n---\r\nBody\r\n' "$half" "$half" >"$(skill_md)"
 expect_fail N2 "CRLF wrapped description over 1024 in all"
 
+# ---------------------------------------------------------------- N3
+new_fixture
+printf -- '---\nname: demo\ndescription: Covers dialogue: NPCs and companions.\n---\nBody\n' >"$(skill_md)"
+expect_fail N3 "plain description with ': ' is invalid YAML"
+
+new_fixture
+printf -- '---\nname: demo\ndescription: >-\n  Covers dialogue: NPCs and companions.\n---\nBody\n' >"$(skill_md)"
+expect_pass "folded description with ': ' is valid YAML"
+
 # ---------------------------------------------------------------- S1
 new_fixture
 {
@@ -244,6 +254,22 @@ expect_fail R1 "prefixed name of a real skill directory"
 new_fixture
 write_skill demo "d" "See game-asset-gen."
 expect_fail R1 "retired skill name"
+
+new_fixture
+write_skill demo "d" "See skills/game-dev/design for more."
+expect_fail R1 "old skills/game-dev/<group> path"
+
+new_fixture
+write_skill demo "d" "See idle-game-design."
+expect_fail R1 "retired skill name idle-game-design"
+
+new_fixture
+write_skill demo "d" "See claude-code-game-workflow."
+expect_fail R1 "retired skill name claude-code-game-workflow"
+
+new_fixture
+write_skill demo "d" "See cursor-codex-integration."
+expect_fail R1 "retired skill name cursor-codex-integration"
 
 # ---------------------------------------------------------------- R2
 new_fixture
@@ -459,6 +485,35 @@ mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
 printf '\nApply the `other` skill.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
 expect_fail X1 "command applies an existing skill not in its Requires block"
 
+# x1_other_fixture: x1_fixture plus a second, existing skill `other` that the
+# command does not list under Requires.
+x1_other_fixture() {
+  x1_fixture
+  write_skill other "d" "Body."
+  printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
+    >"$FX/.claude-plugin/marketplace.json"
+  link_readme skills/other
+  sed 's/| Demo work | `demo` |/| Demo work | `demo` |\
+| Other work | `other` |/' "$FX/skills/game-dev/SKILL.md" >"$FX/skills/game-dev/SKILL.tmp"
+  mv "$FX/skills/game-dev/SKILL.tmp" "$FX/skills/game-dev/SKILL.md"
+}
+
+x1_other_fixture
+printf '\nApply `other` to the result.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "capital Apply without 'the' applies a skill not in Requires"
+
+x1_other_fixture
+printf '\nApply `demo` and `other` together.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "apply a and b: the second name is not in Requires"
+
+x1_other_fixture
+printf '\nApply `typo-name`.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "bare Apply names an unknown skill"
+
+x1_fixture
+printf '\nApply `demo`, then apply `demo` and `demo`.\n' >>"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_pass "bare apply of a listed skill passes"
+
 x1_fixture
 write_skill other "d" "Body."
 printf '%s\n' '{"plugins":[{"name":"game-dev","skills":["./skills/demo","./skills/other","./skills/game-dev","./skills/game-dev-commands/game-build"]}]}' \
@@ -545,6 +600,36 @@ else
 $OUT"
 fi
 
+new_fixture
+printf '# Readme\n\nPath %s here.\n' "$HOME_MAC" >"$FX/README.md"
+link_readme skills/demo
+expect_fail P1 "machine path in README.md"
+
+new_fixture
+printf 'Copyright %s\n' "$HOME_MAC" >"$FX/LICENSE"
+expect_fail P1 "machine path in LICENSE"
+
+new_fixture
+printf '{"plugins":[{"name":"game-dev","homepage":"%s","skills":["./skills/demo"]}]}\n' "$DEP_FILE" >"$FX/.claude-plugin/marketplace.json"
+expect_fail P1 "local dependency URL in marketplace.json"
+
+git_fixture
+printf 'Copyright %s\n' "$HOME_MAC" >"$FX/LICENSE"
+git -C "$FX" add -- LICENSE
+expect_fail P1 "git repo: tracked LICENSE with a machine path"
+
+# A name with a space and a newline: without -z git quotes it and the file is skipped.
+git_fixture
+mkdir -p "$FX/tools"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/tools/$(printf 'a b\nc.sh')"
+git -C "$FX" add -- tools
+expect_fail P1 "git repo: path with a space and a newline"
+
+new_fixture
+mkdir -p "$FX/tools"
+printf 'cd %s\n' "$HOME_LNX" >"$FX/tools/$(printf 'a b\nc.sh')"
+expect_fail P1 "no git: path with a space and a newline"
+
 # ---------------------------------------------------------------- C1-C5
 new_fixture
 write_skill demo "d" "$(printf '## Sources\n- https://example.com\n')"
@@ -569,7 +654,7 @@ expect_fail C2 "attributed blockquote without quote marks"
 new_fixture
 write_skill demo "d" "$(printf '> note\n')"
 expect_fail C2 "plain blockquote"
-if [[ $OUT == *"line 6 is a block quote; state it as plain text and put its source in references/sources.md"* ]]; then
+if [[ $OUT == *"line 7 is a block quote; state it as plain text and put its source in references/sources.md"* ]]; then
   report 1 "C2 message gives the line and the fix"
 else
   report 0 "C2 message gives the line and the fix" "$OUT"
@@ -635,13 +720,13 @@ write_skill demo "Does things. Triggers: a, b." "Body."
 expect_fail C5 "Triggers: in description"
 
 new_fixture
-printf -- '---\nname: demo\ndescription: Does things.\n  Triggers: a, b.\n---\nBody\n' >"$(skill_md)"
+printf -- '---\nname: demo\ndescription: >-\n  Does things.\n  Triggers: a, b.\n---\nBody\n' >"$(skill_md)"
 expect_fail C5 "Triggers: on the second line of a wrapped description"
 
 # ---------------------------------------------------------------- .content-pending and Z1
 new_fixture
 {
-  printf -- '---\nname: demo\ndescription: Does things. Triggers: a.\n---\n## Sources\n> "quote"\n'
+  printf -- '---\nname: demo\ndescription: >-\n  Does things. Triggers: a.\n---\n## Sources\n> "quote"\n'
   for _ in $(seq 1 600); do printf 'line\n'; done
 } >"$(skill_md)"
 mkdir -p "$FX/skills/demo/templates" "$FX/skills/demo/references" "$FX/skills/demo/boilerplate"
@@ -651,6 +736,8 @@ printf "import { z } from 'zod';\n" >"$FX/skills/demo/boilerplate/a.ts"
 : >"$FX/skills/demo/.content-pending"
 expect_pass ".content-pending skips C1-C5, L2 and S1"
 
+new_fixture
+: >"$FX/skills/demo/.content-pending"
 expect_fail Z1 "--final with a .content-pending file" --final
 
 new_fixture
@@ -672,6 +759,8 @@ else
 $OUT"
 fi
 
+new_fixture
+write_skill demo "Does things. Triggers: a." "$(printf '## Sources\n')"
 run_lint --only C1,C5
 ids="$(printf '%s\n' "$OUT" | grep -oE '^FAIL [A-Z][0-9]+' | sort -u | tr '\n' ' ')"
 if [[ $CODE == 1 && $ids == "FAIL C1 FAIL C5 " ]]; then
@@ -681,6 +770,8 @@ else
 $OUT"
 fi
 
+new_fixture
+write_skill demo "Does things. Triggers: a." "$(printf '## Sources\n')"
 run_lint --only N1
 if [[ $CODE == 0 ]]; then
   report 1 "--only N1 passes when N1 holds"

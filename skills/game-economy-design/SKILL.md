@@ -1,6 +1,7 @@
 ---
 name: game-economy-design
-description: Covers how players earn and spend in-game currency: faucets and sinks, inflation and deflation, shop prices, loot and reward tables, crafting loops and exploit review. Use when a game needs a currency plan, drop rates or prices to tune, or a check that currency flow stays balanced.
+description: >-
+  Covers how players earn and spend in-game currency: faucets and sinks, inflation and deflation, shop prices, loot and reward tables, crafting loops and exploit review. Use when a game needs a currency plan, drop rates or prices to tune, or a check that currency flow stays balanced.
 ---
 
 # Game Economy Design

@@ -1,6 +1,7 @@
 ---
 name: character-design-narrative
-description: Covers designing game characters: NPCs, companions, antagonists, player avatars, character bibles and branching dialogue. Use when a game needs a new character written, an NPC feels flat or interchangeable, or dialogue needs a branching format with conditions and effects.
+description: >-
+  Covers designing game characters: NPCs, companions, antagonists, player avatars, character bibles and branching dialogue. Use when a game needs a new character written, an NPC feels flat or interchangeable, or dialogue needs a branching format with conditions and effects.
 ---
 
 # Character Design (Narrative)

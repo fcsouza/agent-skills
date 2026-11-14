@@ -14,7 +14,26 @@
 # A new check goes in check_skill when it reads one skill (content checks
 # under its is_pending guard), or in the REPO_LEVEL block at the end.
 
-ALL_IDS="N1 N2 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
+# Check IDs:
+#   N1 name equals the directory, kebab-case, at most 64 characters
+#   N2 description exists, at most 1,024 characters
+#   N3 frontmatter parses as YAML
+#   S1 SKILL.md under 500 lines
+#   R1 no banned legacy strings in a skill, README or marketplace entry
+#   R2 no skill count in README or marketplace
+#   L1 relative links and templates/ boilerplate/ references/ paths resolve
+#   L2 every file under templates/ boilerplate/ references/ is mentioned
+#   M1 marketplace loads and every listed path has a SKILL.md
+#   M2 every skill directory is listed in the marketplace and linked in README
+#   X1 required, applied and routed skills exist; a command lists what it applies
+#   P1 no machine path or local dependency URL
+#   C1 no "## Sources" heading in SKILL.md
+#   C2 no block quote in SKILL.md
+#   C3 every bullet in references/sources.md has an https:// link
+#   C4 a .ts file with a third-party import starts with a "Verified against" line
+#   C5 description has no "Triggers:" list
+#   Z1 with --final, no .content-pending file remains
+ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
 # Directories under skills/ that the game-dev set leaves out.
 EXCLUDED="claude-agent-sdk database-performance-tuning foundry-vtt-module-dev foundry-vtt-system-dev nuvemshop-sdk openclaw-genie react-animations"
@@ -85,23 +104,24 @@ fm_field() {
     }' "$1"
 }
 
-# p1_files: files P1 scans: every file under the listed game-dev skill
-# directories, plus tools/, evals/, docs/superpowers/ and bun.lock. Tracked
-# files when ROOT is its own git repo, every file in those places otherwise.
+# p1_files: NUL-separated files P1 scans: every file under the listed game-dev
+# skill directories, plus tools/, evals/, docs/superpowers/, bun.lock,
+# README.md, LICENSE and the marketplace manifest. Tracked files when ROOT is
+# its own git repo, every file in those places otherwise.
 p1_files() {
-  local prefix paths=(tools evals docs/superpowers bun.lock) dir
+  local prefix paths=(tools evals docs/superpowers bun.lock README.md LICENSE "$MARKETPLACE") dir
   for dir in "${SKILLS[@]}"; do
     paths+=("$dir")
   done
   # An empty prefix means ROOT is the top of a work tree. Comparing it with
   # --show-toplevel would fail where ROOT sits behind a symlink.
   if prefix="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null)" && [[ -z $prefix ]]; then
-    git -C "$ROOT" -c core.quotePath=false ls-files -- "${paths[@]}"
+    git -C "$ROOT" -c core.quotePath=false ls-files -z -- "${paths[@]}"
   else
     (
       cd "$ROOT" || exit
       for p in "${paths[@]}"; do
-        if [[ -d $p ]]; then find "$p" -type f; elif [[ -f $p ]]; then printf '%s\n' "$p"; fi
+        if [[ -d $p ]]; then find "$p" -type f -print0; elif [[ -f $p ]]; then printf '%s\0' "$p"; fi
       done
     )
   fi
@@ -128,6 +148,22 @@ check_n2() {
     return
   fi
   ((${#desc} <= 1024)) || fail N2 "$dir/SKILL.md" "description is ${#desc} characters, limit is 1024"
+}
+
+# N3: the frontmatter must parse as YAML. Claude Code and `npx skills` skip a
+# skill whose frontmatter does not parse, and a plain scalar holding ": " is
+# the usual cause. Uses Bun's YAML parser; skipped when bun is not installed.
+check_n3() {
+  local dir=$1 err
+  command -v bun >/dev/null 2>&1 || return 0
+  if ! err="$(bun -e '
+const t = (await Bun.file(process.argv[1]).text()).replace(/\r\n/g, "\n");
+const m = t.match(/^---\n([\s\S]*?)\n---(\n|$)/);
+if (!m) process.exit(0);
+try { Bun.YAML.parse(m[1]); } catch (e) { console.log(e.message); process.exit(1); }
+' "$ROOT/$dir/SKILL.md" 2>&1)"; then
+    fail N3 "$dir/SKILL.md" "frontmatter is not valid YAML (${err}); quote the value or use a folded block (>-)"
+  fi
 }
 
 check_s1() {
@@ -184,9 +220,10 @@ x1_requires() {
   ' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
 }
 
-# x1_applied <file>: names in "apply the `name`", any case.
+# x1_applied <file>: names in "apply the `name`", "apply `name`" and
+# "apply `a` and `b`", any case.
 x1_applied() {
-  grep -oiE 'apply the `[^`]+`' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
+  grep -oiE 'apply (the )?`[^`]+`( and `[^`]+`)*' "$1" | grep -oE '`[^`]+`' | tr -d '`' | sort -u
 }
 
 # x1_route <file>: backticked tokens in the last column (Skill) of the table
@@ -300,6 +337,7 @@ check_skill() {
   fi
   check_n1 "$dir"
   check_n2 "$dir"
+  check_n3 "$dir"
   check_l1 "$dir"
   check_x1 "$dir"
   if ! is_pending "$dir"; then
@@ -454,7 +492,7 @@ check_p1() {
   # Split into fragments so P1 (which scans tools/) and the owner's pre-commit
   # path grep do not match this file.
   local pats=(-e "/Us""ers/" -e "/ho""me/" -e "li""nk:/" -e "fi""le:/")
-  while IFS= read -r file; do
+  while IFS= read -r -d '' file; do
     [[ -f $ROOT/$file ]] || continue
     grep -qI . "$ROOT/$file" 2>/dev/null || continue
     label="$file"
