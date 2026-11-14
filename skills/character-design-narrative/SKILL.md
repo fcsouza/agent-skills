@@ -30,7 +30,7 @@ Writing a diverse cast takes research and care, and carries the risk of getting 
 
 ## Multiplayer and MMO characters
 
-- Players often keep several characters per account. Decide early how many slots, and whether wallets and inventory belong to a character or to the account. `postgres-game-schema` keys player data to the account; add a characters table if players get several.
+- Players often keep several characters per account. Decide early how many slots, and whether wallets and inventory belong to a character or to the account. `postgres-game-schema` has a `characters` table (several per account, name unique per shard). Wallets and inventory ship on the account; the game decides whether they move to the character.
 - Plan for abuse of multiple characters: disposable characters used to move risk or gear to a main.
 - Names must be unique within whatever scope you choose, such as per shard.
 
