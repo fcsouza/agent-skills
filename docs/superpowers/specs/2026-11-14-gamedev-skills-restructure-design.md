@@ -18,7 +18,7 @@ Evidence for every claim below lives in `docs/research/2026-11-14-gamedev-skills
 
 ## Decisions (owner's, 2026-11-14)
 
-The owner's rule: no claim without a source someone opened. Every source, quote and version claim needs a URL someone opened.
+The owner's rule: no claim without a source. Every source, quote and version claim needs a URL someone opened.
 
 1. Install path is `npx skills` (cherry-pick).
 2. Remove MCP and agents from the bundle.
@@ -27,7 +27,7 @@ The owner's rule: no claim without a source someone opened. Every source, quote 
 5. Delete all the hooks.
 6. License: MIT.
 7. A source the web check cannot confirm is replaced by a real, verified source with its URL. If none exists, the claim goes too.
-8. Code: delete boilerplate that restates a vendor API; keep and update what is game-specific; use the vendor's official SDK. Deleted boilerplate points to the official docs instead. Where code talks to a vendor, use the vendor's official SDK, not a hand-written HTTP client.
+8. Code: delete boilerplate that restates a vendor API and point to the official docs instead; keep and update what is game-specific. Where code talks to a vendor, use the vendor's official SDK, not a hand-written HTTP client.
 9. Delete `claude-code-game-workflow` and `cursor-codex-integration`. Keep the game-project CLAUDE.md template and the worktree + Neon note.
 10. Research tables stay out of the public repository.
 11. Verified citations live in `skills/<name>/references/sources.md`, not in `SKILL.md`.

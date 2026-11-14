@@ -120,7 +120,7 @@ Checks:
 | `X1` | Every skill named in a "`Requires`" block or after "Apply the" resolves to a `skills/**/SKILL.md`. A command has a `## Requires` heading, and every skill it applies is listed there. Every name in the Skill column of the `game-dev` Route table resolves, and, in a full-repo run, every skill the marketplace lists (except `game-dev`) appears in that column |
 | `P1` | No tracked file under the listed game-dev skill directories, `tools/`, `evals/`, `docs/superpowers/`, nor the root `bun.lock`, contains a home-directory path or a `link:` / `file:` dependency URL (the owner's machine-path patterns). The script builds these patterns from fragments so it does not match itself |
 | `C1` | No `## Sources` heading in `SKILL.md` |
-| `C2` | No block-quote line (a line starting with `>`) in `SKILL.md` |
+| `C2` | No block-quote line (a line starting with `>`) in `SKILL.md`, outside code fences |
 | `C3` | Every line starting with `- ` in `references/sources.md` contains `https://` |
 | `C4` | Every `.ts` under `boilerplate/` or `templates/` that imports a non-relative, non-`node:` module starts with `// Verified against: <pkg> <version> (<YYYY-MM-DD>)`. Several packages are separated by `, `, each with a version, and one date ends the line |
 | `C5` | `description` contains no `Triggers:` |
@@ -152,7 +152,7 @@ The `skills/game-dev-commands/` variant is the base, because it names skills whe
   - `game-review`: keep the skill variant's domain-to-skill mapping.
   - References between commands read "the `game-architect` skill (`/game-architect`)".
   - `game-quest` and `game-lore` end with a step that updates `docs/quest-registry.md` or `docs/world-lore.md`. Confirm it exists; add it if not.
-- [ ] **Step 5:** Add a `## Requires` block after the title of each command listing the skills it applies, one per line in backticks, followed by: "If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`."
+- [ ] **Step 5:** Add a `## Requires` block after the title of each command listing the skills it applies, one per line in backticks, followed by: "Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `bunx skills add fcsouza/agent-skills --skill <name>`."
 - [ ] **Step 6:** Run `tools/check-skills.sh --only X1,N2 skills/game-dev-commands/*`. Expected: the only failure is `X1` for `game-dev`, which Task 3 creates.
 - [ ] **Step 7:** Commit the seven files: "Merge the two command variants into the skill form".
 
@@ -173,7 +173,7 @@ The `skills/game-dev-commands/` variant is the base, because it names skills whe
   - `## Route`: a table "Need | Skill" with one row per topic skill (23) and per command (7), grouped Design, Engineering, Narrative, Infrastructure, Workflows. `skill-progression-trees` goes under Engineering.
   - `## Project files`: `docs/mvp-first-draft.md` (written by `game-architect`), `docs/build-registry.md` (`game-build`), `docs/world-lore.md` (`game-lore`), `docs/quest-registry.md` (`game-quest`).
   - `## Rules`: carry over from `AGENTS.md` only the rules that are game conventions. One of them: before writing a quest, character or lore entry, apply `quest-narrative-coherence`.
-  - `## Missing skill`: the `npx skills add fcsouza/agent-skills --skill <name>` line.
+  - `## Missing skill`: the `bunx skills add fcsouza/agent-skills --skill <name>` line.
   - `## New project`: points to `templates/game-project-claude.md`.
 - [ ] **Step 3:** Add to `skills/postgres-game-schema/SKILL.md`, under pitfalls, a three-line note taken from `skills/claude-code-game-workflow/worktrees.md` (the Neon paragraph near line 76): git worktrees share one Neon database, so two worktrees that run migrations collide; use one Neon branch per worktree.
 - [ ] **Step 4:** Run `tools/check-skills.sh --only N1,N2,S1,L1,L2,X1 skills/game-dev`. Expected: exit 0.
@@ -489,14 +489,13 @@ The whole-branch review of PR 1 found work that belongs to later tasks. Each lin
 - Nested parentheses like "(run the `game-architect` skill (`/game-architect`) first)" become "(run `/game-architect` first)".
 - The `## Prerequisites` bullets that start with "Requires" need another word, because `## Requires` now means skills.
 - `game-review` tells the user to rebuild a component with `/game-build`, but `game-build` refuses to regenerate a component marked `built`.
-- `game-architect` applies all 23 topic skills, so a user who installed only some of them is stopped by the Requires rule. Loading on demand (Step 3) must also make the Requires check apply only to the skills the selection matrix picks.
-- `game-architect` asks for a hand-written `biome.json` and also runs `ultracite init`, which writes the linter config. Keep the `ultracite init` step and remove the hand-written file.
+- `game-architect` now applies a topic skill only when the selection matrix picks it, so the install check fires at Phase 3 Step 4, after the interview. A missing selected skill stops the run and the answers are lost. Decide with the owner: list the missing skills with the install line and ask whether to install them or continue without them.
 - Procedure P5 applies to the commands too: `game-quest` (around lines 100-102) and the "Designer Philosophies" table in `game-architect` carry attributed quotes with no source.
 - Decide whether `game-build` applies the `game-dev` index before it starts.
 
 **Task 25 (CI and final check)**
 - `P1` does not scan `README.md`, `LICENSE` or `.claude-plugin/marketplace.json`. Add them.
-- Clean up the lint minors the reviews deferred: the duplicate `M1` line for a listed path with no `SKILL.md`; the unused `rel()` helper; `L1` accepting a directory; `git ls-files` without `-z`; the four `R1` patterns with no fixture; the two tests that depend on the previous fixture's state.
+- Clean up the lint minors the reviews deferred: `git ls-files` without `-z`; the four `R1` patterns with no fixture; the two tests that depend on the previous fixture's state.
 
 **Versions**
 - The `game-dev` marketplace entry has no `version` key, so plugin users follow the branch head. No per-PR bump is needed. `metadata.version` stays `2.0.0` until the owner tags a release.
