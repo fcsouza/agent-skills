@@ -1,0 +1,6 @@
+# Sources
+
+- Jesse Schell, The Art of Game Design: A Book of Lenses (Morgan Kaufmann / Elsevier, 2008, 1st ed.), ch. 15 "Story Tips for Game Designers" - https://shop.elsevier.com/books/the-art-of-game-design/schell/978-0-12-369496-6 - supports: keep world logic consistent; make the world believable to players over accurate; give a simpler-than-real-life world with more power than real life; include one weird thing and explain it - checked 2026-11-14
+- Jesse Schell, The Art of Game Design: A Book of Lenses (Morgan Kaufmann / Elsevier, 2008, 1st ed.), ch. 19, the section on space - https://shop.elsevier.com/books/the-art-of-game-design/schell/978-0-12-369496-6 - supports: give spaces landmarks, since uniform sameness is dull - checked 2026-11-14
+- Richard Rouse III, "Environmental Narrative: Your World is Your Story" (GDC 2010, Ubisoft Montreal) - https://gdcvault.com/play/1012712/Environmental-Narrative-Your-World-is - supports: players spend far more time moving through the world than watching cutscenes, so narrative belongs in the environment - checked 2026-11-14
+- Clara Fernandez Vara, "Environmental Storytelling: Indices and the Art of Leaving Traces" (GDC Online 2012) - https://gdcvault.com/play/1016566/Environmental-Storytelling-Indices-and-the - supports: narrative can be told through traces and other indications - checked 2026-11-14
