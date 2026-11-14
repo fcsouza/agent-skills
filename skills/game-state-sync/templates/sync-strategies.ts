@@ -98,9 +98,9 @@ export interface BandwidthBudgetConfig {
 	deltaCompression: boolean;
 	/** Minimum change threshold before including a field in a delta */
 	deltaThreshold: number;
-	/** Priority levels for state fields: higher priority fields are always sent */
+	/** Number of priority classes. Each entity's class weight is added to its accumulator every tick; skipped entities keep their value (SKILL.md, step 8) */
 	priorityLevels: number;
-	/** Rate at which low-priority updates are sent (every N ticks) */
+	/** Floor for the lowest class: send it at least every N ticks */
 	lowPriorityTickInterval: number;
 }
 
@@ -174,7 +174,11 @@ export const TURN_BASED_PRESET: SyncStrategyConfig = {
 	bandwidth: { ...DEFAULT_BANDWIDTH_BUDGET, targetBytesPerSecondDown: 2_000 },
 };
 
-/** MMO / large-world: bandwidth-conscious, area-of-interest filtering */
+/**
+ * MMO / large-world: bandwidth-conscious. Pair it with per-client
+ * area-of-interest filtering and a priority accumulator (SKILL.md, step 8);
+ * this config holds neither the cell size nor the interest radius.
+ */
 export const MMO_PRESET: SyncStrategyConfig = {
 	tickRate: 10,
 	fullSnapshotInterval: 100,

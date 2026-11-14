@@ -18,7 +18,7 @@ Decide this first. Most games combine rows: prediction for the local player, int
 |---|---|---|---|
 | Turn-based or slow (strategy, cards, board games) | Dumb client: send input, wait for the server's new state, render it | Input lag equals round-trip time. Fine when turns are slow | Not needed; skip prediction |
 | Your own avatar in a real-time game | Client prediction plus server reconciliation: apply input locally, tag it with a sequence number, replay unacknowledged inputs on each server state | Mispredictions cause corrections; smooth small ones, snap large ones | `StateSyncEngine.reconcile`, `ClientGameLoop.handleServerUpdate` |
-| Other players whose speed and direction change instantly (shooters) | Entity interpolation: render them in the past, between two received snapshots | They appear about one interpolation period behind. Source defaults to 100 ms | `RollbackBuffer.getBracket` over received snapshots |
+| Other players whose speed and direction change instantly (shooters) | Entity interpolation: render them in the past, between two received snapshots | They appear about one interpolation period behind. Source defaults to 100 ms (`cl_interp 0.1`) | `RollbackBuffer.getBracket` over received snapshots |
 | Entities with predictable motion (vehicles, ships) | Dead reckoning: extrapolate from last speed and heading, correct on the next update | Wrong when motion changes. Cap how long you extrapolate | Pattern only, see `references/client-architecture.md` |
 | Hit detection against entities shown in the past | Lag compensation: the server rewinds the world to the shooter's view time and tests the hit there | A target can be hit just after reaching cover | Not implemented; use `RollbackBuffer` for the history |
 | 2-4 players, simulation you can make deterministic | Deterministic lockstep: send inputs only | Bandwidth independent of object count. Everyone waits for the slowest player's input; float differences break it | Not implemented |
@@ -113,7 +113,7 @@ if (before && after) {
 
 Do not use `engine.getInterpolationStates` for this on the client: it reads the engine's own history, which holds the local player's predicted states.
 
-When both ends are missing for longer than your extrapolation cap, freeze the entity and mark it stale. Source caps extrapolation at 0.25 s.
+When both ends are missing for longer than your extrapolation cap, freeze the entity and mark it stale. Source extrapolates for at most 0.25 s of packet loss (`cl_extrapolate_amount`).
 
 ### 6. Correct mispredictions
 
@@ -123,13 +123,29 @@ Snap the simulation state to the server's. Smooth only the rendered position: re
 
 Run the simulation at a fixed tick with an accumulator; render at display rate and interpolate with the leftover fraction. `boilerplate/game-loop-client.ts` does this. The full client walkthrough (input sampling, prediction, dead reckoning, the loop) is in `references/client-architecture.md`.
 
+### 8. Send each client only what it can see
+
+In a world with many entities, broadcasting every change to every client does not scale. Filter per client, then fit what remains into a byte budget.
+
+Area of interest, first step: a uniform grid.
+- Set the cell size to the radius of interest. A client receives entities in its own cell and the eight around it, so a lookup costs the same wherever the client stands.
+- Store entities by cell. When one moves across a cell edge, take it out of the old cell and add it to the new one. Do nothing when it stays inside.
+- A cell block is a rough fit for a circular radius, so some entities you send are out of range. Smaller cells filter more but cost more CPU, and the gain can be small. Measure before shrinking them.
+- Build each client's delta (step 3) over its visible set only. An entity that enters the set goes out in full; one that leaves goes out as a removal.
+
+Byte budget, second step: a priority accumulator, for when the visible set still does not fit.
+- Give each entity a priority. Each tick, add it to that entity's accumulator for this client, sort by accumulator, and add entities to the packet until the byte budget is full.
+- Reset the accumulator of every entity that fit. Leave the others as they are, so a skipped entity ranks higher next tick and never starves.
+- Give the client's own avatar a priority high enough to be in every packet.
+- Start from `bandwidth` in `templates/sync-strategies.ts`, then measure.
+
 ## Files
 
 - `boilerplate/state-sync.ts`: copy when you need the server or client engine. `StateSyncEngine` with tick, snapshot, delta, local prediction, reconciliation, rollback-and-replay, and interpolation over its own history.
 - `boilerplate/delta-encoder.ts`: copy when you send state diffs. `encodeDelta`, `decodeDelta`, `toBinaryDelta`, `fromBinaryDelta`, `deltaByteSize`, `deepEqual`.
 - `boilerplate/rollback-buffer.ts`: copy when you need tick-indexed history for rollback, acknowledged baselines or lag compensation. Ring buffer with `push`, `getAt`, `rollbackTo`, `getBracket`, `getRange`.
 - `boilerplate/game-loop-client.ts`: copy when you build the browser client. `ClientGameLoop` with a fixed timestep, input ring buffer, prediction and `handleServerUpdate` reconciliation. It reports staleness (`isExtrapolating`) but does no dead reckoning itself.
-- `templates/sync-strategies.ts`: copy when you configure interpolation, prediction, rollback and bandwidth settings. Has action, turn-based and MMO presets.
+- `templates/sync-strategies.ts`: copy when you configure interpolation, prediction, rollback and bandwidth settings. Has action, turn-based and MMO presets. The presets do not configure area of interest; step 8 does.
 - `references/client-architecture.md`: read when you build the client side: input sampling, the prediction loop, dead reckoning and fixed-timestep rendering, with a sequence diagram.
 - `references/sources.md`: read when you need the talks and articles behind these rules.
 
@@ -146,7 +162,7 @@ Run the simulation at a fixed tick with an accumulator; render at display rate a
 ### Bandwidth
 
 - Compare by reference before deep-diffing. If `prev.players === current.players`, skip the subtree.
-- When the packet is full, send the most important entities first and let the rest wait their turn; a priority accumulator keeps low-priority entities from starving.
+- Send each client only the entities it can see, and fill the packet by priority when it is full (step 8).
 
 ### Interpolation jitter
 
