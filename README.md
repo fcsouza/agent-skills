@@ -56,7 +56,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 
 | Skill | Description |
 |-------|-------------|
-| [game-design-fundamentals](skills/game-design-fundamentals/) | Design loop, core loops, difficulty, rewards, onboarding |
+| [game-design-fundamentals](skills/game-design-fundamentals/) | Design loop, core loops, difficulty, rewards |
 | [game-economy-design](skills/game-economy-design/) | Currencies, faucets and sinks, loot tables, exploit review |
 | [level-design](skills/level-design/) | Levels, environments, difficulty curves |
 | [procedural-gen](skills/procedural-gen/) | Seeded dungeons, terrain and worlds, generator validation |
