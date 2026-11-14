@@ -11,7 +11,7 @@ argument-hint: quest name (e.g. "The Merchant's Debt", "Rescue at the Crossroads
 - `quest-narrative-coherence`
 - `quest-mission-design`
 
-If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 

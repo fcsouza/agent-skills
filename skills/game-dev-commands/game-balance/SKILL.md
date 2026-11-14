@@ -12,7 +12,7 @@ argument-hint: '"economy", "difficulty", "progression", "rewards", or "all" (def
 - `game-design-fundamentals`
 - `skill-progression-trees`
 
-If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Prerequisites
 

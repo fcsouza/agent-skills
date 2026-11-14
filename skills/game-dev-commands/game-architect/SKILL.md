@@ -36,7 +36,7 @@ You are the **Game Architect** — an expert game designer, systems engineer, an
 - `ci-cd-game`
 - `monitoring-game-ops`
 
-If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+Before you apply a skill listed here, check that it is installed. If it is not, name it, give this install line, and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
 
 ## Load the skills
 
@@ -553,7 +553,6 @@ project-root/
 │   ├── world-lore.md        # World state (if narrative)
 │   └── quest-registry.md    # Quest tracking (if quests)
 ├── .claude/
-│   ├── agents/              # Custom Claude agents
 │   └── settings.json
 ├── CLAUDE.md                # Project config for Claude Code
 ├── biome.json
@@ -618,14 +617,14 @@ After writing the MVP First Draft, generate these files in the user's project di
 
 ### 1. `CLAUDE.md`
 
-Start from the CLAUDE.md template in the `game-dev` skill (file: templates/game-project-claude.md). Fill in these sections:
-- **Project Overview**: game title, genre, platform, multiplayer mode from interview
-- **Core Loop**: brief description of the 30-second loop
-- **Tech Stack**: list only technologies relevant to THIS game
-- **Skills Applied**: list the skills selected in Phase 3 Step 4
-- **Custom Agents**: paths to agent files (see #4 below)
-- **Game-Specific Context**: core loop, genre, platform, multiplayer
-- **Development Commands**: dev, build, typecheck, test, db:generate, db:migrate
+Start from the CLAUDE.md template in the `game-dev` skill (file: templates/game-project-claude.md). Fill in these parts:
+- **Title** (`# [Game Name]`): the game title from the interview
+- **Tech Stack**: keep only the rows for technologies this game uses
+- **Skills**: below the existing sentence, list the skills selected in Phase 3 Step 4
+- **Game-Specific Context**: core loop (the 30-second loop), genre, target platforms, multiplayer mode
+- **Common Commands**: keep the commands that match the `package.json` scripts in #5 below
+
+Keep **Package Manager**, **Mandatory Rules**, **When Compacting** and **Project Files** as the template writes them.
 
 ### 2. `docs/world-lore.md`
 
@@ -657,56 +656,16 @@ Fill in World Overview from interview Group 3. Leave detailed sections as guided
 
 **Only generate if the game has quests/missions.**
 
-Create with these headers and the starter quest from Section 5 if applicable:
-```markdown
-# Quest Registry — [Game Title]
-> Managed by game-quest skill
+Create it from the registry template of the `quest-narrative-coherence` skill (templates/quest-registry.md in that skill). Keep its headers. If Section 5 has a starter quest, add it as a row in the table under the `## Active Quests` heading.
 
-| Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
-|----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
-```
-
-### 4. `.claude/agents/`
-
-Create the following agent files:
-
-**`.claude/agents/game-engineer.md`** (always include):
-```markdown
-# Game Engineer Agent
-
-You are a senior TypeScript/game backend engineer for [game title].
-Always apply the game-backend-architecture, postgres-game-schema, and redis-game-patterns skills.
-Server-authoritative for all multiplayer state. No raw SQL — Drizzle only.
-Reference docs/mvp-first-draft.md for all architectural decisions.
-```
-
-**`.claude/agents/game-designer.md`** (always include):
-```markdown
-# Game Designer Agent
-
-You are a game designer for [game title].
-Always apply the game-design-fundamentals and game-economy-design skills.
-Every design decision must cite a designer lens from the MVP plan.
-Reference docs/mvp-first-draft.md Section 2 (Core Mechanic) for all design work.
-```
-
-**`.claude/agents/narrative-writer.md`** (only if narrative importance >= 3):
-```markdown
-# Narrative Writer Agent
-
-You are the narrative writer for [game title].
-Always apply the quest-narrative-coherence skill before writing any quest content.
-All characters and factions must exist in docs/world-lore.md.
-All quests must be registered in docs/quest-registry.md.
-```
-
-### 5. `biome.json`
+### 4. `biome.json`
 Standard Biome config: single quotes, semicolons, trailing commas, tabs for indentation.
 
-### 6. `package.json`
+### 5. `package.json`
 Minimal package.json with:
 - `name`: kebab-case from game title
 - Standard scripts: `dev`, `build`, `typecheck`, `test`, `db:generate`, `db:migrate`
+- Code quality scripts, which the CLAUDE.md template runs: `"format": "ultracite fix"` and `"lint:biome": "ultracite check"`, with `ultracite` in `devDependencies`
 - Dependencies: only install packages needed based on selected skills
 
 ---
