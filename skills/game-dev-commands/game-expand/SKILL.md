@@ -1,22 +1,31 @@
 ---
 name: game-expand
 description: Adds a new feature to an existing MVP plan — scoped architect interview, scope validation against original plan, and integration into the build sequence. Extract the feature name or description from the user's message. Requires docs/mvp-first-draft.md — run game-architect first.
+argument-hint: feature name or description (e.g. "clan system", "seasonal events", "crafting")
 ---
 
 # Game Expand — Feature Expansion
 
+## Requires
+
+- `game-architect`
+
+If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+
 ## Prerequisites
 
-- Requires `docs/mvp-first-draft.md` in the project (run `game-architect` first)
+- Requires `docs/mvp-first-draft.md` in the project (run the `game-architect` skill (`/game-architect`) first)
 
 ---
 
 ## Phase 0 — Context Load (silent, mandatory)
 
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds the feature name or description.
+
 Execute in this exact order:
 
 1. READ `docs/mvp-first-draft.md`
-   - If it does NOT exist: output `⛔ Cannot proceed. docs/mvp-first-draft.md not found. Run the game-architect skill first to create your MVP plan before expanding it.` and stop.
+   - If it does NOT exist: output `⛔ Cannot proceed. docs/mvp-first-draft.md not found. Run the game-architect skill (/game-architect) first to create your MVP plan before expanding it.` and stop.
 2. READ `docs/build-registry.md` if it exists — note which components are built vs mocked vs remaining
 3. Calculate MVP completion % from build-registry:
    - If build-registry doesn't exist: "MVP completion: 0% (build registry not yet created)"
@@ -28,7 +37,7 @@ This phase runs before the interview to check if the requested feature conflicts
 
 **Check 1: Out-of-Scope / Deferred features (Section 10 of mvp-first-draft.md)**
 
-Search `docs/mvp-first-draft.md` Section 10 for anything matching the feature name from the user's message:
+Search `docs/mvp-first-draft.md` Section 10 for anything matching the feature name:
 - If found: output `⚠️ "[feature]" was explicitly deferred in your MVP plan (Section 10). Original reason: "[quote from plan]". Adding it now will increase scope beyond the original MVP. MVP completion is currently [%]. Proceed with expansion? (confirm to continue)`
   - Wait for user confirmation before proceeding
 - If not found: continue silently
@@ -36,8 +45,8 @@ Search `docs/mvp-first-draft.md` Section 10 for anything matching the feature na
 **Check 2: Already-planned features**
 
 Search `docs/mvp-first-draft.md` Section 9 (Build Sequence) for the feature name:
-- If it matches a component already IN the MVP plan and in build-registry as "built": output `⚠️ [feature] is already built (see docs/build-registry.md). Did you mean to refactor it? Use the game-review skill to audit the existing implementation.` and stop.
-- If it matches a component already in the plan but NOT built yet: output `⚠️ [feature] is already in your MVP plan (Section 9) and not yet built. Use the game-build skill to implement it instead of re-planning.` and stop.
+- If it matches a component already IN the MVP plan and in build-registry as "built": output `⚠️ [feature] is already built (see docs/build-registry.md). Did you mean to refactor it? Use the game-review skill (/game-review) to audit the existing implementation.` and stop.
+- If it matches a component already in the plan but NOT built yet: output `⚠️ [feature] is already in your MVP plan (Section 9) and not yet built. Use the game-build skill (/game-build) to implement it instead of re-planning.` and stop.
 
 **Check 3: MVP completion warning**
 
@@ -47,7 +56,7 @@ Wait for user confirmation.
 
 ## Phase 2 — Scoped Feature Interview (maximum 3 questions)
 
-Unlike `game-architect` which runs a full game interview, this skill asks ONLY what's needed to spec this specific feature.
+Unlike the `game-architect` skill (`/game-architect`), which runs a full game interview, this skill asks ONLY what's needed to spec this specific feature.
 
 Do NOT re-ask anything already answered in `docs/mvp-first-draft.md` (genre, tech stack, multiplayer type, core loop, etc.).
 
@@ -148,7 +157,7 @@ Present the completion summary:
 📊 Updated MVP scope: [previous total] → [new total] components
 
 Next step:
-  game-build [first-unbuilt-dependency-or-new-component]
+  /game-build [first-unbuilt-dependency-or-new-component]
 ```
 
 If any dependencies are not yet built, list them BEFORE the new components — the user must build dependencies first.

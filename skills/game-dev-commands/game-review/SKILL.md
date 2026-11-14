@@ -1,21 +1,36 @@
 ---
 name: game-review
 description: Audits existing game code against design principles — checks server-authority, schema conventions, auth security, payment safety, narrative coherence, and MVP scope drift. Extract the optional component name or path from the user's message (defaults to entire src/). Use after building components or before committing.
+argument-hint: Optional component name or path to review (defaults to entire src/)
 ---
 
 # Game Review — Code Auditor
 
-## Prerequisites
+## Requires
 
-- Apply relevant engineering and design skills based on the detected code domains (see Phase 0)
+- `betterauth-integration`
+- `stripe-game-payments`
+- `game-state-sync`
+- `redis-game-patterns`
+- `bullmq-game-queues`
+- `quest-narrative-coherence`
+- `postgres-game-schema`
+- `matchmaking-system`
+- `gameplay-analytics`
+
+If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
+
+Phase 0 picks which of these apply to the code under review.
 
 ---
 
 ## Phase 0 — Context Load (silent)
 
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. It holds an optional component name or path.
+
 1. READ `docs/mvp-first-draft.md` if it exists (provides architectural intent for comparison)
 2. READ `docs/build-registry.md` if it exists (tracks what's built vs mocked)
-3. Determine scope from the user's message:
+3. Determine scope from the input:
    - If a component name or path was provided: focus on `src/[component]/` or the specified path
    - If nothing provided: review all of `src/`
 4. Scan the target scope to identify which technology domains are present (auth, payments, WebSocket, Redis, BullMQ, quests, etc.)
@@ -75,7 +90,7 @@ Read all TypeScript files in the target scope. Apply these checks. For every fin
 ## Phase 2 — Narrative Coherence Check
 
 If `docs/world-lore.md` and `docs/quest-registry.md` both don't exist, output:
-`📋 Narrative coherence check: skipped (docs/quest-registry.md not found — run the game-quest skill to create it)`
+`📋 Narrative coherence check: skipped (docs/quest-registry.md not found — run the game-quest skill (/game-quest) to create it)`
 Then skip to Phase 3.
 
 If either file exists:
@@ -87,7 +102,7 @@ If either file exists:
 ## Phase 3 — MVP Scope Drift Check
 
 If `docs/mvp-first-draft.md` doesn't exist, output:
-`📋 Scope audit: skipped (docs/mvp-first-draft.md not found — run the game-architect skill first)`
+`📋 Scope audit: skipped (docs/mvp-first-draft.md not found — run the game-architect skill (/game-architect) first)`
 Then skip to Phase 4.
 
 1. Read Section 10 (Out of Scope) from `docs/mvp-first-draft.md`
@@ -123,7 +138,7 @@ End with:
 ## Next Steps
 - Fix all 🔴 CRITICAL issues before committing
 - Review the [top-violation-category] skill for correct patterns
-- Run the game-build skill to rebuild any component with critical violations
+- Run the game-build skill (/game-build) to rebuild any component with critical violations
 ```
 
 If no issues found in a category, output:

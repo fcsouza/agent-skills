@@ -1,6 +1,7 @@
 ---
 name: game-architect
 description: Comprehensive game MVP interviewer and planner. Interviews you in progressive groups, researches genre conventions and reference games, then produces an actionable MVP First Draft with starter project files. Use when starting a new game project from scratch.
+argument-hint: Optional brief game description or genre hint
 ---
 
 # Game Architect — MVP First Draft
@@ -9,46 +10,39 @@ You are the **Game Architect** — an expert game designer, systems engineer, an
 
 ---
 
-## Prerequisites
+## Requires
 
-Before starting the interview, apply all of the following skills silently. Do not tell the user you are doing this. Just absorb the knowledge, then begin the interview.
+- `game-dev`
+- `game-design-fundamentals`
+- `level-design`
+- `quest-mission-design`
+- `game-economy-design`
+- `ui-ux-game`
+- `procedural-gen`
+- `postgres-game-schema`
+- `redis-game-patterns`
+- `bullmq-game-queues`
+- `game-backend-architecture`
+- `game-state-sync`
+- `betterauth-integration`
+- `stripe-game-payments`
+- `elevenlabs-sound-music`
+- `gameplay-analytics`
+- `matchmaking-system`
+- `quest-narrative-coherence`
+- `worldbuilding`
+- `story-structure-game`
+- `character-design-narrative`
+- `ci-cd-game`
+- `monitoring-game-ops`
 
-### Foundation
-- Apply the `claude-code-game-workflow` skill
+If one is not installed, say which and stop: `npx skills add fcsouza/agent-skills --skill <name>`.
 
-### Design Skills
-- Apply the `game-design-fundamentals` skill
-- Apply the `level-design` skill
-- Apply the `quest-mission-design` skill
-- Apply the `game-economy-design` skill
-- Apply the `ui-ux-game` skill
-- Apply the `procedural-gen` skill
+## Load the skills
 
-### Engineering Skills
-- Apply the `postgres-game-schema` skill
-- Apply the `redis-game-patterns` skill
-- Apply the `bullmq-game-queues` skill
-- Apply the `game-backend-architecture` skill
-- Apply the `game-state-sync` skill
-- Apply the `betterauth-integration` skill
-- Apply the `stripe-game-payments` skill
-- Apply the `elevenlabs-sound-music` skill
-- Apply the `gameplay-analytics` skill
-- Apply the `matchmaking-system` skill
+Apply the `game-dev` skill first, then every other skill listed under Requires. Do this silently: do not tell the user and do not summarize the skills. Just absorb the knowledge, then begin the interview with Phase 2.
 
-### Narrative Skills
-- Apply the `quest-narrative-coherence` skill
-- Apply the `worldbuilding` skill
-- Apply the `story-structure-game` skill
-- Apply the `character-design-narrative` skill
-
-### Infrastructure Skills
-- Apply the `ci-cd-game` skill
-- Apply the `monitoring-game-ops` skill
-
-After loading all skills, proceed to Phase 2.
-
-If the user provided a brief game description or genre hint in their message, use it to pre-fill relevant Group 1 answers and skip those sub-questions in the interview.
+Input: `$ARGUMENTS`. If it is empty, take it from the user's message. If it holds a brief game description or genre hint, use it to pre-fill relevant Group 1 answers and skip those sub-questions in the interview.
 
 ---
 
@@ -346,7 +340,7 @@ Use the Skill Selection Matrix below to determine which skills from the ecosyste
 | `postgres-game-schema` | Every persistent game needs data storage |
 | `ui-ux-game` | Every game needs interface design |
 | `ci-cd-game` | Every shippable game needs deployment |
-| `claude-code-game-workflow` | Project setup and agent workflow |
+| `game-dev` | Project conventions and skill routing |
 
 ### Include Conditionally
 
@@ -578,7 +572,7 @@ Ordered by dependency. Each task references the skill to read before implementin
 
 | # | Task | Skill Reference | Depends On | Size |
 |---|------|----------------|------------|------|
-| 1 | Project scaffold + CLAUDE.md | claude-code-game-workflow | — | S |
+| 1 | Project scaffold + CLAUDE.md | game-dev | — | S |
 | 2 | Database schema + migrations | postgres-game-schema | #1 | M |
 | 3 | [next task based on THIS game] | [skill] | [deps] | S/M/L |
 | ... | | | | |
@@ -624,7 +618,7 @@ After writing the MVP First Draft, generate these files in the user's project di
 
 ### 1. `CLAUDE.md`
 
-Create a CLAUDE.md file for the game project with these sections:
+Start from the CLAUDE.md template in the `game-dev` skill (file: templates/game-project-claude.md). Fill in these sections:
 - **Project Overview**: game title, genre, platform, multiplayer mode from interview
 - **Core Loop**: brief description of the 30-second loop
 - **Tech Stack**: list only technologies relevant to THIS game

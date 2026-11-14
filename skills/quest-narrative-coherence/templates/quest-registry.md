@@ -2,8 +2,8 @@
 
 ## Active Quests
 
-| ID | Name | Arc | NPCs | Locations | Factions | Rewards | Prerequisites | Status |
-|----|------|-----|------|-----------|----------|---------|---------------|--------|
+| Quest ID | Name | Type | Quest Giver NPC | Primary Location | Factions Affected | Rewards Summary | Prerequisites | Story Arc |
+|----------|------|------|-----------------|------------------|-------------------|-----------------|---------------|-----------|
 
 ## Completed Quests
 
