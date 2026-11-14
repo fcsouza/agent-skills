@@ -28,6 +28,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Login, sessions, roles, WebSocket auth | `betterauth-integration` |
 | Queues, delayed jobs, scheduled work | `bullmq-game-queues` |
 | Sound effects, music, voice | `elevenlabs-sound-music` |
+| Cheating: input validation, hidden state, dupes, detection, bans | `game-anti-cheat` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |
 | Lag, desync, jitter; prediction, reconciliation, interpolation | `game-state-sync` |
 | Player events, retention, funnels | `gameplay-analytics` |
