@@ -13,7 +13,11 @@ export const QUEUE_NAMES = {
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
-// Priority levels (lower number = higher priority in BullMQ)
+// Job priority orders jobs inside one queue (lower number runs first).
+// It does not order queues against each other: separate queues and worker
+// concurrency keep matchmaking ahead of analytics. Jobs with no priority run
+// before any prioritized job, so set a priority on every job in a queue
+// that uses priorities, or on none.
 export enum Priority {
 	CRITICAL = 1,
 	HIGH = 2,
@@ -22,14 +26,8 @@ export enum Priority {
 	BACKGROUND = 20,
 }
 
-// Default priority per queue
-export const QUEUE_PRIORITY: Record<QueueName, Priority> = {
-	[QUEUE_NAMES.MATCHMAKING]: Priority.CRITICAL,
-	[QUEUE_NAMES.GAME_EVENT]: Priority.HIGH,
-	[QUEUE_NAMES.REWARD]: Priority.NORMAL,
-	[QUEUE_NAMES.NOTIFICATION]: Priority.LOW,
-	[QUEUE_NAMES.ANALYTICS]: Priority.BACKGROUND,
-};
+// Reward jobs with this playerId are fan-out triggers, not grants.
+export const BROADCAST_PLAYER_ID = "__broadcast__";
 
 // ============================================================
 // Matchmaking

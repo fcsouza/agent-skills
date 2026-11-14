@@ -1,3 +1,4 @@
+// Verified against: bullmq 6.7.6 (2026-11-14)
 // ============================================================
 // Worker Implementations — BullMQ Workers for Game Systems
 // ============================================================
@@ -6,6 +7,7 @@ import { type Job, Worker } from "bullmq";
 import {
 	type AnalyticsJobData,
 	type AnalyticsJobResult,
+	BROADCAST_PLAYER_ID,
 	type GameEventJobData,
 	type GameEventJobResult,
 	type MatchmakingJobData,
@@ -62,7 +64,8 @@ export const matchmakingWorker = new Worker<
 		});
 
 		if (compatiblePlayers.length < preferences.teamSize) {
-			// Not enough players — requeue with expanded criteria
+			// Not enough players: throw so BullMQ retries after backoff. To widen
+			// the search over time, derive the skill range from job.data.queuedAt.
 			await job.updateProgress(50);
 			throw new Error("Not enough players in pool — will retry with backoff");
 		}
@@ -136,8 +139,23 @@ export const gameEventWorker = new Worker<GameEventJobData, GameEventJobResult>(
 export const rewardWorker = new Worker<RewardJobData, RewardJobResult>(
 	QUEUE_NAMES.REWARD,
 	async (job: Job<RewardJobData>): Promise<RewardJobResult> => {
-		const { playerId, rewardType, payload, idempotencyKey } = job.data;
+		const { playerId, rewardType, payload } = job.data;
 
+		// Jobs from a Job Scheduler share one template, so the base key repeats
+		// every run. Their job id is unique per run and stays the same across
+		// retries of that run, so it makes the key per-run.
+		const idempotencyKey = job.repeatJobKey
+			? `${job.data.idempotencyKey}:${job.id}`
+			: job.data.idempotencyKey;
+
+		// Broadcast trigger: enqueue one reward job per eligible player, each
+		// with idempotencyKey `${idempotencyKey}:${playerId}`. Grant nothing here.
+		if (playerId === BROADCAST_PLAYER_ID) {
+			await fanOutReward(job.data, idempotencyKey);
+			return { credited: false, playerId, rewardType, appliedAt: Date.now() };
+		}
+
+		// Run steps 1-3 inside one database transaction (see checkIdempotency).
 		// Step 1: Idempotency check — has this reward already been credited?
 		const alreadyCredited = await checkIdempotency(idempotencyKey);
 		if (alreadyCredited) {
@@ -232,7 +250,8 @@ export const analyticsWorker = new Worker<AnalyticsJobData, AnalyticsJobResult>(
 			playerId,
 			sessionId,
 			properties,
-			timestamp,
+			// Scheduler templates carry timestamp 0; use the job's processing time.
+			timestamp: timestamp || (job.processedOn ?? Date.now()),
 		});
 
 		return {
@@ -314,6 +333,14 @@ async function spawnSideEffects(
 ): Promise<string[]> {
 	throw new Error("Implement spawnSideEffects");
 }
+async function fanOutReward(
+	_template: RewardJobData,
+	_runKey: string,
+): Promise<void> {
+	throw new Error("Implement fanOutReward");
+}
+// Check and mark in the same transaction as the credit (one DB write),
+// or a crash between credit and mark pays the player twice on retry.
 async function checkIdempotency(_key: string): Promise<boolean> {
 	throw new Error("Implement checkIdempotency");
 }
