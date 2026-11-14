@@ -361,6 +361,10 @@ load_entry() {
     fail_load "$MARKETPLACE" "game-dev entry has no skills array"
     return
   fi
+  if printf '%s' "$ENTRY" | jq -e '.skills | length == 0' >/dev/null 2>&1; then
+    fail_load "$MARKETPLACE" "game-dev entry lists no skills"
+    return
+  fi
   HAS_SKILLS_ARRAY=1
   skills_json="$(printf '%s' "$ENTRY" | jq -r '.skills[]')"
   local p
@@ -458,6 +462,7 @@ HAS_SKILLS_ARRAY=0
 if ((${#DIRS[@]})); then
   for d in "${DIRS[@]}"; do
     d="${d%/}"
+    d="${d#./}"
     [[ $d == "$ROOT"/* ]] && d="${d#"$ROOT"/}"
     SKILLS+=("$d")
   done

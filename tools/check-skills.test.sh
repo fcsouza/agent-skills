@@ -504,7 +504,7 @@ else
 $OUT"
 fi
 
-for manifest in '{"plugins":[{"name":"other"}]}' 'not json' ''; do
+for manifest in '{"plugins":[{"name":"other"}]}' '{"plugins":[{"name":"game-dev","skills":[]}]}' 'not json' ''; do
   new_fixture
   if [[ -n $manifest ]]; then
     printf '%s\n' "$manifest" >"$FX/.claude-plugin/marketplace.json"
@@ -527,6 +527,11 @@ expect_pass "directory arg skips repo-level checks" skills/demo
 new_fixture
 write_skill demo "Does things. Triggers: a." "Body."
 expect_fail C5 "directory arg runs per-skill checks" skills/demo
+
+x1_fixture
+printf -- '---\nname: game-build\ndescription: Build.\n---\n# Build\n' \
+  >"$FX/skills/game-dev-commands/game-build/SKILL.md"
+expect_fail X1 "directory arg with a leading ./ runs the command rules" ./skills/game-dev-commands/game-build/
 
 # ---------------------------------------------------------------- summary
 printf '\n%s passed, %s failed\n' "$PASSED" "$FAILED"
