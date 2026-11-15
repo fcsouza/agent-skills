@@ -1,207 +1,86 @@
 # NubeSDK
 
-## Official References
+Use the official pages for event names, payloads, slot ids and component props. They change faster than this file.
 
-- Overview: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/overview
-- Getting started: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/getting-started
-- Migration guide: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/migration-guide
-- Script structure: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/script-structure
-- Browser APIs: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/browser-apis
-- Components: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/components/overview
-- Slots overview: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/slots/overview
-- Checkout slots: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/slots/checkout-slots
-- Storefront slots: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/slots/storefront-slots
-- Events: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/events/overview
-- State: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/state/overview
-- Styling: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/styling/overview
-- Examples: https://dev.nuvemshop.com.br/docs/applications/nube-sdk/examples/overview
+- Overview: https://nuvemshop.dev/en-US/apps/nube-sdk/overview.md
+- Getting started: https://nuvemshop.dev/en-US/apps/nube-sdk/getting-started.md
+- Migration guide: https://nuvemshop.dev/en-US/apps/nube-sdk/migration-guide.md
+- FAQ: https://nuvemshop.dev/en-US/apps/nube-sdk/faq.md
+- Script structure: https://nuvemshop.dev/en-US/apps/nube-sdk/script-structure.md
+- Slots: https://nuvemshop.dev/en-US/apps/nube-sdk/slots/overview.md
+- Available Slots API (lists the slots on the current page): https://nuvemshop.dev/en-US/apps/nube-sdk/api/available-slots.md
+- Events: https://nuvemshop.dev/en-US/apps/nube-sdk/events/overview.md
+- Browser APIs: https://nuvemshop.dev/en-US/apps/nube-sdk/browser-apis.md
+- After migration (test store, rollout, private apps): https://nuvemshop.dev/en-US/apps/nube-sdk/after-migration.md
+- Stores with open FTP: https://nuvemshop.dev/en-US/apps/nube-sdk/ftp-themes.md
 
-## 2026 Requirements
+## Who needs it and when
 
-- 2026-06-05: NubeSDK is mandatory for approval of new apps in homologation.
-- 2026-08-30: apps not built with NubeSDK cannot receive new installations; existing installations are not affected by that date.
-- 2026-10-30: private apps that inject scripts are progressively enforced/removed if still legacy.
+Every app that injects scripts into the storefront or checkout needs NubeSDK. Apps that only use the API (ERP, CRM, analytics backends) or run only inside the Admin do not.
 
-Re-check official docs before final advice because rollout language can change.
+| Date | What happens |
+| --- | --- |
+| 2026-06-05 | New homologation requests for script-injecting apps require NubeSDK validation. |
+| 2026-09-30 | Apps subject to the rule that have not migrated are removed from the App Store. The deadline moved from 2026-08-30. |
+| 2026-10-30 | Progressive uninstall from stores starts for those apps. |
 
-## Theme Compatibility (hard pitfall, learned live 2026)
+- Checkout already requires NubeSDK for app scripts. No period lets legacy scripts run there.
+- Private apps ("For Your Customers") that inject scripts also need it. They skip homologation. The rule is enforced in the front end, and legacy private apps follow the removal from 2026-10-30.
+- The checkout payment-data form is isolated and does not support SDK UI.
+- Published apps follow the NubeSDK re-homologation page. It asks for coexistence of the legacy and SDK scripts during rollout, so do not run the same behavior twice. Read https://nuvemshop.dev/en-US/apps/publish/homologation/nube-sdk-rehomologation.md.
+- Finishing development does not turn the SDK on in production. Nuvemshop runs a staged rollout after homologation, and you propose the first stores.
 
-Storefront NubeSDK apps only render on **compatible themes**. The docs claim
-"storefront apps work on all themes", but in practice it is a **progressive
-rollout**: as of mid-2026 only **Patagonia** (plus stores Nuvemshop manually
-enables) actually execute NubeSDK scripts. Legacy themes (Morelia, Amazonas,
-Bahia, Atlantico, Simple, Trend, ...) do NOT run the script.
+## Scaffold and test
 
-Symptom (all true at once, yet the button never appears):
-
-- The script is registered in the Portal and associated to the store
-  (`GET /{storeId}/scripts` returns it with `status: active`), and the correct
-  bundle is served from `apps-scripts.tiendanube.com`.
-- The theme HTML even contains the runtime containers (`<div id="nubesdk-root">`,
-  `nubesdk-runtime`) and slot anchors
-  (`<div class="js-nubesdk-slot" data-nubesdk-slot="...">`).
-- Nothing renders, not even a minimal control into a theme-independent fixed
-  slot (`corner_bottom_right`). The NubeSDK DevTools panel says "SDK not
-  available" and emits no runtime logs.
-
-Why you cannot auto-detect it: the docs say all themes should support it, there
-is **no API field** for "theme supports NubeSDK", and legacy themes carry the
-**same slot-anchor HTML markup**, so the storefront HTML cannot distinguish
-supported from unsupported. The supported set is a moving, Nuvemshop-controlled
-rollout, so a hardcoded theme list rots.
-
-Fixes:
-
-- Switch the store to the **Patagonia** theme (renders NubeSDK natively).
-  Confirmed live: a **draft/preview** of Patagonia already runs the script, so no
-  publish/plan upgrade is needed just to TEST (`?preview_theme_installation_id=...`).
-- OR ask Nuvemshop to **manually enable SDK support** on the current theme
-  (issue #296 resolution: they enable it per-store, even non-Patagonia).
-- Publishing a newly-installed theme on a Free/trial plan requires a **plan
-  upgrade**; the draft preview still runs NubeSDK for validation.
-
-This only gates the **storefront widget (Surface B)**. Embedded admin apps
-(Surface A, Nexo/Nimbus) work on any theme, so do NOT block install: warn the
-merchant instead (e.g. a dismissible notice that the storefront widget needs a
-compatible theme).
-
-Reference: https://github.com/TiendaNube/nube-sdk/issues/296
+- Create the project with `npm create nube-app@latest`. The entry point is an exported `App(nube: NubeSDK)` in `src/main.ts`.
+- In the Partner Portal, enable the Scripts permission in Basic data, create the script and turn on "Uses Nube SDK". Scripts that are not auto-installed are associated with a store through `POST /scripts`.
+- A test store needs the SDK tag. Request it through the form linked from the overview page.
+- For checks while you build, use the NubeSDK DevTools Chrome extension. Its Local Mode shows your dev server only in your own browser. Shoppers get the bundle you uploaded.
 
 ## Model
 
-NubeSDK apps run inside browser Web Workers. They cannot directly access `document`, `window`, DOM APIs, jQuery, React DOM, Vue DOM, Angular DOM, or synchronous browser storage.
-
-Use:
-
-- `nube.on(...)` to listen to commerce/location/state events.
-- `nube.send(...)` to dispatch actions or modify allowed state.
-- `nube.getState()` to read immutable state.
-- `nube.render(slot, component)` to render UI into predefined slots.
-- `nube.clearSlot(slot)` to remove slot content.
-- `nube.getBrowserAPIs()` for async storage, navigation, iframe messaging, and form helpers.
-
-Main entry:
+NubeSDK apps run in a Web Worker. They have no `document`, `window`, DOM, jQuery or synchronous storage. `fetch` works in the worker, and the target server must allow CORS.
 
 ```ts
 import type { NubeSDK } from '@tiendanube/nube-sdk-types';
 
 export function App(nube: NubeSDK) {
-  // app code
+  nube.on('cart:update', ({ cart }) => {
+    console.log(cart.prices.total);
+  });
 }
 ```
 
-## Migration Rules
+`nube` has `on`, `off`, `send`, `getState`, `getBrowserAPIs`, `render` and `clearSlot`. Declarative UI also exists in `@tiendanube/nube-sdk-ui` if you do not use JSX.
 
-Replace legacy patterns:
+## Migration map
 
-- `DOMContentLoaded`, IIFEs, globals -> exported `App(nube)`.
-- `window.location`/`popstate` -> `location:updated`, `checkout:ready`, or other events.
-- DOM click listeners -> data-change events such as `cart:update`, `shipping:update`, `payment:update`, `customer:update`.
-- `document.createElement`, `innerHTML`, direct insertion -> `nube.render(slot, component)`.
-- DOM reads for cart/customer/order -> `nube.getState()` and state/event payloads.
-- `localStorage`/`sessionStorage` -> async storage through `nube.getBrowserAPIs()`.
-- `window.location.href` -> `browser.navigate(...)` for same-domain navigation.
-- direct checkout blocking -> `config:set` plus validation events such as `cart:validate`.
+| Legacy | NubeSDK |
+| --- | --- |
+| IIFE, `DOMContentLoaded`, globals | exported `App(nube)` |
+| `window.location`, `popstate` | page and lifecycle events; `checkout:ready` for checkout |
+| DOM click listeners | data-change events such as `cart:update` and `shipping:update` |
+| `document.createElement`, `innerHTML` | `nube.render(slot, component)` |
+| DOM reads for cart or customer | `nube.getState()` and event payloads |
+| `localStorage`, `sessionStorage` | `asyncLocalStorage`, `asyncSessionStorage` from `nube.getBrowserAPIs()` |
+| `window.location.href` | `navigate` from `getBrowserAPIs()`, same domain only |
+| Blocking checkout | `config:set` with `has_cart_validation`, then send `cart:validate` |
 
-Migration checklist:
+Not possible: hide arbitrary native elements (the Customization API covers listed targets only), inject JSON-LD into `head`, replace search results, run GTM in the worker (use the Analytics API). See "Known limitations" in the migration guide.
 
-- All UI is rendered through `nube.render()`.
-- No `document`, `window`, jQuery, `innerHTML`, DOM query, or DOM insertion.
-- All logic uses `nube.on`, `nube.send`, and `nube.getState`.
-- Browser storage uses async browser APIs.
-- Slot choices are explicit and supported on the intended page/theme.
+## Theme and slot coverage
 
-## Script Structure
+This replaces the older rule that storefront apps run only on some themes.
 
-`NubeSDK` exposes:
+- All official themes ship every NubeSDK slot. On a standard theme the theme is not a restriction.
+- The exception is a store whose FTP was opened before 2026-05-11. Its private theme copy has no slots, so no app can render on the storefront. Check the page source for `id="nubesdk-root"`, `id="nubesdk-runtime"` and `class="js-nubesdk-slot"`, or run `grep -rn "nubesdk-slot" .` in the local theme copy. The FTP page explains how to add the slots back.
+- Activation is per app and store pair. A theme with slots can still lack activation for your app. Partner support may need to activate it, including for private apps; send the full list of affected store ids.
+- Slot availability depends on the page and the theme markup. Inspect the page with the Available Slots API before you pick a slot. Storefront, checkout, fixed, custom (theme-defined, `custom_` prefix) and dynamic section slots are listed on the slots pages.
+- `modal_content` opens a dialog. The slots page says how it closes.
+- If a script is active in the Portal but does not load, check four things: the SDK tag on the test store, "Uses Nube SDK" on the script plus the store association, an old FTP theme copy, and production activation after homologation. `POST /scripts` returning 409 means the script is already associated; use `GET /scripts` and do not repeat the POST.
 
-- `on(event, listener)`
-- `off(event, listener)`
-- `send(event, modifier?)`
-- `getState()`
-- `getBrowserAPIs()`
-- `render(slot, component | component[] | state => component)`
-- `clearSlot(slot)`
+## Pitfalls
 
-Configuration event:
-
-- `config:set`
-- `has_cart_validation`: tell NubeSDK the app validates cart contents.
-- `disable_shipping_more_options`: disable alternative shipping option selection.
-
-## Slots
-
-Slots are predefined containers for UI. They are the replacement for DOM injection.
-
-Slot families:
-
-- Checkout slots: checkout start/payment/success pages.
-- Storefront slots: home, product, category, search, cart, register.
-- Fixed slots: `corner_top_left`, `corner_top_right`, `corner_bottom_left`, `corner_bottom_right`, `edge_top_center`, `edge_bottom_center`, `edge_left_center`, `edge_right_center`, `modal_content`.
-
-Checkout examples:
-
-- `before_main_content`, `after_main_content`, `after_header`
-- `before_line_items`, `after_line_items`, `after_line_items_price`
-- `before_contact_form`, `after_contact_form`
-- `before_address_form`, `after_address_form`
-- `before_shipping_form`, `after_shipping_form`, `after_shipping_description`
-- `before_payment_options`, `after_payment_options`
-- success page: `before_order_number`, `after_order_number`, `before_order_summary`, `after_order_summary`
-
-Storefront examples:
-
-- `before_main_content`, `after_header`, `drawer_left`, `drawer_right`
-- product grid card slots around name, price, and image corners
-- product detail slots around name, price, payment options, shipping options, add-to-cart, and description
-- cart slots: `before_line_items`, `before_line_item`, `after_cart_summary`, `after_go_to_checkout`, shipping option slots
-- home section slots around sale/new/featured/newsletter sections
-- register form slots
-
-Slot caveats:
-
-- Some storefront slots depend on theme and section presence.
-- Patagonia transparent header can hide `after_header`.
-- Use stable `key` props for rendered components.
-- Clear slot content when no longer valid.
-- `modal_content` opens a dialog and dispatches `custom:modal:close` on close.
-
-## Events and State
-
-Use the docs for exact event names and payloads. Important event/state areas:
-
-- Cart
-- Coupon
-- Customer and payment
-- Order
-- Page and lifecycle
-- Shipping
-- UI and custom events
-- Store/device/config
-
-Common examples:
-
-- Listen to `cart:update` to react to cart changes.
-- Send `cart:validate` after enabling `has_cart_validation`.
-- Listen to shipping/payment/customer/order update events instead of DOM reads or click handlers.
-
-## Browser APIs
-
-Because NubeSDK runs in Web Workers, browser APIs are bridged asynchronously through `nube.getBrowserAPIs()`.
-
-Use these for:
-
-- async local/session storage, optionally with TTL.
-- navigation within the current domain.
-- iframe messaging when using the NubeSDK `Iframe` component.
-- form helpers such as submit/reset where documented.
-
-External navigation is not supported by the same-domain `navigate` helper.
-
-## Components and Styling
-
-NubeSDK includes JSX and declarative component APIs. Use NubeSDK components and theme-aware styling rather than custom DOM/CSS injection.
-
-Relevant component groups include layout, text, buttons, fields/forms, checkbox/select/textarea, images/SVG/icons, links, progress, popovers, accordions, toasts, markdown, iframe, rows/columns/boxes/fragments.
-
-Styling docs cover `styled()`, `StyleSheet`, theme tokens, best practices, and complete examples.
+- A button that never appears on a store is not proof of an unsupported theme. Check the four items above first.
+- Do not keep `document` or `window` code "just in case". The worker has neither, and the app fails the SDK check.
+- Do not render into a slot you have not confirmed on the current page.

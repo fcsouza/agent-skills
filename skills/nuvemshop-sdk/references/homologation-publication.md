@@ -1,171 +1,86 @@
-# Homologation and Publication
+# Homologation and publication
 
-## Official References
+No official agent skill covers this. Re-read the pages below before you give final advice. The process has changed in 2026.
 
-- Homologation overview: https://dev.nuvemshop.com.br/docs/homologation/overview
-- Homologation process: https://dev.nuvemshop.com.br/docs/homologation/assync
-- Homologation requirements: https://dev.nuvemshop.com.br/docs/homologation/requirements
-- Homologation best practices: https://dev.nuvemshop.com.br/docs/homologation/guidelines
-- Design checklist: https://dev.nuvemshop.com.br/docs/homologation/checklist
-- Publication overview: https://dev.nuvemshop.com.br/docs/publication/overview
-- Publication requirements: https://dev.nuvemshop.com.br/docs/publication/requirements
-- Publication app: https://dev.nuvemshop.com.br/docs/publication/publications
+- Homologation overview: https://nuvemshop.dev/en-US/apps/publish/homologation/overview.md
+- Homologation process: https://nuvemshop.dev/en-US/apps/publish/homologation/async.md
+- Requirements (artifacts): https://nuvemshop.dev/en-US/apps/publish/homologation/requirements.md
+- Best practices: https://nuvemshop.dev/en-US/apps/publish/homologation/guidelines.md
+- Design checklist: https://nuvemshop.dev/en-US/apps/publish/homologation/checklist.md
+- NubeSDK re-homologation (published apps): https://nuvemshop.dev/en-US/apps/publish/homologation/nube-sdk-rehomologation.md
+- Publication guidelines (prohibited apps, install flow): https://nuvemshop.dev/en-US/apps/publish/guidelines.md
+- Publication overview and requirements: https://nuvemshop.dev/en-US/apps/publish/app-publication/overview.md and https://nuvemshop.dev/en-US/apps/publish/app-publication/requirements.md
+- Pricing and billing: https://nuvemshop.dev/en-US/apps/publish/pricing-billing.md
+- Publish FAQ: https://nuvemshop.dev/en-US/apps/publish/faq.md
 
-## Homologation Flow
+## Which path
 
-1. In the Partner Portal app page, click `Solicitar homologação`.
-2. Nuvemshop sends next steps and artifact requests.
-3. Send all required artifacts.
-4. Nuvemshop validates artifacts, installation, setup, UX, API practices, security, and performance.
-5. If approved, the app proceeds to publication.
-6. If there are issues, Nuvemshop sends a list/action plan. Fix each item and return evidence through the same channel.
+| App | Path |
+| --- | --- |
+| Public, external panel | Homologation. Give access to its registration and login flow. |
+| Public, embedded in the Admin | Homologation. Show opening the app from the demo store's Admin and give access to reproduce it. |
+| Private ("For Your Customers") | No homologation. Follow app creation and installation. |
+| Injects storefront or checkout scripts | NubeSDK required, private apps included. |
+| ERP, Payments, Shipping | Longer path: a demonstration script, a checklist, and an action plan tab. |
 
-Non-sensitive apps are usually tested asynchronously by Nuvemshop. ERP, Payments, Shipping, and sensitive-data apps may require demonstrative videos or synchronous/live validation.
+## Request flow
 
-## Required Homologation Artifacts
+1. In the Partners Portal, open the app. In Basic data, enable "App Store". (pt-BR: "Dados básicos", "Loja de Aplicativos".)
+2. Click "Request homologation". (pt-BR: "Solicitar homologação".) The platform sends next steps.
+3. When the team replies, send the artifacts below.
+4. In parallel, fill the required fields in "Publication Data" ("Dados de publicação").
+5. The team has up to 30 business days to answer, counted from the day you submit the artifacts. Feedback comes in the same request. Fix each item and return evidence there. The cycle repeats until every item passes.
+6. For ERP, Payments and Shipping, the team sends a script to demonstrate. Open items go in the "Action Plan" tab of the checklist. Send a new demonstration video for each fix.
 
-Required artifacts include:
+Homologation and publication start only after the full artifact package arrives. Configure the required privacy webhooks in the Partners Portal as well.
 
-- Sequence diagram.
-- Demo video.
-- Demo/test account access, especially if signup, plan approval, or restricted access could block reviewers.
-- FAQ document.
-- Support contacts.
-- Any category-specific checklist/evidence requested by Nuvemshop.
+## Artifacts
 
-## Sequence Diagram
+- Sequence diagram. It shows how the app uses the Admin API, what the back end does, what each transaction returns, the auth flow and the scopes. Reviewers look for polling where a webhook fits, needless entity changes (for example setting stock to 0 and back), security gaps, and scopes that differ from what the merchant consents to.
+- Demo video with: install from the install URL `https://www.tiendanube.com/apps/(app_id)/authorize` and not from the app panel; sign-up of a new user; login of an existing user; reinstall after removal; every scenario in the diagram; the main features; any setup the merchant must do. An incomplete video sends the request back.
+- Demo account access. If a plan, approval wait or manual activation could block review, provide an account already past it, and warn the team about delays in advance.
+- FAQ document, from the category template (ERP, Payments, Shipping, or Marketing and others). Include support contacts (level 1, level 2, technical, commercial) and test-account availability.
+- If the app has no separate login screen (embedded apps), put the app domain in the login URL field, say it opens inside the Admin, and add the demo store URL and the steps.
 
-The sequence diagram should show:
+## Best practices the reviewers check
 
-- How the app interacts with Nuvemshop APIs.
-- Which backend actions are triggered by user/API interactions.
-- What happens during each transaction.
-- Outputs/results.
-- Auth flow and technical interaction.
-- Scopes used by the app.
+- Paginate large lists. Send a `User-Agent` with app name and email.
+- Use webhooks instead of repeated GETs. Request only needed scopes.
+- Match the app language to the publication countries.
+- Respect the rate limit and read its headers.
+- Do not build apps the guidelines prohibit: apps that do not use the public APIs, apps that process payments outside the checkout, or duplicate apps. Apps that mainly share merchant data with third parties need Tiendanube's prior written consent and must follow the API terms. Do not ask the merchant to type the store URL at install, and do not use pop-ups for OAuth.
+- After install, consume the `code` in the back end and show the app's sign-up or login screen. If you need a handoff step, use a clear landing page.
 
-Reviewers use it to detect:
+## Design checklist
 
-- unnecessary continuous GETs where webhooks should be used.
-- unnecessary entity modifications.
-- inefficient flows.
-- security issues.
-- mismatch between required scopes and merchant consent.
+Priority and obligation come from the checklist page, not from this file. In short:
 
-## Demo Video
+- High (homologation may be rejected): NubeSDK where required, with no DOM, `document`, `window` or jQuery; Nimbus templates (empty and initial state page, error page, template customization limits are mandatory); component and pattern use (atomic and composite components and customization limits are mandatory).
+- Medium: UX concepts (action prioritization and responsiveness are mandatory; status, feedback, loading, tables and forms are recommended). Failing these can pause homologation.
+- Low: UX writing (naming, fundamentals, tone of voice, text patterns, all mandatory). Failing these can also pause homologation.
 
-The demo video should cover:
+## Publication data
 
-- Installation from Nuvemshop, not from the app panel.
-- Install URL: `https://www.tiendanube.com/apps/{app_id}/authorize`.
-- Signup for a merchant/user without an existing account.
-- Login for an already registered user.
-- Reinstall flow after app removal.
-- Every sequence-diagram scenario.
-- Main app functionality and merchant journey.
-- Important interactions needed for review.
-- Any technical configuration merchants must perform.
+The app goes live only when you have sent all artifacts and publication items, uploaded images and icon in the requested sizes, filled the short and long descriptions, and passed homologation.
 
-Incomplete videos can return the homologation process.
+- Images: one package per country. They show real app screens and the main features.
+- Icon: JPEG or PNG, no GIF, exact requested size.
+- Billing model: Free (your own billing, optionally with in-app sales), one-time fee (Nuvemshop billing) or monthly fee (Nuvemshop billing). Set per country. Prices and countries lock while the app is "In approval". Ask partner support to return it to "In development" to change them.
+- Update the app name while it is in development, before review.
 
-## Demo Accounts and Restrictions
+## App description (official 8-part structure)
 
-If the app has subscriptions, plan approval delays, manual account activation, sales contact, or other gates, provide a demo account already released from those restrictions. Inform Nuvemshop beforehand about any unavoidable delays or approval steps.
+Short description first, then the long description:
 
-## Homologation Best Practices
+1. Introduction: value proposition and differentiator.
+2. What the app is.
+3. How it works: short steps or bullets.
+4. Features: bullets.
+5. Benefits: bullets.
+6. Plans and prices, with Nuvemshop-specific offers.
+7. How to integrate: install, accept permissions, create or link the account.
+8. Merchant support: channels, response time, hours.
 
-- Read the API docs before development.
-- Use pagination for large merchant datasets.
-- Include app name and email in `User-Agent`.
-- Use webhooks to avoid repeated polling.
-- Request only required scopes.
-- Align app language with the selected publication geographies.
-- Respect rate limits and use response headers.
+## After publication
 
-## Design Checklist
-
-Design requirements are categorized by urgency and obligation.
-
-High-priority requirements:
-
-- NubeSDK usage where required.
-- No direct DOM/jQuery/window/document for SDK-required apps.
-- Nimbus templates for embedded/admin apps.
-- Empty state and initial page.
-- Error page.
-- Component and pattern usage.
-- Customization limits.
-
-Medium/low-priority requirements still matter and can pause homologation:
-
-- action/content prioritization.
-- status signaling and feedback messages.
-- loading and processing states.
-- table organization.
-- responsive alignment.
-- form organization/signaling.
-- app/screen naming.
-- UX writing fundamentals.
-- Nuvemshop tone of voice.
-- text patterns.
-
-## Publication Flow
-
-Publication has two parallel tracks:
-
-1. Send artifacts after requesting homologation.
-2. Fill all required Partner Portal fields in `Dados de Publicação`.
-
-Homologation and publication only start after the complete artifact package is received.
-
-An app can be available in the public App Store only after:
-
-- all artifacts and publication items are sent.
-- app images and icon are uploaded in requested dimensions.
-- short and long descriptions are filled.
-- required URLs/contact data/app handle are complete.
-- homologation is approved.
-
-## Publication Assets
-
-Images:
-
-- Download/upload from `Imagens do aplicativo`.
-- Dimensions must match the Partner Portal requirements.
-- Separate package per country/market, such as Brazil, Mexico, Argentina.
-- Images should show real app screens and core features.
-
-Icon:
-
-- JPEG or PNG.
-- GIF is not supported.
-- Use exact requested dimensions.
-
-Billing:
-
-- Free / partner-owned billing, optionally with in-app sales.
-- One-time Nuvemshop billing.
-- Monthly Nuvemshop billing.
-
-FAQ:
-
-- Mandatory in homologation artifacts.
-- Use the category-specific model where applicable.
-- Include support contacts, account availability, and common merchant questions.
-
-## App Description Structure
-
-Use the official 8-part structure:
-
-1. Introduction: value proposition and differentiation.
-2. What is the app: clear explanation of what it does.
-3. How it works: concise steps or bullets.
-4. Features: bullet list of core capabilities.
-5. Benefits: bullet list of merchant outcomes.
-6. Plans and pricing: plans, trial, and Nuvemshop-specific offers.
-7. How to integrate: install, accept permissions, create/link account, and start using.
-8. Support: channels, SLA, and service hours.
-
-## Landing Page
-
-Use a landing page when post-install flow requires onboarding, partner account creation, sales/support handoff, or next-step education. Avoid sending new merchants straight to a login screen when they may not have credentials yet.
+Join the Partners Program for support and co-marketing: https://www.tiendanube.com/partners. A merchant rates an app from its three-dot menu in the Admin's Applications list.

@@ -1,84 +1,83 @@
 ---
 name: nuvemshop-sdk
-description: Prepare, audit, implement, homologate, and publish Nuvemshop/Tiendanube apps. Use when the user needs help with Nuvemshop Partner Portal app creation, public App Store publication, private client distribution, OAuth, scopes, webhooks, API usage, NubeSDK migration or development, Nexo embedded admin apps, Nimbus/design requirements, homologation artifacts, demo videos, FAQ/support docs, billing/publication data, app descriptions, or approval checklists.
+description: >-
+  Covers building, auditing, homologating and publishing Nuvemshop/Tiendanube apps: OAuth and scopes, webhook signature checks, embedded Nexo apps, NubeSDK storefront and checkout scripts, and App Store homologation and publication. Use when you build or review a Nuvemshop app, receive its webhooks, migrate a script to NubeSDK, or prepare homologation artifacts, publication data and the app description.
 ---
 
 # Nuvemshop SDK
 
-## Core Rule
+The vendor's docs change often (NubeSDK dates moved in 2026). Read the current page before you give homologation or publication advice. Every claim below is traced in `references/sources.md`.
 
-Verify the current official DevHub docs before final homologation or publication advice. Nuvemshop requirements changed in 2026 around NubeSDK, and publication approval depends on current Partner Portal rules.
+## Official agent tooling
 
-## Reference Routing
+Use these before this skill's references.
 
-Read only the relevant reference files:
-
-- `references/docs-index.md`: source coverage, canonical URLs, and what each docs section contains.
-- `references/app-development.md`: app types, Partner Portal setup, OAuth, Nexo, Nimbus, templates, API headers, scopes, webhooks, rate limits, and pagination.
-- `references/public-api.md`: public API versioning, base URLs, request rules, errors, rate limits, pagination, scopes, and core resources/endpoints.
-- `references/nimbus-design-system.md`: Nimbus components, patterns, templates, tokens, resources, and UI construction guidance.
-- `references/nube-sdk.md`: NubeSDK deadlines, migration rules, Web Worker constraints, script structure, events/state/slots/components, browser APIs, and implementation checks.
-- `references/homologation-publication.md`: homologation flow, required artifacts, sequence diagram, demo video, support/FAQ, design checklist, publication assets, billing, app description, and submission readiness.
+- Docs as text. Use https://nuvemshop.dev/en-US/llms.txt (Portuguese: https://nuvemshop.dev/llms.txt, Spanish: https://tiendanube.dev/llms.txt). Add `.md` to any docs URL, or send `Accept: text/markdown`. For one area at a time use `https://nuvemshop.dev/en-US/llms-full/apps.txt` (also `api`, `themes`, `storefront-api`, `ai-agents`).
+- Admin MCP: acts on one store after the merchant signs in with OAuth. It covers catalog, categories, stock, prices, orders, customers, coupons, promotions and sectionable theme drafts. Its write tools change real data and its delete tools are irreversible. It does not read docs or build apps. Tools and connector URLs: https://nuvemshop.dev/en-US/ai-agents/admin-mcp.md.
+- Storefront MCP: takes the shopping actions a customer can take (search products, cart, promotions, shipping, payment methods, order tracking) at `https://<store-domain>/api/mcp`, with no OAuth. See https://nuvemshop.dev/en-US/ai-agents/storefront-mcp.md.
+- Official theme skills: `nuvemshop skills install` (from the Nuvemshop CLI) installs 7 theme skills for editing theme code with the CLI: `nuvemshop-theme-use-cases`, `nuvemshop-theme-fork-workflow`, `nuvemshop-theme-ftp-workflow`, `nuvemshop-fork-and-push-rules`, `nuvemshop-ipanema-architecture`, `nuvemshop-ipanema-schema-reference` and `nuvemshop-classic-theme-architecture`. They cover themes only. Use the `nuvemshop-theme-use-cases` skill if it is installed, otherwise https://nuvemshop.dev/en-US/themes/developer-tools/cli/agent-skills.md.
+- Apps, NubeSDK and homologation have no official skill. This skill covers them.
 
 ## Workflow
 
-1. Classify the app:
-   - Public App Store (`Loja de Aplicativos`) or private distribution (`Para seus clientes`).
-   - Embedded admin app, external app, storefront/checkout NubeSDK app, ERP, Payments, Shipping, or sensitive-data integration.
-   - New build, migration from legacy script, or already-built app audit.
-
-2. Load the relevant references:
-   - OAuth/API/webhooks/scopes: read `app-development.md`.
-   - Public API endpoints/resources: read `public-api.md`.
-   - Nimbus UI, patterns, tokens, or templates: read `nimbus-design-system.md`.
-   - Storefront/checkout script or DOM injection: read `nube-sdk.md`.
-   - Homologation/publication readiness: read `homologation-publication.md`.
-   - Unclear docs scope or URLs: read `docs-index.md`.
-
+1. Classify the app: public App Store or private ("For Your Customers"); embedded admin app, external app, storefront/checkout NubeSDK script, ERP, Payments or Shipping; new build, migration or audit.
+2. Load only the reference you need:
+   - OAuth, API headers, rate limits, webhooks, Nexo, Nimbus, embedded-app failures: read `references/app-development.md`.
+   - Storefront or checkout script, DOM injection, themes and slots: read `references/nube-sdk.md`.
+   - Homologation, artifacts, publication data, app description: read `references/homologation-publication.md`.
 3. Audit readiness:
-   - Partner Portal app exists and distribution type is correct.
-   - Demo store installation works from `https://www.tiendanube.com/apps/{app_id}/authorize`.
-   - Production redirect URL is configured; generated test redirect URL is not used in production.
-   - OAuth/token exchange works, `user_id` is stored as store id, and updated scopes trigger reinstall/new token flow.
-   - API calls include `Authorization`, `User-Agent`, pagination, rate-limit handling, and webhook-driven updates where appropriate.
-   - Embedded apps use Nexo, Nimbus, route sync, session token handling, and `ErrorBoundary`.
-   - NubeSDK-required apps use `App(nube)`, events/state/slots/components/browser APIs, and do not use direct DOM APIs.
-   - Homologation artifacts, publication assets, support contacts, FAQ, and publication data are complete.
+   - The Partner Portal app exists with the right distribution type.
+   - Install works from `https://www.tiendanube.com/apps/{app_id}/authorize` on a demo store, and the production redirect URL replaced the generated test one.
+   - `user_id` is saved as the store id, and a scope change triggers a reinstall and a new token.
+   - Every webhook registered through the API is verified (next section). Confirm the header arrives on the privacy webhooks before enforcing it there.
+   - API calls send `Authorization` and `User-Agent`, paginate, handle `429`, and use webhooks instead of polling.
+   - Embedded apps use Nexo, Nimbus, route sync, session tokens and `ErrorBoundary`.
+   - Script-injecting apps use NubeSDK and no DOM APIs.
+   - Homologation artifacts, publication assets, support contacts and FAQ are complete.
+4. Deliver. Audits lead with blockers and evidence. Implementation gives exact steps for the app type. Publication prep gives a checklist plus missing artifacts. Descriptions follow the official 8-part structure.
 
-4. Produce the requested deliverable:
-   - For audits, lead with blockers and evidence.
-   - For implementation, give exact code/task steps scoped to the app type.
-   - For publication prep, produce a checklist plus missing artifacts.
-   - For descriptions, use the official 8-part publication description structure.
+## Verify webhooks (do this first)
 
-## Audit Output
+An endpoint that skips this accepts forged events from anyone who knows the URL.
 
-```markdown
-## Status
-Ready / Blocked / Needs fixes
+- Header: `x-linkedstore-hmac-sha256`. Some frameworks rename it `HTTP_X_LINKEDSTORE_HMAC_SHA256`.
+- Value: HMAC-SHA256 of the original request body, keyed with the app's `client_secret`, as lowercase hex. The store's `access_token` is not the key. Keep the secret on your server.
+- Hash the raw bytes before you parse or modify the body. A re-serialized JSON body breaks the match.
+- Compare in constant time. The vendor's PHP example uses `==`; constant time is this skill's rule.
+- Reject a missing or wrong signature before any other work. The docs promise the signature only for webhooks created through the API. The three required privacy webhooks (store redact, customer redact, customers data request) are set in the Partners Portal, and the docs never say they are signed. Check that the header arrives on them before you return 401 there, so you do not reject mandatory LGPD requests.
+- Answer with a 2xx within 3 seconds. Queue the work and return.
+- Retries: if no 2xx arrives, the first 4 retries come right after the timeout and at about 5, 10 and 15 minutes. Then the wait grows by 1.4 times per attempt for up to 48 hours (up to 16 attempts). A 2xx stops them.
+- Order and duplicates: events can arrive out of order and more than once, so make handlers idempotent. The vendor's rules: identical bodies are separate messages, so do not drop a body just because you saw it before. Messages that differ only in retry data are duplicates.
+- Webhook URLs must be HTTPS and cannot be localhost or a Nuvemshop domain.
 
-## Blocking Items
-- ...
+Copy `templates/webhook-verify.ts` for `verifyWebhook` and a Fetch-API `handleWebhook`.
 
-## Technical Readiness
-- ...
+## NubeSDK in brief
 
-## Homologation Artifacts
-- ...
+Every app that injects scripts into the storefront or checkout needs NubeSDK. API-only and Admin-only apps do not. Dates, per the current docs: 2026-06-05, new homologation requests need NubeSDK validation. 2026-09-30, non-migrated apps are removed from the App Store (the deadline moved from 2026-08-30). 2026-10-30, progressive uninstall starts. Private apps that inject scripts skip homologation, and the requirement is enforced in the front end.
 
-## Publication Assets
-- ...
+Scaffold with `npm create nube-app@latest`. Details, themes and slots: read `references/nube-sdk.md`.
 
-## Official Docs Checked
-- ...
-```
+## Pitfalls
 
-## Hard Pitfalls
+- Do not call an app publishable before you check NubeSDK, scopes, privacy webhooks, webhook signatures, API usage, the sequence diagram, demo video, FAQ and support contacts, publication assets and publication fields.
+- Do not ask for broad scopes. Unneeded permissions can fail homologation.
+- Do not poll when a webhook covers the event.
+- Do not ignore rate limits. The bucket holds 40 requests and leaks 2 per second, per store and app.
+- Do not use `document`, `window`, jQuery or `innerHTML` in NubeSDK apps.
+- Do not tell a partner that storefront apps run only on some themes. Official themes ship every slot. Check activation per app and store, and check stores whose FTP opened before 2026-05-11.
+- Do not bypass homologation for public App Store apps. Private distribution is a separate path.
+- Do not put `client_secret` or an `access_token` in a browser bundle, a log or a URL.
 
-- Do not say an app is publishable without checking NubeSDK, scopes, LGPD/webhooks, API usage, sequence diagram, demo video, FAQ/support contacts, publication assets, and publication fields.
-- Do not recommend broad scopes. Unnecessary permissions can fail homologation.
-- Do not recommend polling when webhooks cover the event.
-- Do not ignore rate limits: default bucket is 40 requests with 2 requests/second leak rate per store/app.
-- Do not use `document`, `window`, jQuery, `innerHTML`, or DOM injection in NubeSDK-required apps.
-- Do not assume a storefront NubeSDK app renders on every theme. It only runs on **compatible themes** (Patagonia + Nuvemshop-manually-enabled stores) during the current rollout; on legacy themes the script is associated and served but never executes (even a fixed-slot control is invisible, DevTools says "SDK not available"). You cannot auto-detect this (no API field; legacy themes carry the same slot markup). Fix: Patagonia theme (draft preview already runs it) or ask Nuvemshop to enable SDK on the theme. Do NOT block install over it (admin/Surface A works on any theme); warn instead. See references/nube-sdk.md + issue #296.
-- Do not bypass homologation for public App Store apps. Private distribution is a different path.
+## Files
+
+- `templates/webhook-verify.ts`: copy when you receive Nuvemshop webhooks in a TypeScript backend.
+- `references/app-development.md`: read when you set up OAuth, call the API, register webhooks or build an embedded app with Nexo and Nimbus.
+- `references/nube-sdk.md`: read when a storefront or checkout script, a NubeSDK migration, theme or slot coverage is in play.
+- `references/homologation-publication.md`: read when you prepare homologation, publication data or the app description.
+- `references/sources.md`: read when you need the page behind a claim or want to recheck one.
+- `agents/openai.yaml`: display metadata for OpenAI-style hosts; no need to read it.
+
+## Related skills
+
+No other skill in this repo covers Nuvemshop. For theme work see the official theme skills above.
