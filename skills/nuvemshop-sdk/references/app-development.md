@@ -1,197 +1,92 @@
-# Nuvemshop App Development
+# Nuvemshop app development
 
-## Official References
+Use the official pages for endpoint shapes, scope lists and component props. This file keeps the decisions and the failures that cost time.
 
-- App overview: https://dev.nuvemshop.com.br/docs/applications/overview
-- Authentication: https://dev.nuvemshop.com.br/docs/applications/authentication
-- Embedded apps: https://dev.nuvemshop.com.br/docs/applications/native
-- External apps: https://dev.nuvemshop.com.br/docs/applications/standalone
-- Publication guidelines: https://dev.nuvemshop.com.br/docs/applications/guidelines
-- HTTP status standards: https://dev.nuvemshop.com.br/docs/applications/http-status
-- Landing page: https://dev.nuvemshop.com.br/docs/applications/landing-page
-- Nexo: https://dev.nuvemshop.com.br/docs/developer-tools/nexo
-- Nimbus: https://dev.nuvemshop.com.br/docs/developer-tools/nimbus
-- API Nuvemshop: https://dev.nuvemshop.com.br/docs/developer-tools/nuvemshop-api
-- API usage/rate limits: https://dev.nuvemshop.com.br/docs/developer-tools/erp-guide/api-usage
-- Webhooks example: https://dev.nuvemshop.com.br/docs/developer-tools/erp-guide/orders/webhooks
+- App overview and Partner Portal setup: https://nuvemshop.dev/en-US/apps/admin/overview.md
+- Authentication: https://nuvemshop.dev/en-US/api/authentication.md
+- Admin API getting started (headers, rate limit, pagination): https://nuvemshop.dev/en-US/api/getting-started.md
+- API versions: https://nuvemshop.dev/en-US/api/versioning.md
+- Webhook resource: https://nuvemshop.dev/en-US/api/resources/2025-03/webhook.md
+- Embedded apps: https://nuvemshop.dev/en-US/apps/admin/integrated.md
+- External apps: https://nuvemshop.dev/en-US/apps/admin/external.md
+- Nexo: https://nuvemshop.dev/en-US/apps/admin/nexo.md
+- App templates: https://nuvemshop.dev/en-US/apps/admin/app-templates.md
+- Nimbus: https://nuvemshop.dev/en-US/documentation/overview/getting-started.md
+- Design guidelines for apps: https://nuvemshop.dev/en-US/apps/admin/design-guidelines/overview.md
+- ERP guide (API usage, webhooks, best practices): https://nuvemshop.dev/en-US/apps/erp-guide/overview.md
+- Landing page after install: https://nuvemshop.dev/en-US/apps/publish/landing-page.md
 
-## App Types
+## App types
 
-- Embedded/admin apps run inside the merchant admin through an iframe and use Nexo for communication with the admin. Nimbus and design requirements are expected.
-- External apps run outside the merchant admin and use OAuth 2 authorization-code flow.
-- Storefront/checkout scripts should be treated as NubeSDK apps where current requirements apply.
-- ERP, Payments, Shipping, and sensitive-data apps get stricter homologation and may require videos or live validation.
+- Embedded app: loaded in the merchant Admin through an iframe from a public URL. It uses Nexo and Nimbus.
+- External app: runs outside the Admin and uses the OAuth authorization-code flow.
+- Script in the storefront or checkout: a NubeSDK app. Read `nube-sdk.md`.
+- ERP, Payments and Shipping apps get a longer homologation with a demonstration script and a checklist.
 
-## Partner Portal Setup
+## Partner Portal setup
 
-- Create the app from `Aplicativos > Criar Aplicativo`.
-- Distribution options:
-  - `Loja de Aplicativos`: public App Store listing after homologation.
-  - `Para seus clientes`: private availability for selected merchants; not the same public homologation path.
-- Use a demo store for development and installation testing.
-- In `Dados Básicos`, replace the generated test redirect URL with the production redirect URL before production.
-- Enable only required scopes. Extra scopes can cause homologation rejection.
-- Brazil apps must configure privacy/LGPD webhooks where required.
-- If scopes change later, uninstall/reinstall the app and repeat authentication to get a new token with updated permissions.
+- Create the app in the Partners Portal. Distribution is "App Store" (public, after homologation) or "For Your Customers" (private, only the merchants you select, no homologation). In the pt-BR portal these read "Loja de Aplicativos" and "Para Seus Clientes".
+- Test on a demo store. Install from the demo store with the install button.
+- Replace the default Redirect URL with one your app controls. The default (`https://partners.tiendanube.com/applications/authentication/{app_id}`) asks for partner credentials and the flow never delivers the `code`.
+- Request only the scopes the app uses. A write scope implies the read scope. Scopes cannot be requested per installation.
+- After you change scopes in Basic data, reinstall the app in each store that needs them. Reinstalling issues a new token with the new scopes.
+- Configure the three privacy webhook URLs (store redact, customer redact, customers data request) and the privacy policy URL.
 
 ## OAuth
 
-- External apps use a restricted OAuth 2 authorization-code flow.
-- Install/authorize URL: `https://www.tiendanube.com/apps/{app_id}/authorize`.
-- Token URL: `https://www.tiendanube.com/apps/authorize/token`.
-- The generated `code` is short-lived and should be exchanged promptly.
-- Token response includes `access_token`, `token_type`, `scope`, and `user_id`.
-- `access_token` does not expire by time; it is invalidated when a new token is obtained or the app is uninstalled.
-- `user_id` is the store id for API URLs.
+- Only the authorization-code grant exists. Install URL: `https://www.tiendanube.com/apps/{app_id}/authorize`. Send a `state` value and check it on the redirect. Token URL: `https://www.tiendanube.com/apps/authorize/token` with `grant_type=authorization_code`. The `nuvemshop.com.br` domain works in place of `tiendanube.com`.
+- The code expires in 5 minutes. Exchange it at once.
+- Access tokens do not expire. They stop working after you get a new token for the same app and store, or after uninstall.
+- `user_id` in the token response is the store id for API URLs.
+- Store the token, scopes and store id on your server, keyed by app id and store id. Do not reuse a demo-store token for a client's store.
+- `client_secret` stays on the server. It signs webhooks and session tokens, so a leak breaks both.
 
-## API Usage
+## API use
 
-Send:
-
-- `Authorization: Bearer {{access_token}}`
-- `User-Agent: App Name (email or app_id)`
-- `Content-Type: application/json`
-
-Use the minimum needed scopes. API scopes are selected at app creation/configuration and determine merchant consent.
-
-## Rate Limit and Pagination
-
-- API rate limiting uses a leaky bucket.
-- Default bucket capacity: 40 requests.
-- Default leak rate: 2 requests per second.
-- Limit applies per store and app.
-- Next/Evolution or higher plans multiply the limit by 10.
-- Rate-limit headers:
-  - `x-rate-limit-limit`
-  - `x-rate-limit-remaining`
-  - `x-rate-limit-reset`
-- List endpoints do not enable pagination beyond the first page automatically.
-- Use `page` for additional pages.
-- Use `per_page` up to 200.
-- Page numbering starts at 1.
-- `x-total-count` returns total result count.
-- `Link` header provides navigation URLs.
+- Use version `2025-03` (stable, the default). Base URLs: `https://api.tiendanube.com/2025-03/{store_id}` and `https://api.nuvemshop.com.br/2025-03/{store_id}`.
+- Send `Authorization: Bearer <access_token>` and a `User-Agent` with the app name and a contact link or email.
+- Rate limit: leaky bucket, 40 requests, 2 per second, per store and app, times 10 for Next and Evolution stores. Read `x-rate-limit-limit`, `x-rate-limit-remaining` and `x-rate-limit-reset`. `429` means the bucket is full.
+- Lists are paginated: `page`, and `per_page` up to 200. Most lists default to 30 items. Total in `x-total-count`.
+- Localizable fields such as product `name` are objects keyed by language (`{ "pt": "..." }`), not strings. Flatten them on the backend.
 
 ## Webhooks
 
-Prefer webhooks over polling. Homologation docs explicitly call out repeated GETs as a problem when a webhook could be used.
+- Register with `POST /webhooks` (also `GET`, `PUT /webhooks/{id}`, `DELETE`). You can only register events for resources your scopes cover.
+- The body carries `store_id`, `event`, and usually `id` and `event_launch_ts`. Fetch the changed entity with the id.
+- Verify the signature on every request, answer 2xx within 3 seconds, and handle duplicates and reordering. Rules and code are in `SKILL.md` and `templates/webhook-verify.ts`.
+- `app/uninstalled` arrives right before the vendor deletes your webhooks for that store. Clean up that installation's token and webhook records only.
 
-Webhook API:
+## Embedded apps with Nexo
 
-- `POST /webhooks`: register.
-- `GET /webhooks`: list.
-- `PUT /webhooks/{webhook_id}`: update URL/headers.
-- `DELETE /webhooks/{webhook_id}`: delete.
+- Create the Nexo instance with the `clientId` Nuvemshop gives your app. Call `connect(nexo)`, then `iAmReady(nexo)`.
+- After `iAmReady`, listen for `ACTION_NAVIGATE_SYNC`. The Admin sends the initial route there.
+- `getSessionToken(nexo)` returns a JWT signed with your client secret. Verify it on your backend.
+- Wrap the React tree in `ErrorBoundary`. It sends `ACTION_LOG_ERROR` and shows a fallback inside the Admin. The docs call it mandatory for App Store publication.
 
-Webhook payload includes:
+## Embedded app failures (this skill's field notes)
 
-- `store_id`
-- `event`
-- `id`
+The Admin shows one generic error for almost every embedded failure. It fires when the app never calls `iAmReady` or throws a render error that `ErrorBoundary` catches. It is a symptom, not a cause. These five causes cost the most time. They come from past projects, not from vendor docs, so confirm each against your own app.
 
-Receiver requirements:
+1. Bake `clientId` at build time. `nexo.create({ clientId })` reads a build-time constant. A runtime-only environment variable ships `clientId: undefined`. In a container build, pass the public app id as a build argument. Check the built bundle for the real id.
+2. Never put an awaited call between `connect` and `iAmReady`. Order: `connect(nexo).then(() => { setReady(true); iAmReady(nexo); })`, then fetch store info as a best effort. If `connect` fails in production, keep the loading state.
+3. Flatten localized API fields on the backend. A `{ pt: "..." }` object rendered as a React child throws React error #31, and the boundary shows the generic overlay. It only appears once the store has data.
+4. The SPA calls your backend from the Admin iframe, so its origin must be in the backend's credentialed CORS allowlist.
+5. Map the backend's own status names to the ones the SPA polls for, or the progress screen never advances.
 
-- Validate payload shape and source as much as possible.
-- Process idempotently.
-- Fetch the changed entity when needed using the payload id.
-- Return `200 OK` for accepted notifications.
-- Avoid expensive synchronous work in the webhook response path.
-
-## Embedded Apps With Nexo
-
-Nexo connects an embedded app and the merchant admin through observer-style messages.
-
-Embedded app expectations:
-
-- Public app URL is loaded in the admin iframe.
-- Nexo is installed/configured.
-- App calls `connect(nexo)` and `iAmReady(nexo)`.
-- After `iAmReady`, the app must listen to `ACTION_NAVIGATE_SYNC` because the admin sends the initial route.
-- Route sync should keep app route and browser/admin URL aligned.
-- Use `getSessionToken(nexo)` to obtain a JWT signed with the app client secret for backend authentication.
-- Put `ErrorBoundary` at the top of the React tree. It dispatches `ACTION_LOG_ERROR` and shows an admin-integrated fallback. This is mandatory for App Store publication.
-
-Common Nexo actions/helpers:
-
-- Actions: `ACTION_NAVIGATE_SYNC`, `ACTION_NAVIGATE_GOTO`, `ACTION_NAVIGATE_PATHNAME`, `ACTION_AUTH_SESSION_TOKEN`, `ACTION_STORE_INFO`, `ACTION_LOG_ERROR`, `ACTION_STORE_FEATURE`, `ACTION_STORE_UPSELL`.
-- Helpers: `connect`, `iAmReady`, `getSessionToken`, `syncPathname`, `getStoreInfo`, `goTo`, `navigateExit`, `navigateHeader`, `getFeatureStatus`, `runWithUpsell`.
-
-## Embedded App Production Pitfalls (hard-won)
-
-The admin shows a single generic error for almost every embedded failure:
-"Ocorreu um erro com o aplicativo" / "Não foi possível carregar o aplicativo neste momento".
-It is a **symptom, not a cause**. It fires whenever the app either never calls
-`iAmReady`, or throws a render error caught by the Nexo `ErrorBoundary` (which
-dispatches `ACTION_LOG_ERROR`). It does NOT specifically mean CORS, config, or the
-handshake failed. Do not guess from the overlay: diagnose with the two techniques
-at the end of this section.
-
-1. **`clientId` must be baked at BUILD time.** `nexo.create({ clientId })` reads a
-   build-time constant (e.g. Vite `import.meta.env.VITE_CLIENT_ID`). A runtime-only
-   env is not enough: the bundle ships `clientId: undefined`, the admin can't
-   identify the app during the handshake, and you get the generic error. In
-   containerized builds pass the (public) app id as a Docker **build ARG**, not just
-   a runtime env. Verify by grepping the built bundle: `clientId` must contain the
-   id, not `void 0`. Symptom of this bug: "it worked once then broke after a
-   rebuild" (the first image was built with the arg set manually).
-
-2. **Never gate `iAmReady` behind an awaited call.** The correct order is
-   `connect(nexo).then(() => { setReady(true); iAmReady(nexo); })`, then fetch
-   `getStoreInfo`/anything else AFTER, best-effort. `connect` + `iAmReady` are the
-   ready pair; store info is extra. If an awaited call sits between `connect` and
-   `iAmReady` and it throws, `iAmReady` never fires and the admin keeps its error
-   overlay even though the app mounted and its API calls return 200. On `connect`
-   failure, keep the loading skeleton in prod (do NOT render the app anyway, that
-   only makes sense in local dev where there is no admin parent).
-
-3. **Nuvemshop API fields are localized objects, not strings.** Product `name` (and
-   other localizable fields) come back as `{ pt: "...", es: "..." }`. Rendering one
-   directly as a React child throws **React error #31** ("Objects are not valid as a
-   React child, found: object with keys {pt}"), which the ErrorBoundary surfaces as
-   the generic overlay. Flatten localized fields to a plain string on the **backend**
-   (map the raw API shape to the frontend's contract, e.g. `name: string`,
-   `imageUrl: string | null`) before the SPA renders them. This bug is invisible on
-   an empty store and only appears once there is data to render.
-
-4. **The embedded SPA calls your backend cross-origin.** It runs on your app's origin
-   inside the admin iframe and calls your API host directly (Nexo JWT in the
-   `Authorization` header), so that origin must be in the backend's **credentialed
-   CORS allowlist**.
-
-5. **Map internal status vocabularies to the SPA's.** If the backend tracks its own
-   lifecycle statuses (e.g. `pending | pushed | failed`), map them to whatever the
-   SPA polls for (e.g. `done`) and include the result URL, or the progress screen
-   never advances even though the pipeline succeeded.
-
-### Diagnosing the generic overlay (do this instead of guessing)
-
-- **Backend request logging**: confirm the app's API calls actually reach the
-  backend and return 200. If they do, the handshake/CORS/auth are fine and the
-  problem is a client-side render error (pitfall 3) or a missing `iAmReady`
-  (pitfall 2). (Verify the logger's lifecycle hooks are globally scoped, or you get
-  no per-request logs at all.)
-- **Capture the iframe postMessages**: install a `window.addEventListener('message', ...)`
-  on the admin page and reload the app. You will see the real handshake:
-  `app/connected` → `app/ready` → `app/store/info` → `app/auth/sessionToken` →
-  `app/navigate/sync`, and crucially any `app/log/error` whose payload carries the
-  actual error message and stack. This is the single fastest way to find the true
-  cause. The app iframe is cross-origin, so the parent cannot read its console
-  directly, so the postMessage stream is the channel.
+To find the cause, check that the app's API calls reach the backend and return 200. If they do, look for a render error or a missing `iAmReady`. You can also log `message` events on the Admin page to see the handshake and any `app/log/error` payload.
 
 ## Nimbus
 
-Nimbus is the Nuvemshop design system and is strongly expected for embedded admin apps.
+Embedded apps are expected to use the Nimbus design system. Packages: `@nimbus-ds/styles`, `@nimbus-ds/components`, `@nimbus-ds/patterns`, `@nimbus-ds/tokens`, `@nimbus-ds/icons`. Component, pattern and template lists live at https://nuvemshop.dev/en-US/documentation/atomic-components, https://nuvemshop.dev/en-US/documentation/patterns and https://nuvemshop.dev/en-US/documentation/templates.
 
-Relevant packages:
+Review checklist:
 
-- `@nimbus-ds/styles`
-- `@nimbus-ds/components`
-- `@nimbus-ds/patterns`
-- `@nimbus-ds/tokens`
-- `@nimbus-ds/icons`
-
-Common Nimbus templates/patterns include settings pages, confirmation modals, forms, basic pages, login, simple lists, and product lists.
+- Use Nimbus components before custom ones, and patterns for forms, tables, empty states, page shells and side modals.
+- Start from a page template (settings, form, list, login, product list, confirmation modal, landing) when one fits.
+- Use Nimbus tokens, not raw values.
+- Build loading, empty, error, success and validation states.
+- Match UI language to the publication countries.
 
 ## Templates
 
-Nuvemshop provides React + Node.js templates for both embedded and external apps. Embedded templates include Nexo-related setup; templates also include authentication logic. Prefer the official templates for new apps unless the user's existing architecture makes that impractical.
+Official React and Node.js templates exist for embedded and external apps: https://github.com/TiendaNube/tiendanube-app-native-template-node and https://github.com/TiendaNube/tiendanube-app-standalone-template-node. Prefer them for new apps unless the existing architecture rules it out.
