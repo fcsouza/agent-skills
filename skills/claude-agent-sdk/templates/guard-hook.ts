@@ -15,8 +15,9 @@ const ENV_FILE = /^\.env(\..+)?$/i;
 
 // A policy check on the name the tool asked for. It is not a security boundary: a symlink, or a
 // path through a symlinked folder, can still reach an .env file, and so can Bash or a script.
-// For a boundary the operating system enforces, run the agent in a sandbox
-// (https://code.claude.com/docs/en/sandboxing.md) or under a user that cannot write the file.
+// The built-in sandbox bounds shell commands only (https://code.claude.com/docs/en/sandboxing.md).
+// To keep the file tools off the file, run the agent as an OS user that cannot write it, or in a
+// container or VM (https://code.claude.com/docs/en/sandbox-environments.md).
 export function namesEnvFile(filePath: string) {
   return ENV_FILE.test((basename(filePath).split(':')[0] ?? '').replace(/[. ]+$/, ''));
 }
