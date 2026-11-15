@@ -10,7 +10,6 @@ import {
   useMotionValue,
   useReducedMotion,
   useSpring,
-  useTransform,
 } from 'motion/react';
 import { type ReactNode, useCallback, useEffect } from 'react';
 
@@ -81,7 +80,7 @@ export function SlideIn({
       initial={{ opacity: 0, ...offset }}
       animate={{ opacity: 1, x: 0, y: 0 }}
       exit={{ opacity: 0, ...offset }}
-      transition={{ duration: shouldReduceMotion ? 0 : duration, ease: 'easeOut' }}
+      transition={{ duration: shouldReduceMotion ? 0.15 : duration, ease: 'easeOut' }}
       className={className}
       {...props}
     >
@@ -226,7 +225,6 @@ export function HealthBar({
   const initialRatio = Math.max(0, Math.min(1, current / max));
   const ratio = useMotionValue(initialRatio);
   const spring = useSpring(ratio, { stiffness: 200, damping: 30 });
-  const width = useTransform(spring, (v) => `${v * 100}%`);
 
   useEffect(() => {
     ratio.set(Math.max(0, Math.min(1, current / max)));
@@ -245,7 +243,7 @@ export function HealthBar({
     >
       <motion.div
         style={{
-          width,
+          scaleX: spring,
           height: '100%',
           backgroundColor: color,
           borderRadius: 6,
@@ -311,7 +309,7 @@ export function AnimatedCard({
 interface ScreenShakeProps {
   children: ReactNode;
   className?: string;
-  onShakeRef?: (shake: () => Promise<void>) => void;
+  onShakeRef?: (shake: (() => Promise<void>) | null) => void;
 }
 
 export function ScreenShake({ children, className, onShakeRef }: ScreenShakeProps) {
@@ -327,6 +325,7 @@ export function ScreenShake({ children, className, onShakeRef }: ScreenShakeProp
   // Re-expose shake whenever it changes so the parent never holds a stale copy.
   useEffect(() => {
     onShakeRef?.(shake);
+    return () => onShakeRef?.(null);
   }, [onShakeRef, shake]);
 
   return (

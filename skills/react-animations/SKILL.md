@@ -10,7 +10,7 @@ Motion is the library formerly named Framer Motion. `framer-motion` publishes th
 
 ## Use the official Motion tooling first
 
-Use the `motion` skill (Motion AI Kit) if it is installed, otherwise run `npx motion-ai` or read https://github.com/motiondivision/ai-kit. It also configures the docs MCP server at https://mcp.motion.dev. For API details, read https://motion.dev/llms.txt. Every docs page serves Markdown when you add `.md` to its URL. This skill keeps only the decisions and the game-UI recipes those sources do not hold.
+Use the `motion` skill (Motion AI Kit) if it is installed, otherwise run `bunx motion-ai` or read https://github.com/motiondivision/ai-kit. It also configures the docs MCP server at https://mcp.motion.dev. For API details, read https://motion.dev/llms.txt. Every docs page serves Markdown when you add `.md` to its URL. This skill keeps only the decisions and the game-UI recipes those sources do not hold.
 
 ## Choose the tool
 
@@ -21,7 +21,7 @@ Use the `motion` skill (Motion AI Kit) if it is installed, otherwise run `npx mo
 | Values driven by input or game state (bars, counters) | `useMotionValue`, `useSpring`, `useTransform` |
 | One-off imperative sequences (shake, pulse) | `useAnimate` |
 | Timelines, ScrollTrigger, SVG drawing | GSAP. Use the `gsap-react` skill. |
-| Native page and route transitions | The `vercel-react-view-transitions` skill. Use Motion's `AnimateView` only if the project already uses Motion. It needs React and React DOM 19.3 or later. |
+| Native page and route transitions | The `vercel-react-view-transitions` skill. Use Motion's `AnimateView` (`import { AnimateView } from 'motion/react-animate-view'`, not `motion/react`) only if the project already uses Motion. It needs React and React DOM 19.3 or later. |
 
 ## Setup
 
@@ -42,7 +42,7 @@ In a Next.js App Router server file, use `import * as motion from 'motion/react-
 3. Put variants outside the component so they keep one identity.
 4. Drive animation values with motion values, not `useState`. Motion values update without re-rendering the component.
 5. Do not mix a CSS `transition` and Motion on one element. They fight over the same property.
-6. Always set `initial` when animating on mount, or the element flashes at its final state first.
+6. An element animates on mount from its first-rendered values to `animate`. Set `initial` to choose the start. If those values already match `animate`, nothing plays. `initial={false}` renders at the `animate` values with no enter animation.
 7. Call `motion.create(Component)` at module level, never inside a render. The component you wrap must forward its `ref`.
 
 `AnimatePresence` modes: `"sync"` (default), `"wait"` (one child only), `"popLayout"` (custom children must forward `ref`; give the animating parent a non-static `position`).
@@ -59,7 +59,7 @@ import { MotionConfig } from 'motion/react';
 </MotionConfig>
 ```
 
-`"user"` turns off transform and layout animations. It keeps animations of other values such as `opacity` and `backgroundColor`. It does not stop every animation. For effects that are large movement by design (shake, parallax, big slides), read `useReducedMotion()` and skip or swap them for a fade. `ScreenShake` in `boilerplate/motion-components.tsx` does this. `"always"` and `"never"` let a user setting override the OS value.
+`"user"` turns off transform and layout animations. It keeps animations of other values such as `opacity` and `backgroundColor`. It does not stop every animation. For effects that are large movement by design (shake, parallax, big slides), read `useReducedMotion()` and skip or swap them for a fade. `ScreenShake` in `boilerplate/motion-components.tsx` does this. `"always"` and `"never"` let a user setting override the OS value. `useReducedMotion()` reports the device setting. Do not rely on it to reflect a `MotionConfig` override.
 
 ## Bundle size
 
@@ -82,11 +82,11 @@ The working code is in `boilerplate/motion-components.tsx`. Copy the component, 
 
 | Effect | Component | How it works |
 |---|---|---|
-| Health or XP bar | `HealthBar` | `useSpring` on a motion value, mapped to `width` with `useTransform`. Clamp the ratio to 0..1. |
+| Health or XP bar | `HealthBar` | `useSpring` on a motion value, applied as `scaleX` with `transformOrigin: 'left'`. Clamp the ratio to 0..1. |
 | Damage or score pop-up | `FloatingNumber` | Animates `y` and `opacity`, calls `onComplete` so the parent removes it. |
 | Card flip | `AnimatedCard` | See below. |
 | Screen shake | `ScreenShake` | `useAnimate` on a keyframe array of `x`, skipped under reduced motion. |
-| Menu slide | `SlideIn` inside `AnimatePresence` | Spring or ease on `x`; falls back to a fade when reduced. |
+| Menu slide | `SlideIn` inside `AnimatePresence` | Ease on `x`; under reduced motion it drops the `x` offset and keeps a short opacity fade. |
 
 Card flip needs three things. Put `perspective` on the parent. Put `transformStyle: 'preserve-3d'` on the element that rotates. Give each face `backfaceVisibility: 'hidden'`, with the back face at `transform: 'rotateY(180deg)'`. Animate `rotateY` on the rotating element through `animate`. In Motion `rotateY` is a style shorthand, so a plain `div` needs the `transform` string instead.
 
