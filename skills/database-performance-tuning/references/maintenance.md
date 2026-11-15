@@ -21,7 +21,9 @@ Three consequences you will meet in practice:
 
 ## When autovacuum fires
 
-For dead tuples (PG 18 formula; the `Minimum(...)` cap is new in PG 18):
+For dead tuples (PG 18 formula; the `Minimum(...)` cap and `autovacuum_vacuum_max_threshold`
+are new in PG 18, whose default is 100 million tuples; defaults checked in the manual,
+see [sources.md](sources.md)):
 
 ```
 vacuum threshold = Minimum(autovacuum_vacuum_max_threshold,
@@ -125,7 +127,12 @@ hundreds of millions and climbing, that is the emergency; everything else waits.
 - **`VACUUM FULL`** rewrites the table and returns space to the filesystem, holding an
   `ACCESS EXCLUSIVE` lock for the whole rewrite. On a live table that is an outage.
 - **`pg_repack`** (extension) does the same rewrite online with only brief locks. This is
-  the production answer when you genuinely must shrink a table.
+  the production answer on PG 18 and older when you must shrink a table.
+- **`REPACK (CONCURRENTLY)`** (PG 19, not released as of 2026-11-15; RC 2 was announced
+  2026-11-12). The draft PG 19 release notes describe a `REPACK` command that replaces
+  `VACUUM FULL` and `CLUSTER`, and says the `CONCURRENTLY` option rebuilds a table without
+  an access-exclusive lock. Do not use it before the final manual confirms the syntax and
+  restrictions for your minor.
 - **`REINDEX INDEX CONCURRENTLY`** (PG 12+) rebuilds a bloated index without blocking
   writes. Indexes bloat faster than tables on update-heavy workloads, and rebuilding them
   is often the whole fix.
@@ -196,14 +203,20 @@ Extended statistics also work on expressions, which fixes estimates for
   disk (`Sort Method: external merge`, `Batches > 1`, lossy bitmap blocks). Too high, times
   many concurrent nodes, means the OOM killer. Raise it per session for the one report that
   needs it: `SET LOCAL work_mem = '256MB';` inside the transaction.
-- **`shared_buffers`** — 25% of RAM is the usual starting point on a dedicated server. Past
-  that the OS page cache usually serves you better than more Postgres buffers.
+- **`shared_buffers`** — the manual suggests 25% of RAM on a dedicated server with 1 GB or
+  more, and says more than 40% is unlikely to beat a smaller value, since Postgres also
+  relies on the OS cache.
 - **`effective_cache_size`** — not an allocation, just a hint about how much of the data the
-  OS is likely caching. Set it around 50–75% of RAM. Too low and the planner avoids index
-  scans it should choose.
-- **`random_page_cost`** — defaults to 4.0, which assumes spinning disks. On SSD or cloud
-  block storage, 1.1 is the standard adjustment and it is often the single highest-impact
-  setting on a modern server, because it stops the planner preferring sequential scans.
+  OS is likely caching. 50-75% of RAM is this skill's rule of thumb, not a manual figure.
+  Too low and the planner avoids index scans it should choose.
+- **`random_page_cost`** — the default is 4.0. The manual says random access to durable
+  storage normally costs more than four times sequential access, and that 4.0 is used
+  because most random reads are assumed to hit cache. It also says decreasing the value
+  might be appropriate if the data is likely to be completely in cache, such as when the
+  database is smaller than the total server memory, or network latency is high. Many people
+  set about 1.1 on SSD. That figure is
+  community practice, not from the manual. Treat it as a hypothesis: change it in a
+  session, compare plans and timings on the real workload, and keep it only if they improve.
 - **`maintenance_work_mem`** — used by index builds and vacuum. Raising it makes
   `CREATE INDEX` and vacuum much faster; it is only allocated during those operations.
 

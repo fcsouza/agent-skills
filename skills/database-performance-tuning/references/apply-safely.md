@@ -29,7 +29,7 @@ Always bound the wait:
 
 ```sql
 SET lock_timeout = '3s';
-SET statement_timeout = '0';   -- but see below for CIC
+SET statement_timeout = '0';   -- but see below for CIC; RESET statement_timeout; when done
 ALTER TABLE orders ADD COLUMN notes text;
 ```
 

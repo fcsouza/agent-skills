@@ -110,8 +110,9 @@ scan.
 
 `IN (...)` on a single column is fine and uses the index. Very long `IN` lists are better
 as `= ANY($1::bigint[])`, which keeps the statement text stable so `pg_stat_statements`
-can aggregate it — Postgres also squashes long constant lists into one entry, shown as
-`IN ($1 /*, ... */)`.
+can aggregate it. On PG 18 and newer, `pg_stat_statements` also squashes constant lists
+that differ only in length into one entry, shown as `IN ($1 /*, ... */)`. On PG 17 and older
+every list length is a separate entry, so the array form matters more there.
 
 ## EXISTS vs IN vs JOIN
 
