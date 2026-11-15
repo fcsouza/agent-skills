@@ -203,7 +203,7 @@ Field names differ by endpoint: `split` on `/payments` and `/subscriptions`, `sp
 - No future date: split runs when the charge is received. To control timing, use a transfer instead.
 - A charge pledged as collateral in a credit operation, even at another institution, cannot split.
 
-Who pays the fee: the docs say only that split uses `netValue`. Inference: the fee comes off the charge before anyone is paid, so a fixed recipient gets the full fixed amount and the issuer's remainder absorbs the fee, while percent recipients share it in proportion. Anticipation follows the same pattern: percent splits are computed on the net value after the anticipation fee, so sellers' percent shares shrink when the issuer anticipates. Fixed splits are not reduced; if they no longer fit the smaller net value, the charge is blocked for divergence (the docs' example: R$ 100,00 charge, R$ 90,00 net after anticipation, a R$ 95,00 fixed split must be adjusted). With automatic card anticipation and a fixed split set at issue, Asaas uses the highest fee for the card used.
+Who pays the fee: the docs say only that split uses `netValue`. Inference: the fee comes off the charge before anyone is paid, so a fixed recipient gets the full fixed amount and the issuer's remainder absorbs the fee, while percent recipients share it in proportion. Anticipation follows the same pattern: percent splits are computed on the net value after the anticipation fee, so sellers' percent shares shrink when the issuer anticipates. Fixed splits are not reduced; if they no longer fit the smaller net value, Asaas may block the value and the split for divergence (the docs' example: R$ 100,00 charge, R$ 90,00 net after anticipation, a R$ 95,00 fixed split must be adjusted). With automatic card anticipation and a fixed split set at issue, Asaas uses the highest fee for the card used.
 
 ### Example
 
@@ -266,7 +266,7 @@ Split works only on charges you create in `MANUAL` mode: send `split` on each `P
 ### Checkout and anticipation
 
 - Checkout takes `splits`, run after the Checkout's charge is received.
-- An anticipated charge splits on the net value after the anticipation fee too. Percent shares shrink with it, so recipients share the anticipation fee; fixed shares do not shrink, and a fixed split that no longer fits blocks the charge. Check a fixed split still fits before you anticipate; `POST /v3/anticipations/simulate` shows the figure.
+- An anticipated charge splits on the net value after the anticipation fee too. Percent shares shrink with it, so recipients share the anticipation fee; fixed shares do not shrink, and Asaas may block the value and the split when a fixed split no longer fits. Check a fixed split still fits before you anticipate; `POST /v3/anticipations/simulate` shows the figure.
 
 ## 8. Refunds, partial refunds and chargebacks
 
@@ -313,7 +313,7 @@ Split `status` and reasons:
 
 This skill's rule: accept any status string, store unknown ones as they come, and alert on them instead of failing.
 
-This skill's rule: a split cancelled at settlement leaves the seller's share with the issuer. Reconcile cancelled splits daily from the split endpoints (not only from `PAYMENT_SPLIT_CANCELLED`, which a validation cancel does not send) and pay the seller another way, such as a transfer, once the cause is fixed.
+This skill's rule: a split cancelled at settlement leaves the seller's share with the issuer. Reconcile cancelled splits daily from the split endpoints (not only from `PAYMENT_SPLIT_CANCELLED`, which a validation cancel does not send). Those endpoints return every cancelled split, so filter by `cancellationReason`: pay the seller another way only for the settlement-check reasons (`BANK_ACCOUNT_*`, `CUSTOMER_DOCUMENTS_*`, `WALLET_UNABLE_TO_RECEIVE`, `CHECKOUT_VALIDATION_FAILED`), only while the charge is still received and not refunded, and only once the cause is fixed. `PAYMENT_REFUNDED`, `PAYMENT_DELETED` and `MANUAL_CANCELLATION` mean no payout is owed. Send `EXTERNAL_AUTHORIZATION_REFUSED` (your own refusal, possibly for fraud), `PAYMENT_OVERDUE` and `PAYMENT_RECEIVED_IN_CASH` to a person. A transfer is refused while the seller's subaccount is blocked by the evaluation period, so wait until the block ends ([listar-splits-pagos](https://docs.asaas.com/reference/listar-splits-pagos.md), [faq-periodo-de-avaliacao](https://docs.asaas.com/docs/faq-periodo-de-avaliacao.md)).
 
 Query endpoints, for reconciliation (the docs prefer webhooks for tracking):
 
