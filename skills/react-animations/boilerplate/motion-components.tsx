@@ -1,3 +1,4 @@
+// Verified against: motion 14.14.0 (2026-11-15)
 'use client';
 
 import {
@@ -9,9 +10,8 @@ import {
   useMotionValue,
   useReducedMotion,
   useSpring,
-  useTransform,
-} from 'framer-motion';
-import { type ReactNode, useEffect } from 'react';
+} from 'motion/react';
+import { type ReactNode, useCallback, useEffect } from 'react';
 
 // ---------------------------------------------------------------------------
 // FadeIn
@@ -80,7 +80,7 @@ export function SlideIn({
       initial={{ opacity: 0, ...offset }}
       animate={{ opacity: 1, x: 0, y: 0 }}
       exit={{ opacity: 0, ...offset }}
-      transition={{ duration: shouldReduceMotion ? 0 : duration, ease: 'easeOut' }}
+      transition={{ duration: shouldReduceMotion ? 0.15 : duration, ease: 'easeOut' }}
       className={className}
       {...props}
     >
@@ -225,7 +225,6 @@ export function HealthBar({
   const initialRatio = Math.max(0, Math.min(1, current / max));
   const ratio = useMotionValue(initialRatio);
   const spring = useSpring(ratio, { stiffness: 200, damping: 30 });
-  const width = useTransform(spring, (v) => `${v * 100}%`);
 
   useEffect(() => {
     ratio.set(Math.max(0, Math.min(1, current / max)));
@@ -244,10 +243,9 @@ export function HealthBar({
     >
       <motion.div
         style={{
-          width,
+          scaleX: spring,
           height: '100%',
           backgroundColor: color,
-          borderRadius: 6,
           transformOrigin: 'left',
         }}
       />
@@ -257,6 +255,8 @@ export function HealthBar({
 
 // ---------------------------------------------------------------------------
 // AnimatedCard — card flip animation (card games / skill reveals)
+// perspective on the parent, preserve-3d on the rotating element, and
+// backface-visibility on each face. The back face stays in flow and sizes the card.
 // ---------------------------------------------------------------------------
 
 interface AnimatedCardProps {
@@ -308,20 +308,24 @@ export function AnimatedCard({
 interface ScreenShakeProps {
   children: ReactNode;
   className?: string;
-  onShakeRef?: (shake: () => Promise<void>) => void;
+  onShakeRef?: (shake: (() => Promise<void>) | null) => void;
 }
 
 export function ScreenShake({ children, className, onShakeRef }: ScreenShakeProps) {
   const [scope, animate] = useAnimate();
+  const shouldReduceMotion = useReducedMotion();
 
-  const shake = async () => {
+  // Shake is a large transform, so skip it when the user asks for less motion.
+  const shake = useCallback(async () => {
+    if (shouldReduceMotion) return;
     await animate(scope.current, { x: [0, -10, 10, -10, 10, 0] }, { duration: 0.4 });
-  };
+  }, [animate, scope, shouldReduceMotion]);
 
-  // Expose the shake function via ref callback so parent can trigger it
+  // Re-expose shake whenever it changes so the parent never holds a stale copy.
   useEffect(() => {
     onShakeRef?.(shake);
-  }, []);
+    return () => onShakeRef?.(null);
+  }, [onShakeRef, shake]);
 
   return (
     <div ref={scope} className={className}>
