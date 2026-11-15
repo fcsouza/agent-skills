@@ -11,6 +11,7 @@ A plugin bundles skills you install in one step.
 | Plugin | Description | Platform |
 |--------|-------------|----------|
 | [game-dev](skills/game-dev/) | Game development skills for design, art and assets, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
+| standalone-skills | The seven skills under [Standalone](#standalone) below | Various |
 
 ## Claude Code Mods
 
@@ -32,17 +33,19 @@ Mods are plugins built on function hooks: they run inside Claude Code, guard too
 
 Skills are individual, cherry-pickable modules. Install only what you need.
 
-### Core
+### Standalone
+
+Each skill stands on its own. Install one, or all seven with the `standalone-skills` plugin.
 
 | Skill | Description | Platform |
 |-------|-------------|----------|
-| [claude-agent-sdk](skills/claude-agent-sdk/) | Build production AI agents with the Claude Agent SDK — query(), hooks, subagents, custom tools, MCP servers, sessions, permissions, hosting | Claude Code / API |
-| [database-performance-tuning](skills/database-performance-tuning/) | Diagnose and fix slow databases like a DBA — pg_stat_statements, EXPLAIN plans, index design, query rewrites, vacuum and bloat, safe online rollout. Ships a read-only diagnostic script | PostgreSQL / MySQL |
-| [foundry-vtt-dev](skills/foundry-vtt-dev/) | Build and migrate Foundry VTT v14 modules and game systems — manifests, documentTypes and TypeDataModel, ApplicationV2 sheets, GM-checked queries, dice and message modes, Active Effects V2, Regions as templates, Scene Levels, world migrations, Vite build and release | [Foundry VTT](https://foundryvtt.com) |
-| [openclaw-genie](skills/openclaw-genie/) | OpenClaw gateway skill that points to the official docs and sets the safety rules for install, secrets, channels, network exposure and deployment | [OpenClaw](https://openclaw.ai) |
+| [claude-agent-sdk](skills/claude-agent-sdk/) | Build agents with the Claude Agent SDK in TypeScript or Python: permissions, settings isolation, subagents, hooks, custom tools, sessions and hosting, with pointers to the official docs | Claude Agent SDK |
+| [database-performance-tuning](skills/database-performance-tuning/) | Find and fix slow Postgres and MySQL queries: measure first, read the plan, change one thing, verify. Ships a read-only Postgres diagnostic script | PostgreSQL / MySQL |
+| [foundry-vtt-dev](skills/foundry-vtt-dev/) | Build and migrate Foundry VTT v14 modules and game systems: manifests, TypeDataModel, ApplicationV2 sheets, GM-checked queries, Active Effects V2, Regions, world migrations, Vite build and release | [Foundry VTT](https://foundryvtt.com) |
 | [judge](skills/judge/) | Review a pull request, branch or diff before merge: deterministic checks, fresh-context reviewers, verified findings with evidence, a coverage table, a gate script, then a fix loop | Claude Code |
-| [nuvemshop-sdk](skills/nuvemshop-sdk/) | Prepare, audit, implement, homologate, and publish Nuvemshop/Tiendanube apps — OAuth, API, NubeSDK, Nexo, Nimbus, webhooks, and App Store approval | [Nuvemshop](https://dev.nuvemshop.com.br/docs/getting-started) |
-| [react-animations](skills/react-animations/) | React animation patterns and utilities | React |
+| [nuvemshop-sdk](skills/nuvemshop-sdk/) | Build, audit and publish Nuvemshop/Tiendanube apps: OAuth and scopes, webhook signature checks, Nexo, NubeSDK and App Store homologation | [Nuvemshop](https://nuvemshop.dev) |
+| [openclaw-genie](skills/openclaw-genie/) | Install, configure and deploy the OpenClaw gateway safely: points to the official docs and sets rules for secrets, channels and network exposure | [OpenClaw](https://openclaw.ai) |
+| [react-animations](skills/react-animations/) | Motion for React: CSS or Motion, exit animations, reduced motion, bundle size, and game HUD effects such as health bars, card flips and screen shake | React |
 
 Upgrading: `foundry-vtt-module-dev` and `foundry-vtt-system-dev` are now one skill, `foundry-vtt-dev`. Remove the two old skills and install `foundry-vtt-dev`.
 
@@ -147,24 +150,37 @@ The seven workflow commands sit under `skills/game-dev-commands/<name>/`.
 
 ## Installation
 
-### game-dev plugin (Claude Code)
+### Plugins (Claude Code)
 
 ```bash
 /plugin marketplace add fcsouza/agent-skills
 /plugin install game-dev@fcsouza-agent-skills
+/plugin install standalone-skills@fcsouza-agent-skills
 ```
 
 ### Individual skills (cherry-pick)
 
 ```bash
 # Install a specific skill
-npx skills add fcsouza/agent-skills --skill game-design-fundamentals
+bunx skills add fcsouza/agent-skills --skill game-design-fundamentals
 
 # Install the index skill and a few topic skills
-npx skills add fcsouza/agent-skills --skill game-dev --skill betterauth-integration --skill postgres-game-schema
+bunx skills add fcsouza/agent-skills --skill game-dev --skill betterauth-integration --skill postgres-game-schema
 
 # List all available skills
-npx skills add fcsouza/agent-skills --list
+bunx skills add fcsouza/agent-skills --list
+```
+
+### Updating
+
+```bash
+# Skills installed with the skills CLI (-g for skills in your home directory)
+bunx skills update -g -y
+
+# Plugins (in your shell)
+claude plugin marketplace update fcsouza-agent-skills
+claude plugin update game-dev@fcsouza-agent-skills
+claude plugin update standalone-skills@fcsouza-agent-skills
 ```
 
 ### Manual
@@ -189,7 +205,7 @@ Version 2.0.0 changes names and removes parts of the plugin.
 To upgrade, remove the old prefixed skills, then install again. Use `-g` for skills installed in your home directory, and leave it off for the current project.
 
 ```bash
-npx skills remove -g -y \
+bunx skills remove -g -y \
   design-game-design-fundamentals design-game-economy-design design-level-design \
   design-procedural-gen design-quest-mission-design design-skill-progression-trees \
   design-ui-ux-game \
@@ -204,7 +220,7 @@ npx skills remove -g -y \
   narrative-story-structure-game narrative-worldbuilding
 ```
 
-Run the same command without `-g` in each project that has them. The command skips names that are not installed. If you use the Claude Code plugin, run `/plugin marketplace update fcsouza-agent-skills` and then `/plugin install game-dev@fcsouza-agent-skills`. Otherwise install the skills you want with `npx skills add`, as shown above.
+Run the same command without `-g` in each project that has them. The command skips names that are not installed. If you use the Claude Code plugin, run `/plugin marketplace update fcsouza-agent-skills` and then `/plugin install game-dev@fcsouza-agent-skills`. Otherwise install the skills you want with `bunx skills add`, as shown above.
 
 The marketplace maps the five old entry names to `game-dev`, so Claude Code should move an enabled old entry to `game-dev`. If `claude plugin list` still shows an old entry, uninstall it in your shell:
 
