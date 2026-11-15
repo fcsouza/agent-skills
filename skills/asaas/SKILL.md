@@ -112,7 +112,7 @@ Payment events worth handling:
 - `PAYMENT_CREATED`: a charge exists. A subscription cycle shows up this way.
 - `PAYMENT_RECEIVED`: paid and available in the account. For an ordinary Pix charge this is the money event.
 - `PAYMENT_CONFIRMED`: paid, balance not yet available. Card and boleto, and the success event of a Pix Automático recurring debit.
-- `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_RECEIVED_IN_CASH_UNDONE`: money going back. Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED`, because Asaas keeps its fee. This skill's rule: on a partial refund, sum the `DONE` items in the payment's `refunds` array and compare with `value` before you revoke in full.
+- `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_RECEIVED_IN_CASH_UNDONE`: money going back. Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED`, because Asaas keeps its fee. This skill's rule: on a partial refund, sum the `DONE` and `PENDING` items in the payment's `refunds` array and revoke in full only when the sum reaches `netValue`; see `references/integration-practices.md`.
 - `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE`, `PAYMENT_AWAITING_CHARGEBACK_REVERSAL`: a chargeback. It ends in `PAYMENT_REFUNDED` if the payer wins, or in `PAYMENT_CONFIRMED` / `PAYMENT_RECEIVED` on the same payment id if the merchant wins. This skill's rule: suspend, do not revoke, while it is open.
 - `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_RESTORED`, `PAYMENT_UPDATED`.
 

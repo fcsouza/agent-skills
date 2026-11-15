@@ -19,18 +19,19 @@ Everything in this file is this skill's rule: practice from integrations that ru
 - Model each purchase as a state machine keyed by payment id: created, paid, suspended, refunded, revoked. Check the payment's current `status` before you grant on a late "paid" event; a refund that landed first must block a later grant.
 - An overdue charge can still be paid. Do not close the order on `PAYMENT_OVERDUE`.
 - A card payment fires `PAYMENT_CONFIRMED` and later `PAYMENT_RECEIVED`. Grant once per payment id.
-- Chargebacks are not final when they open. The docs' chargeback flow: `PAYMENT_CHARGEBACK_REQUESTED`, then either `PAYMENT_REFUNDED` (no dispute, or the payer wins) or `PAYMENT_CHARGEBACK_DISPUTE` → `PAYMENT_AWAITING_CHARGEBACK_REVERSAL` → `PAYMENT_CONFIRMED` or `PAYMENT_RECEIVED` on the same payment id when the merchant wins. So suspend on `PAYMENT_CHARGEBACK_REQUESTED` and `PAYMENT_CHARGEBACK_DISPUTE`, restore when the reversal ends in `CONFIRMED` or `RECEIVED`, and revoke on `PAYMENT_REFUNDED`. The grant-once rule must allow suspended → paid.
+- Chargebacks are not final when they open. The docs' chargeback flow: `PAYMENT_CHARGEBACK_REQUESTED`, then either `PAYMENT_REFUNDED` (no dispute, or the payer wins) or `PAYMENT_CHARGEBACK_DISPUTE` → `PAYMENT_AWAITING_CHARGEBACK_REVERSAL` → `PAYMENT_CONFIRMED` or `PAYMENT_RECEIVED` on the same payment id when the merchant wins. So suspend on `PAYMENT_CHARGEBACK_REQUESTED` and `PAYMENT_CHARGEBACK_DISPUTE`, and revoke on `PAYMENT_REFUNDED`. Restore only after `GET /v3/payments/{id}` returns `status` `CONFIRMED` or `RECEIVED`, never on a `PAYMENT_CONFIRMED` or `PAYMENT_RECEIVED` event alone: delivery is not ordered, resends keep their `id`, and a card's `PAYMENT_RECEIVED` can land mid-dispute. The status enum has `CHARGEBACK_REQUESTED`, `CHARGEBACK_DISPUTE` and `AWAITING_CHARGEBACK_REVERSAL` for the open states. The grant-once rule must allow suspended → paid.
 - Revoke on `PAYMENT_REFUNDED` and `PAYMENT_RECEIVED_IN_CASH_UNDONE`.
-- A partial refund is not a full one. On `PAYMENT_PARTIALLY_REFUNDED`, read the payment's `refunds` array, sum the items whose `status` is `DONE`, and compare with `value`. Revoke in full only when the refunds cover the value less the Asaas fee you expect to keep (a full Pix refund can arrive as partial; see `SKILL.md`). Otherwise record the partial amount and keep access, or reduce it, as your product decides.
+- A partial refund is not a full one. On `PAYMENT_PARTIALLY_REFUNDED`, read the payment's `refunds` array and sum the items whose `status` is `DONE` or `PENDING` (skip `CANCELLED`). Revoke in full when that sum reaches `netValue`. Compare with `netValue`, not `value`, because a full Pix refund can return only the net amount and arrive as partial (see `SKILL.md`). Below that, record the partial amount and keep or reduce access, as your product decides.
+- No webhook is documented for a refund item moving from `PENDING` to `DONE` or `CANCELLED`. Re-check such payments in a sweep until no item is `PENDING`, and restore access if a `CANCELLED` item drops the sum below `netValue`.
 - Key money records by payment id, not subscription id. The fee for a charge is `value - netValue`.
 
 ## Creating charges
 
 Two workers, a reclaimed lease or a retry after a timeout can each create the same charge twice. For Pix Automático in `MANUAL` mode a second charge is a second debit.
 
-- Before the call, commit an intent row with a unique key for the charge, for example subscription id plus cycle date. A second worker hits the unique constraint and stops.
-- Send that key as `externalReference` on the charge.
-- Before any retry, query `GET /v3/payments?externalReference=<key>`. If a charge exists, store its id and do not create another.
+- Before the call, commit an intent row with a unique key for the charge, for example subscription id plus cycle date, a state (`pending`, `created`) and a lease expiry. A second worker hits the unique constraint and stops.
+- Send that key as `externalReference` on the charge. Mark the row `created` with the charge id as soon as the response arrives.
+- A sweeper picks up `pending` rows whose lease has expired, since a worker can die after the commit and leave the cycle uncharged. It, and any retry, first queries `GET /v3/payments?externalReference=<key>` and keeps only results whose `externalReference` equals the key exactly (the docs call the field a free search field). If one matches, store its id; create a charge only if none does.
 - Never hold a database lock or an open transaction across an Asaas call. Calls can take many seconds. Save each Asaas id (customer, charge, authorization) the moment it exists, then continue.
 
 ## Calling the API
