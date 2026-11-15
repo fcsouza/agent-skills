@@ -73,9 +73,16 @@ if (!session) return new Response('Unauthorized', { status: 401 });
 
 A direct `auth.api` call skips Better Auth's origin checks, even with the browser's headers. Reject an upgrade whose `Origin` header is not in your trusted origins before you read the session.
 
+Browsers send `Origin` on every WebSocket upgrade, so they are checked by `Origin` plus the session cookie. Native clients (the `game-godot` and `game-unity` skills) send no `Origin`: RFC 6455 says only browser clients must send `Origin` (section 4.1), and that the check is not meant to keep non-browsers out (section 10.2). Check them by a bearer session instead: a request with no `Origin` passes only with `Authorization: Bearer <token>` that `getSession` accepts, and is 403 otherwise. A client-set `Origin` proves nothing, so an untrusted `Origin` is 403 even with a valid token. `game-backend-architecture` has this as `authorizeUpgrade` in its server boilerplate.
+
+This needs the `bearer()` plugin. In 1.7.23 it is `import { bearer } from 'better-auth/plugins'` and `plugins: [admin({ ... }), staffGuard(), bearer({ requireSignature: true })]`. The plugin reads `Authorization: Bearer <token>` in a before hook, also for `auth.api.getSession({ headers })`, and turns a valid token into the session cookie for that call. Sign-in and sign-up responses carry the token in the `set-auth-token` header. `requireSignature: true` refuses an unsigned token; that is this skill's choice, since the header gives the signed value (default `false`).
+
+The bearer token is a session credential: whoever holds it is logged in as the player. A native client keeps it in the OS secure store (Keychain on iOS and macOS, Android Keystore, or the platform's credential store on desktop; this skill's rule, the plugin docs only say "store this token securely"). It never goes in a URL or query string, and never in a log, crash report or analytics event. Send it only in the `Authorization` header. The server reads it from that header alone.
+
 ## Pitfalls
 
 - Trusting a user id or role sent by the client.
+- Trusting `Origin` to identify a native client, or taking a session token from the query string.
 - Reading the role from a token issued at login. Read it from the current session so a demotion or ban takes effect.
 - A single `isAdmin` boolean instead of roles.
 - Leaving rate limits at their defaults for a public game. Better Auth's built-in limiter applies only to client requests, not to `auth.api` calls made by the server.
