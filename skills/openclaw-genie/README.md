@@ -21,12 +21,6 @@ openclaw-genie/
 
 ## Installation
 
-### Via ClawHub (OpenClaw only)
-
-```bash
-clawhub install openclaw-genie
-```
-
 ### Manual
 
 Copy the `openclaw-genie/` folder to your agent's skills directory:
