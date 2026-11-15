@@ -43,6 +43,7 @@
         "./skills/game-client",
         "./skills/game-design-fundamentals",
         "./skills/game-economy-design",
+        "./skills/game-godot",
         "./skills/game-localization",
         "./skills/game-save-load",
         "./skills/game-state-sync",

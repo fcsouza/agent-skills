@@ -81,6 +81,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [game-anti-cheat](skills/game-anti-cheat/) | Defend an online game against cheating: server-side validation, hidden-state filtering, detection, enforcement |
 | [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
 | [game-client](skills/game-client/) | Browser game client: choose plain web, Phaser, PixiJS or Three.js/R3F; loop, input, assets, canvas sizing, cleanup |
+| [game-godot](skills/game-godot/) | Godot 4 for this stack: GDScript and C#, headless runs and export, Godot 3 traps, WebSocket client to the Bun server |
 | [game-save-load](skills/game-save-load/) | Save and load: browser and server saves, versioned format with migrations, atomic writes, cross-device conflicts |
 | [game-state-sync](skills/game-state-sync/) | Client-server sync: prediction, reconciliation, interpolation, delta compression |
 | [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
