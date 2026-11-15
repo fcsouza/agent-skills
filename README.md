@@ -10,7 +10,7 @@ A plugin bundles skills you install in one step.
 
 | Plugin | Description | Platform |
 |--------|-------------|----------|
-| [game-dev](skills/game-dev/) | Game development skills for design, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
+| [game-dev](skills/game-dev/) | Game development skills for design, art and assets, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
 
 ## Claude Code Mods
 

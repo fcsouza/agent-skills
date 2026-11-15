@@ -59,8 +59,9 @@ out.parent.mkdir(parents=True, exist_ok=True)
 # export_apply is one switch for the whole file, and applying modifiers drops
 # shape keys (export_apply's own warning). Refuse a file that needs both
 # settings at once: apply the modifiers in the .blend, or export the two
-# groups to separate files.
-meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+# groups to separate files. Any modifier counts, an Armature modifier
+# included, so a skinned mesh with face shape keys is refused too.
+meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
 keyed = [o.name for o in meshes if o.data.shape_keys]
 modified = [o.name for o in meshes if o.modifiers]
 if keyed and modified:
@@ -85,7 +86,7 @@ if result != {"FINISHED"} or not out.is_file():
 From the 5.0 Python API release notes unless marked:
 
 - The legacy Action API is gone: `action.fcurves`, `action.groups` and `action.id_root` were removed. F-curves live in a slot's channelbag. Use `bpy_extras.anim_utils.action_get_channelbag_for_slot(action, slot)` to find one and `action_ensure_channelbag_for_slot(action, slot)` to create one, then `channelbag.fcurves.find/new/ensure`.
-- `scene.node_tree` was removed. The 5.0 notes point to `scene.compositing_node_group`, but the 5.3 Scene reference marks that property deprecated since 5.0, removal planned in 6.0, and says to use `scene.compositor_effects`. Each `SceneCompositorEffect` has a `node_group` and an `enable_for_render` flag (API: Scene, SceneCompositorEffect). The pages read do not show how to add an effect from Python; check the `SceneCompositorEffects` collection in Blender before relying on it.
+- `scene.node_tree` was removed. The 5.0 notes point to `scene.compositing_node_group`, but the 5.3 Scene reference marks that property deprecated since 5.0, removal planned in 6.0, and says to use `scene.compositor_effects`. Each `SceneCompositorEffect` has a `node_group` and an `enable_for_render` flag (API: Scene, SceneCompositorEffect). Until 6.0, setting `scene.compositing_node_group` still works: the Scene reference says it creates an effect if none exists. The pages read do not show how to add an effect through `compositor_effects` from Python; check the `SceneCompositorEffects` collection in Blender before relying on it.
 - `material.use_nodes`, `world.use_nodes` and `scene.use_nodes` always return True, setting them does nothing, and they go away in 6.0. A new material already has a default node tree.
 - The deprecated combine and separate nodes were removed. Use Separate Color and Combine Color with Mode set to RGB (manual: shader Separate Color node, compositor Combine Color node).
 - EEVEE's engine identifier is `BLENDER_EEVEE`, not `BLENDER_EEVEE_NEXT`. Cycles is `CYCLES` (the `bl_idname` in Cycles' add-on source).
