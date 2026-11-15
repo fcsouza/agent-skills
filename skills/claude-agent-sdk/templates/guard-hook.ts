@@ -6,17 +6,28 @@ import {
   tool,
   type HookCallback,
 } from '@anthropic-ai/claude-agent-sdk';
-import { basename } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 
 // Matches .env, .env.local, .ENV.production and so on.
 const ENV_FILE = /^\.env(\..+)?$/i;
 
+// Follow symlinks, then drop Windows stream suffixes (":x") and trailing dots and spaces,
+// so a link or an alias of .env does not slip past the name check.
+function realName(filePath: string) {
+  const full = resolve(filePath);
+  const real = existsSync(full)
+    ? realpathSync(full)
+    : join(existsSync(dirname(full)) ? realpathSync(dirname(full)) : dirname(full), basename(full));
+  return basename(real).split(':')[0].replace(/[. ]+$/, '');
+}
+
 const blockEnvWrites: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse') return {};
   const { file_path: filePath } = input.tool_input as { file_path?: string };
   // Fail closed: a write with no path, or a path to any .env* file, is denied.
-  if (!filePath || ENV_FILE.test(basename(filePath))) {
+  if (!filePath || ENV_FILE.test(realName(filePath))) {
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
