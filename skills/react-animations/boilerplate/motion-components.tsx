@@ -246,7 +246,6 @@ export function HealthBar({
           scaleX: spring,
           height: '100%',
           backgroundColor: color,
-          borderRadius: 6,
           transformOrigin: 'left',
         }}
       />
