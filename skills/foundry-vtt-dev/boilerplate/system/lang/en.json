@@ -46,5 +46,6 @@
   "MY_SYSTEM.Migration.Skipped": "Migration skipped. It will ask again on the next load.",
   "MY_SYSTEM.Migration.Started": "Migrating world data...",
   "MY_SYSTEM.Migration.Complete": "Migration complete.",
+  "MY_SYSTEM.Migration.Failed": "Migration to {version} failed: {error}",
   "MY_SYSTEM.Migration.WorldTooOld": "This world is too old to migrate. Update it with version {version} of the system first."
 }

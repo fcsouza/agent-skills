@@ -586,7 +586,7 @@ if (!activeGM) return ui.notifications.warn("No GM connected.");
 
 ### Socket security
 
-The GM client runs the handler with full rights, so the handler must decide whether the asking user may cause this change. A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. A query handler gets the asking `User` from Foundry in its second argument (core's `dialog` query and Foundry's Crucible system rely on it). Check that user with `canUserModify`, `testUserPermission`, or a game rule the GM can verify, bound every value, and allow-list the fields. `game.users.activeGM` picks one GM, so two online GMs do not apply the change twice. The full version, with an allow-list, is `boilerplate/module/src/socket-handler.mjs`.
+The GM client runs a GM-side handler with full rights, so the handler must decide whether the asking user may cause the change. A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. Use a query instead. In Foundry v14 a query handler receives the asking `User` in its second argument; in v13 that argument holds only timeout information. Every handler refuses unless `user` is a `foundry.documents.User`. This relies on core setting `user` on the server side; no public page states that a client cannot forge it. Check that user with `canUserModify`, `testUserPermission`, or a game rule the GM can verify, bound every value, and allow-list the fields. The GM performs the write, so document hooks see the GM as the author.
 
 See `sockets-rolls-packs.md` for the code.
 

@@ -53,7 +53,8 @@ Hooks.once("init", () => {
     // The rule the GM checks: the asking user owns the attacker. Add your game's rules (range, turn order).
     if (!attacker.testUserPermission(user, "OWNER")) return { ok: false };
     const dmg = Math.max(0, Math.min(Number(amount) || 0, 100)); // bound the value
-    // system.health is the field HeroDataModel in boilerplate/module defines.
+    // system.health is the field HeroDataModel in boilerplate/module defines. Refuse targets without it.
+    if (typeof target.system?.health !== "number") return { ok: false };
     await target.update({ "system.health": Math.max(0, target.system.health - dmg) });
     return { ok: true };
   };

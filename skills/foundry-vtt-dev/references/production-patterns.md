@@ -381,18 +381,18 @@ Production systems compile, even if the source is plain ESM. This skill builds J
     "build": "bun run build:js && bun run build:css && bun run build:db",
     "build:js": "vite build",
     "build:css": "lessc --source-map styles/my-system.less styles/my-system.css",
-    "build:db": "fvtt package pack \"core-items\""
+    "build:db": "fvtt package pack \"monsters\""
   }
 }
 ```
 
 - **Vite** bundles the entry into one file with a fixed name that matches `esmodules`. Fewer network requests on load, and unused exports are dropped.
 - **LESS** compiles `styles/my-system.less` into the file `system.json` lists. The boilerplate's `build:css` was run with less 4.9.1.
-- **foundryvtt-cli** packs source files into the LevelDB packs Foundry reads (`fvtt package workon` first). Compendium content stays in version-controlled text.
+- **foundryvtt-cli** packs source files into the LevelDB packs Foundry reads (`fvtt package workon` first). Compendium content stays in version-controlled text. `boilerplate/system/` ships no packs; `build:js`, `build:db` and the pack name here are a generic example to adapt.
 
 Changed in v14: the server requires Node 24 (`package.json` `engines`). Run your build tooling and the CLI on the same Node 24 so the LevelDB bindings match the server's. Per the 14.361 release notes, static `.html` files are served as `text/plain`; keep templates as `.hbs` rendered through Foundry, never link an `.html` file directly.
 
-Symlink the `dist/` directory into `Data/systems/my-system` for local development; `vite build --watch` keeps it fresh.
+For local development, symlink the folder Foundry should load into `Data/systems/my-system`: the system folder itself with `boilerplate/system/` as shipped, or `dist/` once you add a bundler. `vite build --watch` keeps `dist/` fresh. (Generic example.)
 
 ---
 

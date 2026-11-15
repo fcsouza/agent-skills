@@ -116,6 +116,8 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     await actor.createEmbeddedDocuments("Item", [
       {
         name: game.i18n.localize("MY_MODULE.item.newItem"),
+        // Assumes the system defines an "equipment" Item type. Use a type the
+        // world's system declares, or your own prefixed module sub-type.
         type: "equipment",
       },
     ]);

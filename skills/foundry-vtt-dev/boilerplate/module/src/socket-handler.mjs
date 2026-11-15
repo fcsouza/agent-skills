@@ -36,7 +36,10 @@ const Q_DELETE_ITEM = `${MODULE_ID}.deleteItem`;
 const ACTOR_FIELDS = new Set(["system.health", "system.mana"]);
 
 // Item types and top-level fields a player may create through this path.
-// "equipment" is the type actor-sheet.mjs creates; list your own types.
+// Set this list yourself. A module cannot assume the world's system defines
+// an Item type called "equipment": check the system's documentTypes, or use
+// your own module sub-type, which carries the module prefix ("my-module.gear").
+// "equipment" matches what actor-sheet.mjs creates.
 // system data is left out on purpose: the item's data model fills defaults.
 const ITEM_TYPES = new Set(["equipment"]);
 const ITEM_FIELDS = new Set(["name", "type", "img"]);
@@ -99,15 +102,13 @@ async function handleCreateItem({ actorUuid, itemData }, { user } = {}) {
     return refuse("field-not-allowed");
   }
   // Test "create" for the asking user on an unsaved item whose parent is the
-  // actor: the document-level check, not only the role-level canUserCreate.
+  // actor. Do not gate on the static Item.canUserCreate(user): it tests the
+  // ITEM_CREATE role permission, which defaults to Assistant GM, so it refuses
+  // every player even for items embedded in an actor they own.
   const ItemClass = foundry.documents.Item.implementation;
   // The constructor may mutate the object it gets, so pass a copy.
   const draft = new ItemClass({ ...data }, { parent: actor });
-  if (
-    !(
-      ItemClass.canUserCreate(user) && draft.canUserModify(user, "create", data)
-    )
-  ) {
+  if (!draft.canUserModify(user, "create", data)) {
     return refuse("forbidden");
   }
 

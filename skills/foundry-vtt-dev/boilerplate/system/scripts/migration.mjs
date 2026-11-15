@@ -37,7 +37,9 @@ export async function migrateWorld(currentVersion, targetVersion) {
     try {
       await fn();
     } catch (err) {
-      ui.notifications.error(`Migration to ${version} failed: ${err.message}`);
+      ui.notifications.error("MY_SYSTEM.Migration.Failed", {
+        format: { version, error: err.message },
+      });
       throw err;
     }
     // Record each step, so a failure part-way resumes at the failed step.
