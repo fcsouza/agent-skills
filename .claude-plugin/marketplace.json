@@ -75,9 +75,11 @@
     {
       "name": "standalone-skills",
       "source": "./",
-      "description": "Standalone skills: Claude Agent SDK, database tuning, Foundry VTT, the Judge PR review, Nuvemshop apps, OpenClaw and Motion for React.",
-      "version": "1.1.0",
+      "description": "Standalone skills: Asaas payments, Claude Agent SDK, database tuning, Foundry VTT, the Judge PR review, Nuvemshop apps, OpenClaw and Motion for React.",
+      "version": "1.2.0",
       "keywords": [
+        "asaas",
+        "pix",
         "claude-agent-sdk",
         "postgres",
         "mysql",
@@ -90,6 +92,7 @@
       ],
       "category": "development",
       "skills": [
+        "./skills/asaas",
         "./skills/claude-agent-sdk",
         "./skills/database-performance-tuning",
         "./skills/foundry-vtt-dev",
