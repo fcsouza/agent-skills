@@ -1,17 +1,14 @@
 ---
 name: asaas
-description: Integrate the Asaas payment API (Brazil) — Pix charges and QR codes, Pix Automático (recurring auto-debit), subscriptions, boleto, card, customers, refunds, and webhooks. Use when building or debugging Pix payments, recurring billing in Reais, CPF/CNPJ payer registration, Asaas webhook handling or a paused webhook queue; also when the user says Asaas, cobrança, assinatura via Pix, QR code copia e cola, or asaas-access-token.
+description: >-
+  Use when building or debugging an integration with the Asaas payment API (Brazil): Pix charges and QR codes, Pix Automático recurring debit, subscriptions, payment links, boleto, card, customers, refunds, webhooks or a paused webhook queue, or a `$aact_` API key that arrives empty. Also use when the user says Asaas, cobrança, assinatura via Pix, QR code copia e cola, asaas-access-token, subconta or split de pagamento.
 ---
 
 # Asaas API
 
-Brazilian payment provider. REST, JSON, one API key per environment.
+Brazilian payment provider. REST and JSON, one API key per environment. Every claim below is traced in `references/sources.md`. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "observed in production, not in the docs" come from live integrations and may change without notice.
 
-Docs serve markdown: append `.md` to any `docs.asaas.com/docs/<page>` or `/reference/<endpoint>` URL.
-The full index is at `https://docs.asaas.com/llms.txt`, and a docs MCP server at
-`https://docs.asaas.com/mcp` searches the same corpus. **Read the guide pages before writing code:
-the traps in this skill all came from prose the reference pages never mention, and the pages
-contradict each other often enough that one source is not enough.**
+The docs serve Markdown: append `.md` to any `docs.asaas.com/docs/<page>` or `/reference/<page>` URL. `https://docs.asaas.com/llms.txt` indexes the per-section indexes (`/docs/llms.txt`, `/reference/llms.txt`, `/recipes/llms.txt`, `/changelog/llms.txt`). The docs MCP server at `https://docs.asaas.com/mcp` has `search`, `fetch`, `list-endpoints` and `get-endpoint` tools. Read the guide page before you write code. The guide pages carry rules the reference pages leave out, and some pages still contradict each other.
 
 ## Auth and environments
 
@@ -24,119 +21,150 @@ contradict each other often enough that one source is not enough.**
 { "Content-Type": "application/json", "User-Agent": "your-app-name", "access_token": "$aact_..." }
 ```
 
-- The key goes in `access_token`, not `Authorization`. `User-Agent` is mandatory for accounts created
-  after 2024-06-13.
-- Sandbox keys start `$aact_hmlg_`, production `$aact_prod_`. Crossing them returns 401
-  `invalid_environment`. Nothing is shared between the two environments — accounts, data, keys.
-- A key is shown **once**. It is disabled after 3 months of inactivity and expires permanently after
-  6 months.
-- **The leading `$` will eat your key, and the escape differs per tool.** Every `.env` parser treats
-  `$aact_…` as a shell variable and substitutes nothing, so the key arrives empty and anything that
-  reads "no key" as "feature disabled" goes dark with no error. Verified, not guessed:
+- The key goes in the `access_token` header. Asaas does not use `Authorization: Bearer`.
+- `User-Agent` is mandatory for root accounts created from 2024-06-13 on.
+- Sandbox keys start `$aact_hmlg_`, production keys `$aact_prod_`. A key sent to the wrong environment returns 401 `invalid_environment`. Accounts, data and keys are separate per environment.
+- Other 401 codes: `access_token_not_found`, `invalid_access_token_format`, `invalid_access_token`.
+- The key is shown once. An account holds up to 10 keys. An unused key is disabled after 3 months (you can re-enable it) and expires for good after 6 months. Events `ACCESS_TOKEN_DISABLED`, `ACCESS_TOKEN_EXPIRING_SOON` and `ACCESS_TOKEN_EXPIRED` warn you.
+- This skill's rule: derive the environment from the key prefix and log at boot which environment the deploy charges. Never log the key.
 
-  | Where | bare `$aact_…` | `'$aact_…'` | `$$aact_…` | `\$aact_…` |
-  | --- | --- | --- | --- | --- |
-  | Bun reading a local `.env` | empty | **empty** | literal | **works** |
-  | Docker Compose `.env` (Dokploy, Coolify, plain compose) | empty | **works** | **works** | literal |
+### The `$` in the key
 
-  Single quotes save you in Compose and betray you in Bun; a backslash does the reverse. Validate the
-  key's shape at startup and complain loudly rather than silently disabling the feature.
+The `$` is part of the key. `.env` loaders read `$aact_…` as a variable reference and substitute an empty string. The key then arrives empty, and code that treats "no key" as "feature off" goes quiet with no error. Tested on 2026-11-15 with Bun 1.4.4 and Docker Compose v5.5.0, using the fake key `$aact_hmlg_TEST`:
+
+| Where | bare `$aact_…` | `"$aact_…"` | `'$aact_…'` | `$$aact_…` | `\$aact_…` |
+| --- | --- | --- | --- | --- | --- |
+| Bun, local `.env` | empty | empty | **empty** | `$` | **works** |
+| Docker Compose `.env` (interpolation and `env_file:`) | empty | empty | **works** | **works** | `\` |
+
+Single quotes work in Compose and fail in Bun. A backslash works in Bun and fails in Compose. This skill's rule: check the key's prefix at startup and fail loudly when it is missing or malformed.
 
 ## Choosing how to charge on a schedule
 
-Three things sound alike and only one is auto-debit.
+Three products sound alike. Only one is a recurring Pix debit.
 
-| | Assinatura (`/subscriptions`) with `billingType: PIX` | Pix Automático | Pix Recorrente |
+| | Assinatura (`/subscriptions`), `billingType: PIX` | Pix Automático | Pix Recorrente |
 | --- | --- | --- | --- |
-| What it is | Asaas generates a fresh charge each cycle | Recurring debit the payer authorized once | A scheduled outbound *transfer* the payer set up |
-| Auto-debit | **No.** Card only | Yes, while the authorization is active | Yes, but it is not a charge |
-| Who creates each charge | Asaas | You, per cycle, or Asaas in `SUBSCRIPTION` mode | The payer's bank |
-| First payment | Generated by the subscription | The QR code that pays and authorizes at once | n/a |
+| What it is | Asaas creates a new charge each cycle | Recurring debit the payer authorized once | A recurring outbound transfer the payer schedules |
+| Automatic debit | No for Pix and boleto; card is charged on the due date | Yes, while the authorization is `ACTIVE` | It is a transfer, not a charge |
+| Who creates each charge | Asaas | Your code (`MANUAL`, default) or Asaas (`SUBSCRIPTION`) | n/a |
+| First payment | First charge of the subscription | One QR code pays and authorizes | n/a |
 
-A Pix *subscription* does not renew itself: each cycle is a new charge the customer must actively
-pay. Pix Automático does debit automatically, needs a PJ account with a CNPJ active 6+ months, and
-moves the recurrence loop into your code. See `references/pix-automatico.md` before building on it —
-that file holds the parts that will surprise you.
-
-Pick one strategy per business flow and do not mix.
+A Pix subscription is not Pix Automático: the payer must pay each charge. Pix Automático needs a PJ account with a CNPJ active for at least 6 months. Read `references/pix-automatico.md` before you build on it. This skill's rule: pick one strategy per business flow.
 
 ## Customers
 
-`POST /v3/customers` before any charge. `name` and `cpfCnpj` are the working minimum, so **any
-product adding Asaas has to collect and store a tax id**.
+`POST /v3/customers` before any charge. `name` and `cpfCnpj` are the required fields, so a product that adds Asaas must collect and store a tax id.
 
 ```json
-{ "name": "Marcelo Almeida", "cpfCnpj": "24971563792", "externalReference": "user_123" }
+{ "name": "Marcelo Almeida", "cpfCnpj": "24971563792", "externalReference": "user_123", "notificationDisabled": true }
 ```
 
-Returns `cus_…`. Asaas happily creates duplicates: store the id, or search before creating. After a
-timeout, query before retrying — a blind retry is how you end up with two customers.
+- The response holds `cus_…`. Store it.
+- Asaas accepts two customers with the same CPF/CNPJ. Reuse the stored id or list customers before you create one. This skill's rule: after a timeout, query before you retry.
+- `notificationDisabled: true` stops Asaas's own charge notifications. Set it when you send your own.
+- `mobilePhone` is the mobile number; `phone` is a landline.
 
 ## One-off Pix charge
 
 ```http
 POST /v3/lean/payments
-{ "customer": "cus_…", "billingType": "PIX", "value": 100.90, "dueDate": "2026-07-21" }
+{ "customer": "cus_…", "billingType": "PIX", "value": 100.90, "dueDate": "2027-01-15" }
 
 GET /v3/payments/{id}/pixQrCode   → encodedImage (base64), payload (copia e cola), expirationDate
 ```
 
-**Register a Pix key on the account** (`POST /v3/pix/addressKeys`, `{"type":"EVP"}`). Without one,
-Asaas falls back to a partner institution, the code is only payable until 23:59 that day, and
-settlement can be slow. Key creation needs the account fully approved with proof of life done, so it
-is not a last-minute step. Registering a key later does **not** fix QR codes already generated —
-regenerate them. Updating a charge also invalidates its QR code.
+The dynamic QR code can be paid once and expires 12 months after the charge's due date. `billingType: UNDEFINED` lets the payer choose the method.
+
+Register a Pix key on the account: `POST /v3/pix/addressKeys` with `{"type":"EVP"}` (the API creates only random keys). Without a key, Asaas ties the QR code to a partner institution, it is payable only until 23:59 that day, and processing takes longer. Asaas says this fallback will end, with 30 days' notice. Creating a key needs the account fully approved and proof of life done. Limits: 5 keys for a person, 20 for a company, one minute between creations.
+
+- If you update the charge, fetch a new QR code.
+- The sandbox 404 page says a key registered later does not fix QR codes made before it. Create a new charge.
+
+## Payment links
+
+`POST /v3/paymentLinks` creates a hosted page. `chargeType` is `DETACHED` (one charge per payer), `INSTALLMENT` or `RECURRENT` (creates a subscription). The link creates the customer when the payer fills it in, so a returning payer becomes a duplicate customer. Charges from a link carry `paymentLink` in the webhook payload. Observed in production, not in the docs: later charges of a subscription created by a link can lack `paymentLink`; read the subscription to tie them back.
+
+## Payment ids
+
+From 2026-11-09 in sandbox and 2026-11-23 to 2026-11-27 in production, new payment ids gain a numeric segment and an underscore: `pay_1_a1B2c3D4e5F6g7` beside the old `pay_a1B2c3D4e5F6g7H8`. Both stay 20 characters and both formats coexist. Treat ids as opaque strings. Check regexes, fixed-position parsing and column constraints.
 
 ## Subscriptions
 
 ```http
 POST /v3/subscriptions
-{ "customer": "cus_…", "billingType": "PIX", "nextDueDate": "2026-10-15",
+{ "customer": "cus_…", "billingType": "PIX", "nextDueDate": "2027-01-15",
   "value": 19.90, "cycle": "MONTHLY", "description": "Plano Pró" }
 ```
 
-`cycle`: `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `QUARTERLY`, `SEMIANNUALLY`, `YEARLY`. `nextDueDate` is
-only the first charge. The subscription never becomes "paid" — its charges do, and the response does
-not carry the first one: read `GET /v3/subscriptions/{id}/payments` or wait for `PAYMENT_CREATED`.
-`POST /v3/subscriptions/{id}` edits future charges; add `updatePendingPayments: true` to rewrite
-pending ones.
+- `cycle`: `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `BIMONTHLY`, `QUARTERLY`, `SEMIANNUALLY`, `YEARLY`.
+- `nextDueDate` is the first due date. Creating the subscription confirms no payment.
+- Each charge is created 40 days before its due date by default; the account can set 14 or 7. Follow them with `PAYMENT_CREATED` (it carries `subscription`) or `GET /v3/subscriptions/{id}/payments`, which lists only charges already created. This skill's rule: send reminders from your own daily job keyed on `dueDate`, not on `PAYMENT_CREATED`, which fires weeks early.
+- `PUT /v3/subscriptions/{id}` changes future charges. Add `updatePendingPayments: true` to change pending ones too.
+- `status: INACTIVE` pauses it and fires `SUBSCRIPTION_INACTIVATED`. `DELETE` ends it, fires `SUBSCRIPTION_DELETED` and also removes its pending and overdue charges.
 
 ## Webhooks
 
-The whole operational contract is in `references/webhooks.md`, and it is not optional reading. The
-short version: **only HTTP 200 counts as success**, you have 10 seconds, redirects are treated as
-failures, 15 consecutive failures pause the queue, and queued events die after 14 days. Answer 200
-first and process afterwards. Authentication is a token you choose, echoed in `asaas-access-token`.
+Read `references/webhooks.md` before you point Asaas at an endpoint. In short: return HTTP `200`. The FAQ and the paused-queue page accept only `200`; the queue-penalty page says any 2xx, so `200` is the only safe answer. Answer within 10 seconds. Redirects are not followed. An event that got `200` counts as delivered and is never resent. 15 consecutive failures pause that webhook's queue, and queued events are deleted after 14 days. Asaas sends the `authToken` you set in the `asaas-access-token` header.
 
-Payment lifecycle worth handling:
+Payment events worth handling:
 
-- `PAYMENT_CREATED` — charge exists (this is how a subscription cycle announces itself).
-- `PAYMENT_RECEIVED` — settled. **For an ordinary Pix charge this is the money event.**
-- `PAYMENT_CONFIRMED` — paid, not yet settled. Card and boleto — **and the success event for a Pix
-  Automático recurring debit**, which is the single easiest way to build a subscription that charges
-  and never delivers.
-- `PAYMENT_OVERDUE`, `PAYMENT_REFUNDED`, `PAYMENT_DELETED`, `PAYMENT_RESTORED`, `PAYMENT_UPDATED`.
+- `PAYMENT_CREATED`: a charge exists. A subscription cycle shows up this way.
+- `PAYMENT_RECEIVED`: paid and available in the account. For an ordinary Pix charge this is the money event.
+- `PAYMENT_CONFIRMED`: paid, balance not yet available. Card and boleto, and the success event of a Pix Automático recurring debit.
+- `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE`: money going back. Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED`, because Asaas keeps its fee. Treat both as revocation.
+- `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_RESTORED`, `PAYMENT_UPDATED`.
 
-Ordinary Pix: `PAYMENT_CREATED → PAYMENT_RECEIVED`, with `PAYMENT_OVERDUE` in between when late.
-Card and boleto insert `PAYMENT_CONFIRMED` before `PAYMENT_RECEIVED` (32 days later for credit).
+Flows: Pix `PAYMENT_CREATED → PAYMENT_RECEIVED`, with `PAYMENT_OVERDUE` between them when late. Boleto inserts `PAYMENT_CONFIRMED` before `PAYMENT_RECEIVED`. Credit card waits 32 days between the two, debit card 3. An overdue charge can still be paid.
+
+## Building the integration
+
+`references/integration-practices.md` holds this skill's rules for the code around the API: persisting events before the `200` and running your own retry sweep, a payment state machine, deduping grants by payment id, no database lock across an Asaas call, 404 and missing-config handling, São Paulo dates, renewal-job alerts, tests without the network, and keeping CPF/CNPJ out of logs.
 
 ## Sandbox
 
-Separate account and key at `sandbox.asaas.com`. Coverage is not identical to production — check
-"O que pode ser testado" before treating a green sandbox as proof. Two endpoints make testing
-possible without a second account:
+Create a separate account at `sandbox.asaas.com` and a sandbox key. Coverage differs from production: check "O que pode ser testado" before you trust a green sandbox run.
 
 ```http
-POST /v3/sandbox/payment/{id}/confirm    (marks a charge paid; also how you fund a test balance)
+POST /v3/sandbox/payment/{id}/confirm    (marks a charge paid; also how you add test balance)
 POST /v3/sandbox/payment/{id}/overdue    (forces a charge overdue)
+POST /v3/sandbox/myAccount/approve       (approves the sandbox account)
 ```
 
-Paying a Pix QR code from another sandbox account needs that account to hold a balance, and paying a
-QR with no Pix key registered returns 404. Never use real third-party emails or phone numbers.
+To pay a Pix QR code with `POST /v3/pix/qrCodes/pay`, use a second sandbox account that holds a balance. A QR code from an account with no Pix key can return 404. Email and SMS notifications do go out in sandbox, so use only addresses and numbers you may use.
 
-## References
+## Subaccounts and payment split
 
-- `references/pix-automatico.md` — authorization flow, eligibility, the first payment's surprises,
-  retries, `paymentCreationMode`, debit windows.
-- `references/webhooks.md` — the delivery contract, paused queues, penalties, ordering.
-- `references/endpoints.md` — endpoint list and payload shapes.
+This skill does not cover subaccounts (subcontas) or payment split. Marketplaces need both. Read these pages first:
+
+- Subaccounts: `docs/subcontas`, `docs/criacao-de-subcontas`, `reference/criar-subconta` (`POST /v3/accounts`), `docs/gerenciamento-de-chaves-de-api-de-subcontas`.
+- Split: `docs/split-de-pagamentos` (English: `docs/payment-split-overview`), `docs/split-em-cobrancas-avulsas`, `docs/split-em-assinaturas`, `docs/faq-do-split`, `docs/mecanismo-para-validacao-de-saque-via-webhooks`.
+
+Hard limits the docs state:
+
+- Only PJ (CNPJ) accounts can create subaccounts.
+- New API subaccount users start an evaluation period at the first production subaccount: up to 10 subaccounts, R$ 2.000 of charges per subaccount, 60 days at most. Past any limit, new subaccounts, charges, subscriptions and payment links are blocked until the evaluation ends.
+- Sandbox allows 20 subaccounts per day.
+- The create response returns the subaccount `apiKey` once and its `walletId`. Store both.
+- Split is blocked by default for accounts that never used it. The root account enables it in Integrações > Segurança, with an SMS or Token App code. Until then a request with `split` returns `invalid_action`.
+- Split is calculated on `netValue`, after fees. Percentages may not exceed 100%; fixed values may not exceed the net value. Do not list your own `walletId`. A refund also reverses the splits.
+
+## Pitfalls
+
+- Do not send the key in `Authorization`. Use `access_token`.
+- Do not trust a quoted `.env` value without a startup check. The quote that works depends on the loader.
+- Do not call a Pix subscription auto-debit. Only card subscriptions and Pix Automático debit by themselves.
+- Do not generate Pix QR codes on an account with no Pix key.
+- Do not validate payment ids with a pattern. New ids contain an underscore.
+- Do not return `201` or `204` from a webhook handler, and do not let the URL redirect.
+- Do not answer `200` before the event is stored. Asaas will not send it again.
+- Do not grant access on `PAYMENT_RECEIVED` for Pix Automático. Wait for `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED`.
+- Do not handle only `PAYMENT_RECEIVED`. Pix Automático renewals end in `PAYMENT_CONFIRMED`.
+
+## Files
+
+- `references/pix-automatico.md`: read before you build Pix Automático. Authorization, eligibility, the first payment, retries, `paymentCreationMode`, events.
+- `references/webhooks.md`: read before you register a webhook or debug a paused queue. Delivery contract, retry schedule, penalties, ordering.
+- `references/integration-practices.md`: read when you write the webhook handler, the grant logic, the renewal job or the tests.
+- `references/endpoints.md`: read when you need an endpoint, its method or its payload fields.
+- `references/sources.md`: read when you need the page behind a claim or want to recheck one.
