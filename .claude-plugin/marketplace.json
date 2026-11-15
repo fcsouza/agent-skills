@@ -150,7 +150,7 @@
       "name": "worktrees",
       "source": "./mods/worktrees",
       "description": "A band above the prompt with the git worktrees of the current repo: branch, uncommitted changes, and the count of linked worktrees against a limit of 7.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "keywords": [
         "claude-code-mod",
         "mod"
