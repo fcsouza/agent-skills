@@ -42,7 +42,7 @@
 ALL_IDS="N1 N2 N3 S1 R1 R2 L1 L2 M1 M2 X1 P1 C1 C2 C3 C4 C5 O1 E1 Z1"
 MARKETPLACE=".claude-plugin/marketplace.json"
 # Directories under skills/ that the game-dev set leaves out.
-EXCLUDED="claude-agent-sdk database-performance-tuning foundry-vtt-dev nuvemshop-sdk openclaw-genie react-animations"
+EXCLUDED="claude-agent-sdk database-performance-tuning foundry-vtt-dev judge nuvemshop-sdk openclaw-genie react-animations"
 
 ONLY=""
 FINAL=0
