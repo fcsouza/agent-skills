@@ -38,6 +38,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Cheating: input validation, hidden state, dupes, detection, bans | `game-anti-cheat` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |
 | Browser client: stack choice (web, Phaser, PixiJS, Three.js), loop, input, assets | `game-client` |
+| Godot 4: GDScript or C#, headless export, WebSocket client to our server | `game-godot` |
 | Saves, slots, save versions and migration, cloud sync conflicts | `game-save-load` |
 | Lag, desync, jitter; prediction, reconciliation, interpolation | `game-state-sync` |
 | Player events, retention, funnels | `gameplay-analytics` |
