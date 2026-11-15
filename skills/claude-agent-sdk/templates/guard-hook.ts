@@ -6,35 +6,38 @@ import {
   tool,
   type HookCallback,
 } from '@anthropic-ai/claude-agent-sdk';
-import { existsSync, realpathSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { lstatSync, readlinkSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 import { z } from 'zod';
 
 // Matches .env, .env.local, .ENV.production and so on.
 const ENV_FILE = /^\.env(\..+)?$/i;
 
-// Follow symlinks, then drop Windows stream suffixes (":x") and trailing dots and spaces,
-// so a link or an alias of .env does not slip past the name check.
-function realName(filePath: string) {
-  const full = resolve(filePath);
-  const real = existsSync(full)
-    ? realpathSync(full)
-    : join(existsSync(dirname(full)) ? realpathSync(dirname(full)) : dirname(full), basename(full));
-  return basename(real).split(':')[0].replace(/[. ]+$/, '');
+// True if the path, or any symlink hop it leads through, names an .env file. A dangling link
+// (`ln -s .env config`) is followed with readlink, so a write through it is still caught.
+// Windows stream suffixes (":x") and trailing dots and spaces are stripped from each name.
+// Throws on a link loop, which the caller treats as a denial.
+export function hitsEnvFile(filePath: string, cwd: string) {
+  let path = resolve(cwd, filePath);
+  for (let hops = 0; ; hops++) {
+    if (ENV_FILE.test(basename(path).split(':')[0].replace(/[. ]+$/, ''))) return true;
+    if (!lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) return false;
+    if (hops >= 40) throw new Error('too many symlinks');
+    path = resolve(dirname(path), readlinkSync(path));
+  }
 }
 
-const blockEnvWrites: HookCallback = async (input) => {
+export const blockEnvWrites: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse') return {};
-  const { file_path: filePath } = input.tool_input as { file_path?: unknown };
-  // Fail closed: a missing or non-string path, a path that cannot be resolved,
-  // or a path to any .env* file is denied.
+  // Fail closed: a missing or non-string path, or any error while resolving it, is a denial.
   let denied = true;
-  if (typeof filePath === 'string' && filePath !== '') {
-    try {
-      denied = ENV_FILE.test(realName(filePath));
-    } catch {
-      denied = true;
+  try {
+    const { file_path: filePath } = input.tool_input as { file_path?: unknown };
+    if (typeof filePath === 'string' && filePath !== '') {
+      denied = hitsEnvFile(filePath, input.cwd);
     }
+  } catch {
+    denied = true;
   }
   if (denied) {
     return {
@@ -68,9 +71,12 @@ export function run(prompt: string) {
       mcpServers: { weather },
       // MCP tools are named mcp__<server>__<tool>; list them or they are not auto-approved.
       allowedTools: ['Read', 'Write', 'Edit', 'mcp__weather__*'],
-      // This hook only sees Write and Edit. Bash can still write files: leave Bash out of
-      // allowedTools, or add a Bash rule, if .env files must stay untouched.
-      hooks: { PreToolUse: [{ matcher: 'Write|Edit', hooks: [blockEnvWrites] }] },
+      // This hook only sees Write and Edit. Bash can still write files, and leaving it out of
+      // allowedTools does not stop it. Use disallowedTools: ['Bash'] or a Bash hook to block it.
+      // onFailure: 'block' denies the call if the callback throws (SDK 0.3.317 or later).
+      hooks: {
+        PreToolUse: [{ matcher: 'Write|Edit', hooks: [blockEnvWrites], onFailure: 'block' }],
+      },
     },
   });
 }

@@ -7,6 +7,8 @@ async def run_ci_agent(task: str, cwd: str) -> str:
     options = ClaudeAgentOptions(
         cwd=cwd,
         allowed_tools=["Read", "Glob", "Grep", "Edit"],
+        # dontAsk denies any call that would need approval. Calls that need none in default
+        # mode (reads in cwd, read-only Bash) still run.
         permission_mode="dontAsk",
         setting_sources=[],
         max_turns=30,

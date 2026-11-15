@@ -8,7 +8,8 @@ export async function runCiAgent(task: string, cwd: string) {
     options: {
       cwd,
       allowedTools: ['Read', 'Glob', 'Grep', 'Edit'],
-      // dontAsk turns every prompt into a denial, so an unlisted tool fails instead of hanging.
+      // dontAsk turns every prompt into a denial, so a call that would need approval fails instead
+      // of hanging. Calls that need none in default mode (reads in cwd, read-only Bash) still run.
       permissionMode: 'dontAsk',
       // Never read the runner's user or project settings in CI.
       settingSources: [],

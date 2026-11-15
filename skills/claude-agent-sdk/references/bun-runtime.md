@@ -19,7 +19,7 @@ The fix, from SDK 0.3.144:
 
 Each executable embeds one platform's binary. Match the platform package to `--target`. To cross-compile, install the other platform package, for example `bun add @anthropic-ai/claude-agent-sdk-linux-x64 --force`. Then run `bun build --compile --target=<target>`.
 
-`templates/bun-compile.ts` has the code and `templates/embedded-binary.d.ts` has the type for the binary import. Both typecheck against 0.3.325.
+`templates/bun-compile.ts` has the code and `templates/embedded-binary.d.ts` has the type for the binary import. Both typechecked against 0.3.325 in a scratch directory; the repo typecheck does not cover this skill.
 
 If your package manager skips optional dependencies, the SDK throws the same "binary not found" error. Set `pathToClaudeCodeExecutable` to a separately installed `claude` binary.
 

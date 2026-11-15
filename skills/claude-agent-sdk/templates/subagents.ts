@@ -6,7 +6,8 @@ export function review(prompt: string) {
   return query({
     prompt,
     options: {
-      // The parent needs Agent in its tools to delegate.
+      // Claude delegates through the Agent tool. If you restrict the parent with `tools`,
+      // keep Agent in that list.
       allowedTools: ['Read', 'Grep', 'Glob', 'Agent'],
       agents: {
         'code-reviewer': {
