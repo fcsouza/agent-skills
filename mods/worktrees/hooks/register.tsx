@@ -2,10 +2,12 @@ import type { EngineInterface, Register, Timer } from 'claude-code';
 
 import { countChanges, parseWorktrees, shorten, type Worktree } from './parse';
 
-const LIMIT = 10;
+const LIMIT = 7;
 const REFRESH_MS = 60_000;
 
 let trees: Worktree[] = [];
+// Linked worktrees: every `git worktree list` entry but the first, which is the main checkout or the bare repo.
+let linked = 0;
 let timer: Timer | undefined;
 let current = '';
 
@@ -18,11 +20,13 @@ async function refresh($: EngineInterface): Promise<void> {
   const list = await git($, cwd, ['worktree', 'list', '--porcelain']).catch(() => null);
   if (list === null || list.exitCode !== 0) {
     trees = [];
+    linked = 0;
     $.ui.invalidate('ui.render');
     return;
   }
   const top = await git($, cwd, ['rev-parse', '--show-toplevel']);
   current = top.stdout.trim();
+  linked = list.stdout.split('\n').filter(line => line.startsWith('worktree ')).length - 1;
   trees = await Promise.all(
     parseWorktrees(list.stdout).map(async tree => {
       const status = await git($, tree.path, ['status', '--porcelain']).catch(() => null);
@@ -55,13 +59,13 @@ export const register: Register = on => {
     if (e.props.hasSurvey) {
       return below;
     }
-    // One worktree is just the repo: nothing to show.
-    if (trees.length < 2) {
+    // No linked worktrees: nothing to show.
+    if (linked < 1) {
       return below;
     }
 
     const { Box, Text } = $.ui.resolve(e);
-    const full = trees.length >= LIMIT;
+    const full = linked >= LIMIT;
     // Narrow: only the tree this session is in, and a count of the rest.
     const narrow = (e.viewport?.columns ?? Number.POSITIVE_INFINITY) < 80;
     const shown = narrow ? trees.filter(tree => tree.path === current) : trees;
@@ -71,7 +75,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box gap={1} flexWrap="wrap">
           <Text color={full ? '#ef4444' : '#a78bfa'} bold>
-            ⑂ {trees.length}/{LIMIT}
+            ⑂ {linked}/{LIMIT}
           </Text>
           {shown.map(tree => (
             <Text>
