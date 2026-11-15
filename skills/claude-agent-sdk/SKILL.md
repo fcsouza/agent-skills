@@ -119,7 +119,7 @@ Copy `templates/guard-hook.ts` when you need a `PreToolUse` deny hook and a cust
 
 - Importing `extractFromBunfs` or `pathToClaudeCodeExecutable` from the package root. Neither is exported there (TS2305 on 0.3.325). `extractFromBunfs` comes from `@anthropic-ai/claude-agent-sdk/extract`, takes the embedded binary path and is synchronous. Do not `await` it.
 - Guarding `.env` with a `Write|Edit` hook and leaving Bash open. Block Bash with `disallowedTools: ['Bash']` or add a Bash hook.
-- Treating a `PreToolUse` hook or a permission rule as a security boundary. Both check what the tool asked for; a symlink, Bash or a script can still reach the file. `templates/guard-hook.ts` is a name check only. The built-in sandbox bounds shell commands only (https://code.claude.com/docs/en/sandboxing.md); to keep the file tools off a file, run the agent as an OS user that cannot write it, or in a container or VM (https://code.claude.com/docs/en/sandbox-environments.md).
+- Guarding a file with a name-check hook alone. A deny rule such as `Edit(.env)` in `disallowedTools` also matches the file a symlink resolves to (https://code.claude.com/docs/en/permissions.md). Neither stops Bash or a script that opens files itself: the built-in sandbox bounds shell commands (https://code.claude.com/docs/en/sandboxing.md), and a container, VM or the sandbox runtime bounds the whole process (https://code.claude.com/docs/en/sandbox-environments.md).
 - Writing a model ID from memory. Re-open the models page.
 
 ## Files
