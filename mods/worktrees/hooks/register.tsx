@@ -2,7 +2,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code';
 
 import { countChanges, parseWorktrees, shorten, type Worktree } from './parse';
 
-const LIMIT = 10;
+const LIMIT = 7;
 const REFRESH_MS = 60_000;
 
 let trees: Worktree[] = [];
@@ -61,7 +61,7 @@ export const register: Register = on => {
     }
 
     const { Box, Text } = $.ui.resolve(e);
-    const full = trees.length >= LIMIT;
+    const full = trees.length - 1 >= LIMIT;
     // Narrow: only the tree this session is in, and a count of the rest.
     const narrow = (e.viewport?.columns ?? Number.POSITIVE_INFINITY) < 80;
     const shown = narrow ? trees.filter(tree => tree.path === current) : trees;
@@ -71,7 +71,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box gap={1} flexWrap="wrap">
           <Text color={full ? '#ef4444' : '#a78bfa'} bold>
-            ⑂ {trees.length}/{LIMIT}
+            ⑂ {trees.length - 1}/{LIMIT}
           </Text>
           {shown.map(tree => (
             <Text>
