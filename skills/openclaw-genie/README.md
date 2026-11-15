@@ -1,52 +1,25 @@
 # OpenClaw Genie
 
-A comprehensive agent skill for [OpenClaw](https://openclaw.ai) — the self-hosted AI agent gateway that connects LLM agents to 38+ messaging platforms.
+An agent skill for [OpenClaw](https://openclaw.ai), the self-hosted AI assistant gateway. It does not copy the OpenClaw docs. It sends the agent to `https://docs.openclaw.ai/llms.txt` and the `.md` pages, and it holds the safety rules an agent needs when it installs, configures or exposes a gateway.
 
-## What It Covers
+## What it covers
 
-- Installation and quick start
-- Full `openclaw.json` configuration reference
-- Channel setup (Discord, Telegram, WhatsApp, Slack, Signal, iMessage, and more)
-- Memory system (vector search, hybrid BM25+vector, QMD, local embeddings)
-- Tools (exec, browser, skills, hooks, messaging, sub-agents)
-- Deployment (Docker, Fly.io, Railway, Render, sandboxing, security)
-- Multi-agent architecture (routing, broadcast, workspaces, session isolation)
+- Installing on the Node version the package requires, without piping an unverified script to bash
+- Secrets through SecretRef, not plaintext
+- Channels as the current docs list them
+- Exposing the gateway: loopback by default, auth and a firewall otherwise, and the Docker and UFW bypass
+- Deployment: Docker and cloud hosts, by pointing to the docs
 
-## File Structure
+## File structure
 
 ```
 openclaw-genie/
-├── SKILL.md                          # Main skill (247 lines)
-└── references/
-    ├── configuration.md              # openclaw.json, model providers, auth, OAuth
-    ├── channels.md                   # Per-channel setup, access control, streaming
-    ├── memory.md                     # Vector search, QMD, hybrid, embeddings
-    ├── tools.md                      # Exec, browser, skills system, hooks, sub-agents
-    ├── deployment.md                 # Docker, cloud platforms, sandboxing, security
-    └── multi-agent.md                # Bindings, broadcast, workspaces, sessions
+├── SKILL.md
+├── evals/evals.json
+└── references/sources.md     # the official page behind each claim
 ```
 
 ## Installation
-
-### Via [skills.sh](https://skills.sh) (recommended)
-
-Works with 37+ agents — Claude Code, OpenClaw, Cursor, Copilot, Windsurf, and more:
-
-```bash
-npx skills add fcsouza/agent-skills --skill openclaw-genie
-```
-
-Install globally (available across all projects):
-
-```bash
-npx skills add fcsouza/agent-skills --skill openclaw-genie -g
-```
-
-### Via ClawHub (OpenClaw only)
-
-```bash
-clawhub install openclaw-genie
-```
 
 ### Manual
 
@@ -60,14 +33,8 @@ cp -r openclaw-genie/ ~/.openclaw/workspace/skills/openclaw-genie/
 cp -r openclaw-genie/ .claude/skills/openclaw-genie/
 ```
 
-## Usage
-
-Once installed, the skill is automatically available. It triggers when you ask about any OpenClaw topic — installation, configuration, channels, memory, tools, hooks, deployment, or multi-agent setup.
-
-Use `/openclaw-genie` as a slash command, or let the agent invoke it automatically based on context.
-
 ## Sources
 
 - [OpenClaw Docs](https://docs.openclaw.ai)
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw) (229k stars, MIT license)
+- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
 - [ClawHub Registry](https://clawhub.com)
