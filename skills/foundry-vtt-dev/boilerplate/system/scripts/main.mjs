@@ -181,6 +181,7 @@ Hooks.once("ready", async () => {
       return;
     }
     ui.notifications.info("MY_SYSTEM.Migration.Started", { localize: true });
+    // migrateWorld stamps schemaVersion after each step; stamp the target last.
     await migrateWorld(current, target);
     await game.settings.set(SYSTEM_ID, "schemaVersion", target);
     ui.notifications.info("MY_SYSTEM.Migration.Complete", { localize: true });

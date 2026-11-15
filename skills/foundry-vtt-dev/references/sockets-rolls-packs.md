@@ -41,22 +41,25 @@ Register the listener in `init` or `ready` — registering it multiple times cre
 Players write documents they own directly. For a change a player may not make alone, ask the active GM through a query and let the GM check the request:
 
 ```javascript
+// Foundry v14: the handler's second argument carries the asking User.
 // init, on every client: the GM side of the request.
-// Foundry passes the asking User as { user }; never trust a user id from the payload.
 Hooks.once("init", () => {
-  CONFIG.queries["my-module.applyDamage"] = async ({ attackerUuid, targetUuid, amount }, { user }) => {
+  CONFIG.queries["my-module.applyDamage"] = async ({ attackerUuid, targetUuid, amount }, { user } = {}) => {
+    // Fail closed: no User in the context (v13, or a direct call without one).
+    if (!(user instanceof foundry.documents.User)) return { ok: false };
     const attacker = await fromUuid(attackerUuid);
     const target = await fromUuid(targetUuid);
-    if (!attacker || !target) return { ok: false };
+    if (attacker?.documentName !== "Actor" || target?.documentName !== "Actor") return { ok: false };
     // The rule the GM checks: the asking user owns the attacker. Add your game's rules (range, turn order).
     if (!attacker.testUserPermission(user, "OWNER")) return { ok: false };
     const dmg = Math.max(0, Math.min(Number(amount) || 0, 100)); // bound the value
-    await target.update({ "system.health.value": target.system.health.value - dmg });
+    // system.health is the field HeroDataModel in boilerplate/module defines.
+    await target.update({ "system.health": Math.max(0, target.system.health - dmg) });
     return { ok: true };
   };
 });
 
-// Any client: ask the active GM. The active GM runs the same handler locally.
+// Any client: ask the active GM. When the caller is the active GM, call the handler directly.
 async function requestApplyDamage(attacker, targetUuid, amount) {
   const data = { attackerUuid: attacker.uuid, targetUuid, amount };
   const gm = game.users.activeGM;
@@ -66,14 +69,15 @@ async function requestApplyDamage(attacker, targetUuid, amount) {
 }
 ```
 
-The GM client runs the handler with full rights, so the handler must decide whether the asking user may cause this change. A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. A query handler gets the asking `User` from Foundry in its second argument (core's `dialog` query and Foundry's Crucible system rely on it). Check that user with `canUserModify`, `testUserPermission`, or a game rule the GM can verify, bound every value, and allow-list the fields. `game.users.activeGM` picks one GM, so two online GMs do not apply the change twice. The full version, with an allow-list, is `boilerplate/module/src/socket-handler.mjs`.
+The GM client runs the handler with full rights, so the handler must decide whether the asking user may cause this change. A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. In v14 a query handler gets the asking `User` in its second argument; core's `dialog` query takes the same `{ user }` argument (CONFIG.queries in the v14 API docs), and Foundry's Crucible system checks it the same way. In v13 the second argument carries only timeout information, so the handler refuses when `user` is not a User. This pattern relies on core setting `user` on the server side; no public page states that a client cannot forge it. Check that user with `canUserModify`, `testUserPermission`, or a game rule the GM can verify, bound every value, and allow-list the fields. `game.users.activeGM` picks one GM, so two online GMs do not apply the change twice. The GM performs the write, so document hooks see the GM as the author. The full version, with allow-lists for fields and item types, is `boilerplate/module/src/socket-handler.mjs`.
 
 ### User Queries (request/response)
 
 `game.socket.emit` is fire-and-forget. When you need an answer from a specific client, use the queries API. Register a handler in `CONFIG.queries` (the name must carry your module prefix), then call `User#query`:
 
 ```javascript
-// Handler runs on the queried client as (queryData, { timeout, user }) where user is the asker.
+// v14: the handler runs on the queried client as (queryData, { user }), where user is the asker.
+// In v13 the second argument holds no user.
 // Its return value is sent back (must be JSON-serializable).
 Hooks.once("init", () => {
   CONFIG.queries["my-module.confirmTrade"] = async ({ itemName }, { user }) => {
@@ -83,7 +87,7 @@ Hooks.once("init", () => {
   };
 });
 
-// Ask one user (requires the QUERY_USER permission; throws if the user is not active)
+// Ask one user (the sender needs the QUERY_USER permission)
 const accepted = await targetUser.query("my-module.confirmTrade", { itemName: "Sword" }, { timeout: 30000 });
 
 // Ask many users at once — returns Map<User, PromiseSettledResult>

@@ -78,7 +78,7 @@ Why this pattern wins:
 - One import per directory in the entry — readable
 - Each subdirectory's public API is documented in its `_module.mjs`
 - Adding a new class is a one-line change in one barrel file
-- Tree-shakers (Rollup, Vite) prune unused exports automatically
+- Bundlers such as Vite prune unused exports automatically
 
 ---
 
@@ -329,8 +329,8 @@ Hooks.once("ready", async () => {
     // A migration rewrites world data and cannot be undone. Ask for a backup first:
     // Setup screen, right-click the world, Take Backup.
     const backedUp = await foundry.applications.api.DialogV2.confirm({
-      window: { title: "Data migration" },
-      content: "<p>Take a backup of this world before migrating. Have you taken one?</p>",
+      window: { title: "MY_SYSTEM.Migration.Title" },
+      content: `<p>${game.i18n.localize("MY_SYSTEM.Migration.Backup")}</p>`,
       rejectClose: false,
     });
     if (!backedUp) return;
@@ -371,29 +371,28 @@ Each entry is a `DatabaseWriteOperation`: `action` (`"create"|"update"|"delete"`
 
 ---
 
-## 11. Build Pipeline (Rollup + LESS/Sass + foundryvtt-cli)
+## 11. Build Pipeline (Vite + LESS + foundryvtt-cli)
 
-Production systems compile, even if the source is plain ESM:
+Production systems compile, even if the source is plain ESM. This skill builds JS with Vite, as `boilerplate/module/` does (see `build-pipeline.md`); `boilerplate/system/package.json` ships the CSS step:
 
 ```json
 {
   "scripts": {
     "build": "bun run build:js && bun run build:css && bun run build:db",
-    "build:js": "rollup -c",
-    "build:css": "lessc styles/main.less dist/my-system.css",
-    "build:db": "fvtt package pack --type System",
-    "watch": "rollup -c -w"
+    "build:js": "vite build",
+    "build:css": "lessc --source-map styles/my-system.less styles/my-system.css",
+    "build:db": "fvtt package pack \"core-items\""
   }
 }
 ```
 
-- **Rollup** bundles the entry into a single `my-system-compiled.mjs`. Cuts initial-load network requests; gives you a tree-shaken output.
-- **LESS** (or Sass) compiles `styles/main.less` into the file referenced from `system.json`. Gives you variables, nesting, mixins.
-- **foundryvtt-cli** packs source JSON in `json/` into the LevelDB format Foundry expects in `packs/`. Lets you keep compendium content in version-controllable text files.
+- **Vite** bundles the entry into one file with a fixed name that matches `esmodules`. Fewer network requests on load, and unused exports are dropped.
+- **LESS** compiles `styles/my-system.less` into the file `system.json` lists. The boilerplate's `build:css` was run with less 4.9.1.
+- **foundryvtt-cli** packs source files into the LevelDB packs Foundry reads (`fvtt package workon` first). Compendium content stays in version-controlled text.
 
 Changed in v14: the server requires Node 24 (`package.json` `engines`). Run your build tooling and the CLI on the same Node 24 so the LevelDB bindings match the server's. Per the 14.361 release notes, static `.html` files are served as `text/plain`; keep templates as `.hbs` rendered through Foundry, never link an `.html` file directly.
 
-Symlink the `dist/` directory into `Data/systems/my-system` for local development; `bun run watch` keeps it fresh.
+Symlink the `dist/` directory into `Data/systems/my-system` for local development; `vite build --watch` keeps it fresh.
 
 ---
 
@@ -531,6 +530,6 @@ For an existing system, adopt these in order of impact:
 8. ActiveEffect subtypes for rules data on effects
 9. `modifyBatch` for multi-document writes
 10. Pack folders if you have >5 packs
-11. Build pipeline (Rollup + LESS) on Node 24 once size > 10 source files
+11. Build pipeline (Vite + LESS) on Node 24 once size > 10 source files
 12. `i18nInit` hook for translated CONFIG labels
 13. `compendiumArtMappings` if you ship token art

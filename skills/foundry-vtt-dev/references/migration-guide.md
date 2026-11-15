@@ -43,8 +43,8 @@ Hooks.once("ready", async () => {
   // A migration rewrites world data and cannot be undone. Ask for a backup first:
   // Setup screen, right-click the world, Take Backup.
   const backedUp = await foundry.applications.api.DialogV2.confirm({
-    window: { title: "Data migration" },
-    content: "<p>Take a backup of this world before migrating. Have you taken one?</p>",
+    window: { title: "MY_MODULE.migration.title" },
+    content: `<p>${game.i18n.localize("MY_MODULE.migration.backup")}</p>`,
     rejectClose: false,
   });
   if (!backedUp) return;
@@ -117,7 +117,7 @@ In `module.json`:
 {
   "compatibility": {
     "minimum": "14",
-    "verified": "14.367"
+    "verified": "14.370"
   }
 }
 ```

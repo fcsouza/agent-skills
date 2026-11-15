@@ -40,6 +40,8 @@ export async function migrateWorld(currentVersion, targetVersion) {
       ui.notifications.error(`Migration to ${version} failed: ${err.message}`);
       throw err;
     }
+    // Record each step, so a failure part-way resumes at the failed step.
+    await game.settings.set("my-system", "schemaVersion", version);
   }
 }
 

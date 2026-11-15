@@ -297,33 +297,7 @@ A player who owns their character can still create effects on it. Only assistant
 
 Players cannot modify documents they do not own. For a player-initiated change to another document (a player hits an enemy), route it through the active GM:
 
-```javascript
-// init, on every client: the GM side of the request.
-// Foundry passes the asking User as { user }; never trust a user id from the payload.
-Hooks.once("init", () => {
-  CONFIG.queries["my-module.applyDamage"] = async ({ attackerUuid, targetUuid, amount }, { user }) => {
-    const attacker = await fromUuid(attackerUuid);
-    const target = await fromUuid(targetUuid);
-    if (!attacker || !target) return { ok: false };
-    // The rule the GM checks: the asking user owns the attacker. Add your game's rules (range, turn order).
-    if (!attacker.testUserPermission(user, "OWNER")) return { ok: false };
-    const dmg = Math.max(0, Math.min(Number(amount) || 0, 100)); // bound the value
-    await target.update({ "system.health.value": target.system.health.value - dmg });
-    return { ok: true };
-  };
-});
-
-// Any client: ask the active GM. The active GM runs the same handler locally.
-async function requestApplyDamage(attacker, targetUuid, amount) {
-  const data = { attackerUuid: attacker.uuid, targetUuid, amount };
-  const gm = game.users.activeGM;
-  if (!gm) return ui.notifications.warn("No GM is connected.");
-  if (gm === game.user) return CONFIG.queries["my-module.applyDamage"](data, { user: game.user });
-  return gm.query("my-module.applyDamage", data, { timeout: 10_000 });
-}
-```
-
-The GM client runs the handler with full rights, so the handler must decide whether the asking user may cause this change. A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. A query handler gets the asking `User` from Foundry in its second argument (core's `dialog` query and Foundry's Crucible system rely on it). Check that user with `canUserModify`, `testUserPermission`, or a game rule the GM can verify, bound every value, and allow-list the fields. `game.users.activeGM` picks one GM, so two online GMs do not apply the change twice. The full version, with an allow-list, is `boilerplate/module/src/socket-handler.mjs`.
+The code and the reasons behind each check are in `sockets-rolls-packs.md` ("GM-Authoritative Pattern"); the full version is `boilerplate/module/src/socket-handler.mjs`.
 
 ---
 

@@ -91,7 +91,7 @@ Vite compiles `.ts` files without extra setup. For SCSS, add `sass` as a dev dep
 
 ## `package.json` Scripts
 
-Copy `boilerplate/module/package.json`: `dev` (watch build), `build`, `serve` (Vite dev server with the Foundry proxy), `format` and `lint` (ultracite). Run `bunx ultracite init` once to write the Biome config ultracite uses.
+Copy `boilerplate/module/package.json`: `dev` (watch build), `build`, `serve` (Vite dev server with the Foundry proxy), `format` and `lint` (ultracite). `biome.jsonc` ships with the boilerplate: it is what `bunx ultracite init --pm bun --linter biome` writes, plus the Foundry globals (`game`, `CONFIG`, `foundry`, ...) and `noThisInStatic` off for ApplicationV2 action handlers. Biome reads `.gitignore`, so keep that file too. `bun run format` and `bun run lint` pass on the boilerplate as shipped.
 
 `dev` builds once and stays in watch mode — combined with Foundry's `flags.hotReload` and a symlinked `dist/`, edits propagate without an F5 for CSS/HBS/JSON.
 

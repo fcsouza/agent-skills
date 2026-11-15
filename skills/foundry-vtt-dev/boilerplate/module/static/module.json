@@ -20,9 +20,7 @@
       "url": "https://github.com/yourname"
     }
   ],
-  "esmodules": [
-    "scripts/main.mjs"
-  ],
+  "esmodules": ["scripts/main.mjs"],
   "styles": [
     {
       "src": "styles/my-module.css",
@@ -36,7 +34,6 @@
       "path": "lang/en.json"
     }
   ],
-  "socket": true,
   "packs": [],
   "relationships": {
     "systems": [],

@@ -18,7 +18,7 @@ fvtt package pack "monsters"                      # files -> LevelDB pack
 fvtt package clear                                # forget the active package
 ```
 
-`unpack` takes `--outputDirectory` and `--yaml`; `pack` takes `--inputDirectory`, `--outputDirectory` and `--yaml`. There is no `extract` verb. Run `fvtt package unpack --help` for the rest. Keep the unpacked sources in git, ignore `packs/`, and pack on release.
+`unpack` takes `--outputDirectory`, and `pack` takes `--inputDirectory` and `--outputDirectory`; `-n` names the compendium. YAML output is a `yaml` option of the CLI's library functions (`extractPack`, `compilePack`), not a flag in the README. There is no `extract` verb. Run `fvtt package unpack --help` for the rest. Keep the unpacked sources in git, ignore `packs/`, and pack on release.
 
 ## TypeScript types (`fvtt-types`)
 
@@ -36,7 +36,7 @@ Where a v14 type is missing or wrong, check the v14 API docs (https://foundryvtt
 
 ## Build
 
-Copy `boilerplate/module/` and read `build-pipeline.md`. Run `bunx ultracite init` once, then `bun run format` and `bun run lint`.
+Copy `boilerplate/module/` and read `build-pipeline.md`. `biome.jsonc` ships with the boilerplate: it is what `bunx ultracite init --pm bun --linter biome` writes, plus the Foundry globals (`game`, `CONFIG`, `foundry`, ...) and `noThisInStatic` off for ApplicationV2 action handlers. Biome reads `.gitignore`, so keep that file too. `bun run format` and `bun run lint` pass on the boilerplate as shipped.
 
 ## Publishing
 

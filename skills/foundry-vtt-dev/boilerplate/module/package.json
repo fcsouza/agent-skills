@@ -2,21 +2,21 @@
   "name": "my-module",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "description": "A Foundry VTT module.",
-  "engines": {
-    "node": ">=24"
-  },
+  "type": "module",
   "scripts": {
-    "dev": "vite build --watch --mode development",
     "build": "vite build --mode production",
-    "serve": "vite",
+    "dev": "vite build --watch --mode development",
     "format": "ultracite fix",
-    "lint": "ultracite check"
+    "lint": "ultracite check",
+    "serve": "vite"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.7",
+    "@biomejs/biome": "2.6.8",
     "ultracite": "8.2.1",
     "vite": "8.3.8"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

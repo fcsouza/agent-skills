@@ -56,7 +56,7 @@ class HeroData extends foundry.abstract.TypeDataModel {
 
 ### Operators in updateSource
 
-Changed in v14: the `-=key` and `==key` syntaxes are deprecated. Use the operator globals: `_del` deletes a key, `_replace(value)` assigns without merging.
+Changed in v14: the `-=key` and `==key` syntaxes are deprecated. Use the operator globals: `_del` deletes a key and `_replace(value)` assigns without merging. Release 14.365 calls them operators; the v14 API documents the classes in `foundry.data.operators` (`ForcedDeletion`, `ForcedReplacement`).
 
 ```js
 async _preCreate(data, options, user) {

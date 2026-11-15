@@ -1,0 +1,16 @@
+{
+  "name": "my-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Foundry VTT game system.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:css": "lessc --source-map styles/my-system.less styles/my-system.css"
+  },
+  "devDependencies": {
+    "less": "4.9.1"
+  }
+}

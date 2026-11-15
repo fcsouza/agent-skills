@@ -889,8 +889,9 @@ foundry.utils.equals({ a: [1, 2] }, { a: [1, 2] });   // true
 ### Querying other clients: `User.queryMany`
 
 ```js
-// CONFIG.queries.myQuery = async data => ({ ok: true }) — registered in init on every client
-const results = await User.queryMany(game.users.filter(u => u.active), "myQuery", { foo: 1 }, { timeout: 5000 });
+// CONFIG.queries["my-module.myQuery"] = async (data) => ({ ok: true }) — registered in init on every client.
+// Prefix every query name with your package id: unprefixed names are reserved by core.
+const results = await User.queryMany(game.users.filter(u => u.active), "my-module.myQuery", { foo: 1 }, { timeout: 5000 });
 for ( const [user, r] of results ) if ( r.status === "fulfilled" ) console.log(user.name, r.value);
 ```
 

@@ -2,15 +2,15 @@ const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
 const { DialogV2 } = foundry.applications.api;
 
-const MODULE_ID = 'my-module';
+const MODULE_ID = "my-module";
 
 export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static DEFAULT_OPTIONS = {
-    id: 'hero-actor-sheet-{id}',
-    classes: ['my-module', 'actor', 'hero'],
+    id: "hero-actor-sheet-{id}",
+    classes: ["my-module", "actor", "hero"],
     window: {
-      title: 'MY_MODULE.sheet.hero.title',
-      icon: 'fa-solid fa-person-sword',
+      title: "MY_MODULE.sheet.hero.title",
+      icon: "fa-solid fa-person-sword",
       resizable: true,
     },
     position: {
@@ -19,9 +19,9 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     },
     actions: {
       rollAbility: HeroActorSheet.#onRollAbility,
-      addItem:     HeroActorSheet.#onAddItem,
-      editItem:    HeroActorSheet.#onEditItem,
-      deleteItem:  HeroActorSheet.#onDeleteItem,
+      addItem: HeroActorSheet.#onAddItem,
+      editItem: HeroActorSheet.#onEditItem,
+      deleteItem: HeroActorSheet.#onDeleteItem,
     },
     form: {
       submitOnChange: true,
@@ -31,7 +31,7 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static PARTS = {
     main: {
       template: `modules/${MODULE_ID}/templates/sheet.hbs`,
-      scrollable: ['.inventory-list'],
+      scrollable: [".inventory-list"],
     },
   };
 
@@ -41,35 +41,40 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const context = await super._prepareContext(options);
 
     const actor = this.document;
-    const system = actor.system;
+    const { system } = actor;
 
     return {
       ...context,
       actor,
       system,
       items: [...actor.items].sort((a, b) => {
-        if (a.type !== b.type) return a.type.localeCompare(b.type);
+        if (a.type !== b.type) {
+          return a.type.localeCompare(b.type);
+        }
         return a.name.localeCompare(b.name);
       }),
-      abilities: this.#prepareAbilities(system),
-      isOwner:    actor.isOwner,
+      abilities: HeroActorSheet.#prepareAbilities(system),
+      isOwner: actor.isOwner,
       isEditable: this.isEditable,
       classChoices: Object.fromEntries(
-        CONFIG.Actor.dataModels[`${MODULE_ID}.hero`].schema.fields.characterClass.choices.map(
-          c => [c, game.i18n.localize(`MY_MODULE.class.${c}`)]
-        )
+        CONFIG.Actor.dataModels[
+          `${MODULE_ID}.hero`
+        ].schema.fields.characterClass.choices.map((c) => [
+          c,
+          game.i18n.localize(`MY_MODULE.class.${c}`),
+        ])
       ),
     };
   }
 
-  #prepareAbilities(system) {
+  static #prepareAbilities(system) {
     const labels = {
-      str: 'MY_MODULE.ability.str',
-      dex: 'MY_MODULE.ability.dex',
-      con: 'MY_MODULE.ability.con',
-      int: 'MY_MODULE.ability.int',
-      wis: 'MY_MODULE.ability.wis',
-      cha: 'MY_MODULE.ability.cha',
+      str: "MY_MODULE.ability.str",
+      dex: "MY_MODULE.ability.dex",
+      con: "MY_MODULE.ability.con",
+      int: "MY_MODULE.ability.int",
+      wis: "MY_MODULE.ability.wis",
+      cha: "MY_MODULE.ability.cha",
     };
 
     return Object.entries(system.abilities).map(([key, score]) => ({
@@ -82,68 +87,88 @@ export class HeroActorSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
-  static async #onRollAbility(event, target) {
-    const ability = target.dataset.ability;
-    if (!ability) return;
+  static async #onRollAbility(_event, target) {
+    const { ability } = target.dataset;
+    if (!ability) {
+      return;
+    }
 
-    const actor  = this.document;
-    const score  = actor.system.abilities[ability] ?? 10;
-    const mod    = Math.floor((score - 10) / 2);
-    const label  = game.i18n.localize(`MY_MODULE.ability.${ability}`);
+    const actor = this.document;
+    const score = actor.system.abilities[ability] ?? 10;
+    const mod = Math.floor((score - 10) / 2);
+    const label = game.i18n.localize(`MY_MODULE.ability.${ability}`);
 
-    const roll = new Roll('1d20 + @mod', { mod });
+    const roll = new Roll("1d20 + @mod", { mod });
     await roll.evaluate();
 
     // No messageMode passed: toMessage falls back to the core.messageMode setting.
     // Pass { messageMode: 'gm' | 'blind' | 'self' | 'ic' | 'public' } to force one.
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor }),
-      flavor:  game.i18n.format('MY_MODULE.roll.abilityCheck', { ability: label }),
+      flavor: game.i18n.format("MY_MODULE.roll.abilityCheck", {
+        ability: label,
+      }),
     });
   }
 
-  static async #onAddItem(event, target) {
+  static async #onAddItem() {
     const actor = this.document;
-    await actor.createEmbeddedDocuments('Item', [
+    await actor.createEmbeddedDocuments("Item", [
       {
-        name: game.i18n.localize('MY_MODULE.item.newItem'),
-        type: 'equipment',
+        name: game.i18n.localize("MY_MODULE.item.newItem"),
+        type: "equipment",
       },
     ]);
   }
 
-  static async #onEditItem(event, target) {
-    const itemId = target.closest('[data-item-id]')?.dataset.itemId;
-    if (!itemId) return;
+  static #onEditItem(_event, target) {
+    const itemId = target.closest("[data-item-id]")?.dataset.itemId;
+    if (!itemId) {
+      return;
+    }
 
     const item = this.document.items.get(itemId);
     item?.sheet.render(true);
   }
 
-  static async #onDeleteItem(event, target) {
-    const itemId = target.closest('[data-item-id]')?.dataset.itemId;
-    if (!itemId) return;
+  static async #onDeleteItem(_event, target) {
+    const itemId = target.closest("[data-item-id]")?.dataset.itemId;
+    if (!itemId) {
+      return;
+    }
 
     const item = this.document.items.get(itemId);
-    if (!item) return;
+    if (!item) {
+      return;
+    }
 
     const confirmed = await DialogV2.confirm({
-      window: { title: game.i18n.localize('MY_MODULE.dialog.deleteItem.title') },
-      content: game.i18n.format('MY_MODULE.dialog.deleteItem.content', { name: item.name }),
+      window: {
+        title: game.i18n.localize("MY_MODULE.dialog.deleteItem.title"),
+      },
+      content: game.i18n.format("MY_MODULE.dialog.deleteItem.content", {
+        name: item.name,
+      }),
       rejectClose: false,
     });
 
-    if (confirmed) await item.delete();
+    if (confirmed) {
+      await item.delete();
+    }
   }
 
   // ─── Registration ────────────────────────────────────────────────────────────
 
   static registerSheet() {
-    foundry.documents.collections.Actors.registerSheet(MODULE_ID, HeroActorSheet, {
-      // Module sub-types are prefixed with the module id: "hero" in module.json becomes "my-module.hero".
-      types: [`${MODULE_ID}.hero`],
-      makeDefault: true,
-      label: 'MY_MODULE.sheet.hero.label',
-    });
+    foundry.documents.collections.Actors.registerSheet(
+      MODULE_ID,
+      HeroActorSheet,
+      {
+        // Module sub-types are prefixed with the module id: "hero" in module.json becomes "my-module.hero".
+        types: [`${MODULE_ID}.hero`],
+        makeDefault: true,
+        label: "MY_MODULE.sheet.hero.label",
+      }
+    );
   }
 }

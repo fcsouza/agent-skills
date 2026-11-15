@@ -22,13 +22,13 @@ The current stable build is 14.370 (Version 14 Stable 12, November 2026). Check 
 2. Set `id` in `static/module.json`. It must match the folder name under `Data/modules/`.
 3. The entry point is `scripts/main.mjs` in `dist/` (from `src/main.mjs`). Keep `esmodules` and the Vite `fileName` in step.
 4. Declare sub-types under `documentTypes` without a prefix. Foundry prefixes them with the module id, so `hero` becomes `my-module.hero`: register `CONFIG.Actor.dataModels["my-module.hero"]` and sheets with `types: ["my-module.hero"]`. Read `references/module-subtypes.md`.
-5. Symlink `dist/` into `Data/modules/<id>/`, run `bun run dev`, enable the module in a world.
+5. Symlink `dist/` into `Data/modules/<id>/`, run `bun run dev`, enable the module in a world. `bun run format` and `bun run lint` work as shipped: `biome.jsonc` is what `bunx ultracite init` writes, plus the Foundry globals.
 6. Load CSS through the manifest with `"layer": "modules"`. Read `references/module-styling.md`.
 7. After every build, check that each path in `dist/module.json` exists. A missing `module.json`, stylesheet or lang file fails silently in Foundry.
 
 ## Building a system
 
-1. Copy `boilerplate/system/`. The entry point is `scripts/main.mjs`, declared in `system.json` `esmodules`.
+1. Copy `boilerplate/system/`. The entry point is `scripts/main.mjs`, declared in `system.json` `esmodules`. Run `bun install` and `bun run build:css` to compile `styles/my-system.css`, the stylesheet `system.json` lists.
 2. Declare every type in `system.json` `documentTypes` (with `htmlFields` and `filePathFields` per sub-type), and give each a `TypeDataModel` in `CONFIG.<Doc>.dataModels`. System types carry no prefix.
 3. Ship no `template.json`. Release 14.352 put it into its deprecation period. Read `references/system-manifest.md` before you move an old system off it.
 4. Set `CONFIG.Actor.documentClass` and `CONFIG.Item.documentClass` in `init`, and implement `getRollData()` so `@abilities.str.mod` resolves.
@@ -52,7 +52,7 @@ The current stable build is 14.370 (Version 14 Stable 12, November 2026). Check 
 - `prepareDerivedData()` computes in memory. Never write to the database there.
 - `static migrateData(source, options)` renames and reshapes raw data on every load and must return it: end with `return super.migrateData(source, options)`.
 - Flags store module data on any document: `actor.setFlag("my-module", "key", value)`.
-- Delete or replace keys with the v14 operators `_del` and `_replace(value)` (`foundry.data.operators`), not `"-=key"` or `"==key"`.
+- Delete or replace keys with the operator globals, not `"-=key"` or `"==key"`: `_del` deletes a key and `_replace(value)` assigns without merging. Release 14.365 calls them operators; the v14 API documents the classes in `foundry.data.operators` (`ForcedDeletion`, `ForcedReplacement`).
 
 Read `references/document-model.md` and `references/actor-item-classes.md`.
 
@@ -64,31 +64,19 @@ Build every window on `HandlebarsApplicationMixin(ApplicationV2)`, and sheets on
 
 A player can update documents they own. For anything else (damage to a monster, an item moved between players), ask the active GM and let the GM check the request:
 
-```javascript
-// init, every client. Foundry passes the asking User as { user }.
-CONFIG.queries["my-module.applyDamage"] = async ({ attackerUuid, targetUuid, amount }, { user }) => {
-  const attacker = await fromUuid(attackerUuid);
-  const target = await fromUuid(targetUuid);
-  if (!attacker || !target || !attacker.testUserPermission(user, "OWNER")) return { ok: false };
-  const dmg = Math.max(0, Math.min(Number(amount) || 0, 100));
-  await target.update({ "system.health.value": target.system.health.value - dmg });
-  return { ok: true };
-};
-
-// any client (when the caller is the active GM, call the handler directly)
-const gm = game.users.activeGM;
-if (gm) await gm.query("my-module.applyDamage", { attackerUuid, targetUuid, amount }, { timeout: 10_000 });
-```
+The code is in `references/sockets-rolls-packs.md` ("GM-Authoritative Pattern"), and `boilerplate/module/src/socket-handler.mjs` is the full version. Both are v14 only.
 
 Why it is written this way:
 
 - The handler runs on the GM client with full rights. Without a check on the asking user, any player can edit any document by sending a crafted request.
-- A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. A query handler gets the asking `User` from Foundry in its second argument. Core's `dialog` query and Foundry's own Crucible system use that argument the same way.
+- A raw `game.socket` listener receives only what the sender emitted, so a user id in the payload can be forged. In v14 a query handler gets the asking `User` in its second argument (core's `dialog` query takes the same `{ user }`). In v13 that argument holds only timeout information, so every handler refuses when `user` is not a `foundry.documents.User`.
+- This skill relies on core setting `user` on the server side. No public page states that a client cannot forge it.
 - Check that user with `canUserModify(user, action, data)`, `testUserPermission`, or a game rule the GM can verify. Bound every number and allow-list the fields you write.
 - `game.users.activeGM` picks one GM, so two online GMs do not apply the change twice.
+- The GM performs the write, so document hooks (`createItem`, `updateActor`) see the GM as the author, not the player.
 - Sending a query needs the `QUERY_USER` permission. Players have it by default, but a GM can revoke it.
 
-`boilerplate/module/src/socket-handler.mjs` is the full version, and `references/sockets-rolls-packs.md` covers raw sockets, which need `"socket": true` and the event name `module.<id>` or `system.<id>`.
+Raw sockets need `"socket": true` in the manifest and the event name `module.<id>` or `system.<id>`; queries need neither.
 
 ## Dice and chat
 
@@ -201,6 +189,8 @@ Checklists (copy when preparing a release):
 Module boilerplate (copy when starting a module; built and checked with Vite 8.3.8):
 
 - `boilerplate/module/package.json` - copy when starting a module: scripts and pinned dev dependencies.
+- `boilerplate/module/biome.jsonc` - copy when starting a module: the ultracite config with Foundry globals.
+- `boilerplate/module/.gitignore` - copy when starting a module: Biome reads it; ignores node_modules and dist.
 - `boilerplate/module/vite.config.mjs` - copy when starting a module: fixed-name output, static copy after write, dev proxy.
 - `boilerplate/module/src/main.mjs` - copy when starting a module: hooks, settings, backup-gated migrations.
 - `boilerplate/module/src/type-data-model.mjs` - copy when adding an Actor sub-type.
@@ -214,6 +204,8 @@ Module boilerplate (copy when starting a module; built and checked with Vite 8.3
 System boilerplate (copy when starting a system):
 
 - `boilerplate/system/system.json` - copy when starting a system: v14 manifest with documentTypes and migration flags.
+- `boilerplate/system/package.json` - copy when starting a system: the `build:css` step (less 4.9.1).
+- `boilerplate/system/lang/en.json` - copy when starting a system: every string the boilerplate uses, including the migration dialog.
 - `boilerplate/system/scripts/main.mjs` - copy when starting a system: entry, staged hooks, backup-gated migrations.
 - `boilerplate/system/scripts/config.mjs` - copy when starting a system: static rules data.
 - `boilerplate/system/scripts/settings.mjs` - copy when starting a system: settings in one place.

@@ -1,0 +1,27 @@
+{
+  // `bunx ultracite init --pm bun --linter biome` writes the first three lines.
+  // The rest teaches Biome about the browser globals Foundry provides.
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core"],
+  "javascript": {
+    "globals": [
+      "CONFIG",
+      "CONST",
+      "ChatMessage",
+      "Hooks",
+      "Roll",
+      "foundry",
+      "fromUuid",
+      "game",
+      "ui"
+    ]
+  },
+  "linter": {
+    "rules": {
+      "complexity": {
+        // ApplicationV2 calls static action handlers with `this` bound to the app.
+        "noThisInStatic": "off"
+      }
+    }
+  }
+}
