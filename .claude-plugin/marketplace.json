@@ -75,17 +75,19 @@
     {
       "name": "standalone-skills",
       "source": "./",
-      "description": "Standalone skills — React animations and OpenClaw Genie.",
+      "description": "Standalone skills — React animations, OpenClaw Genie and the Judge PR review.",
       "version": "1.0.0",
       "keywords": [
         "react",
         "animations",
-        "openclaw"
+        "openclaw",
+        "code-review"
       ],
       "category": "development",
       "skills": [
         "./skills/react-animations",
-        "./skills/openclaw-genie"
+        "./skills/openclaw-genie",
+        "./skills/judge"
       ]
     },
     {
