@@ -127,7 +127,7 @@ hundreds of millions and climbing, that is the emergency; everything else waits.
 - **`VACUUM FULL`** rewrites the table and returns space to the filesystem, holding an
   `ACCESS EXCLUSIVE` lock for the whole rewrite. On a live table that is an outage.
 - **`pg_repack`** (extension) does the same rewrite online with only brief locks. This is
-  the production answer on PG 18 and older when you genuinely must shrink a table.
+  the production answer on PG 18 and older when you must shrink a table.
 - **`REPACK (CONCURRENTLY)`** (PG 19, not released as of 2026-11-15; RC 2 was announced
   2026-11-12). The draft PG 19 release notes describe a `REPACK` command that replaces
   `VACUUM FULL` and `CLUSTER`, and says the `CONCURRENTLY` option rebuilds a table without
@@ -211,8 +211,9 @@ Extended statistics also work on expressions, which fixes estimates for
   Too low and the planner avoids index scans it should choose.
 - **`random_page_cost`** — the default is 4.0. The manual says random access to durable
   storage normally costs more than four times sequential access, and that 4.0 is used
-  because most random reads are assumed to hit cache. It also says lowering the value can
-  suit a database that is mostly cached. Many people set about 1.1 on SSD. That figure is
+  because most random reads are assumed to hit cache. It also says decreasing the value
+  might be appropriate if the data is likely to be completely in cache, such as when the
+  database is smaller than the total server memory, or network latency is high. Many people set about 1.1 on SSD. That figure is
   community practice, not from the manual. Treat it as a hypothesis: change it in a
   session, compare plans and timings on the real workload, and keep it only if they improve.
 - **`maintenance_work_mem`** — used by index builds and vacuum. Raising it makes

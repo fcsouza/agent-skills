@@ -14,8 +14,9 @@ it covers plain Postgres and MySQL. For platform features, see Related skills.
 
 - This skill: why a query is slow and what to change. Measurement, plans, indexes,
   rewrites, vacuum, bloat, safe rollout.
-- `postgresql-optimization`: Postgres features (JSONB, arrays, ranges, full-text search,
-  window functions). Use it for "how do I express this", not "why is this slow".
+- `postgresql-optimization`, if installed: Postgres features (JSONB, arrays, ranges,
+  full-text search, window functions). Use it for "how do I express this", not "why is
+  this slow".
 - `postgres-game-schema`: schema design for game backends.
 - Managed platforms (Supabase, Neon, PlanetScale): pooling, branching and provider limits
   are in their own skills, listed under Related skills.
@@ -81,9 +82,10 @@ Connection rules for the script:
   `service=NAME` entry in `~/.pg_service.conf`. `PGPASSWORD` works but the libpq manual
   advises against it.
 - **Direct connection only.** The script sends its read-only and timeout settings as
-  startup options. PgBouncer rejects unknown startup parameters unless
-  `ignore_startup_parameters` lists them, and then drops them. The script checks that
-  `default_transaction_read_only` is on and stops if it is not. Details in
+  startup options. PgBouncer rejects startup parameters it does not track, drops them if
+  `ignore_startup_parameters` lists `options`, and tracks only some settings. The script
+  checks `default_transaction_read_only`, `statement_timeout` and `lock_timeout` with `SHOW`
+  and stops if any is not applied. Details in
   [references/diagnose-postgres.md](references/diagnose-postgres.md).
 - **Read-only is a default, not a lock.** Any `SET` in the session undoes it. For a hard
   guarantee connect as a role without write privileges, such as one in `pg_monitor`.
@@ -194,7 +196,7 @@ since 2026-04-21.
 
 ## Related skills
 
-- `postgresql-optimization`: Postgres features and idioms.
+- `postgresql-optimization`, if installed: Postgres features and idioms.
 - `postgres-game-schema`: game backend schema design.
 - `prod-api-safety`: required before the first write to a production resource.
 - Supabase: use the `supabase-postgres-best-practices` skill (and `supabase`) if installed,

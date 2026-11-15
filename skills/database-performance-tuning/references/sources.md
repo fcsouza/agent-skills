@@ -38,6 +38,8 @@ Every version, default and behavior claim in this skill traces to a page below. 
 - PostgreSQL Global Development Group, "The Connection Service File" (PostgreSQL 18 manual) - https://www.postgresql.org/docs/current/libpq-pgservice.html - supports: ~/.pg_service.conf INI format, selected with service=NAME or PGSERVICE - checked 2026-11-15
 - PgBouncer, "Features" (pgbouncer.org) - https://www.pgbouncer.org/features.html - supports: transaction pooling assigns a server connection per transaction; SET/RESET, LISTEN, WITH HOLD cursors, PREPARE/DEALLOCATE, PRESERVE/DELETE ROWS temp tables, LOAD and session-level advisory locks do not work in that mode; startup parameters are supported - checked 2026-11-15
 - PgBouncer, "Configuration" (pgbouncer.org) - https://www.pgbouncer.org/config.html - supports: only trackable startup parameters are allowed, others raise an error unless listed in ignore_startup_parameters (default empty, "options" can be listed); track_extra_parameters default empty; pool_mode transaction - checked 2026-11-15
+- PgBouncer, "Changelog" (pgbouncer.org) - https://www.pgbouncer.org/changelog.html - supports: 1.20.0 (2023-07-20) added support for the `options` startup parameter, only for PostgreSQL parameters PgBouncer tracks through track_extra_parameters - checked 2026-11-15
+- PostgreSQL Global Development Group, "Database Connection Control Functions" (PostgreSQL 18 manual) - https://www.postgresql.org/docs/current/libpq-connect.html - supports: spaces around the equal sign in keyword/value connection strings are optional (the password check allows them) - checked 2026-11-15
 
 ## MySQL
 

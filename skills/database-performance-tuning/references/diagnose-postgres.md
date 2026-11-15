@@ -346,10 +346,14 @@ Pooler limits that affect diagnosis and tuning, from the PgBouncer manual:
   statement. Use `SET LOCAL` inside a transaction, or a direct connection.
 - PgBouncer accepts only startup parameters it can track. Others raise an error unless
   `ignore_startup_parameters` lists them (listing `options` makes it ignore everything in
-  `options`). `pg-diagnose.sh` passes its read-only and timeout settings through `PGOPTIONS`,
-  which arrives as the `options` startup parameter. Behind a pooler it either fails to
-  connect or loses the settings. The script stops in the second case. Use the direct
-  connection (the provider's non-pooled URL) for diagnosis.
+  `options`, which drops every setting sent that way). PgBouncer supports the `options`
+  startup parameter since 1.20.0 (2023-07-20), and only for settings it tracks, which
+  `track_extra_parameters` can extend. `pg-diagnose.sh` passes its read-only and timeout
+  settings through `PGOPTIONS`, which arrives as `options`. Behind a pooler the connection
+  can fail, or succeed with some or all of the settings dropped. The script runs `SHOW` for
+  `default_transaction_read_only`, `statement_timeout` and `lock_timeout` before any query
+  and stops if any of them is not applied. Use the direct connection (the provider's
+  non-pooled URL) for diagnosis.
 
 Note that `work_mem` is per sort or hash node, per connection — a query with three sort
 nodes across 100 connections can allocate 300 × `work_mem`. That is why raising

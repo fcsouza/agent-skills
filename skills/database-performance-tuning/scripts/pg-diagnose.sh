@@ -40,6 +40,12 @@ while getopts "n:qh" opt; do
 done
 shift $((OPTIND - 1))
 
+# LIMIT is pasted into SQL. Accept a positive integer only.
+if [[ ! "$LIMIT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: -n needs a positive integer, got '$LIMIT'" >&2
+  exit 2
+fi
+
 CONN="${1:-${DATABASE_URL:-}}"
 if [[ -z "$CONN" ]]; then
   echo "error: pass a connection string or set DATABASE_URL" >&2
@@ -47,7 +53,7 @@ if [[ -z "$CONN" ]]; then
 fi
 
 # A password in the connection string would show in the process list.
-if [[ "$CONN" =~ ^postgres(ql)?://[^/@?]*:[^/@?]+@ || "$CONN" =~ (^|[[:space:]])password= || "$CONN" =~ [?\&]password= ]]; then
+if [[ "$CONN" =~ ^postgres(ql)?://[^/@?]*:[^/@?]+@ || "$CONN" =~ (^|[[:space:]])password[[:space:]]*= || "$CONN" =~ [?\&]password= ]]; then
   cat >&2 <<'EOF'
 error: the connection string contains a password. It would appear in `ps`.
 Remove it and use one of these instead:
@@ -67,7 +73,14 @@ command -v "$PSQL_BIN" >/dev/null 2>&1 || {
 
 export PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=30s -c lock_timeout=2s"
 
-run() { "$PSQL_BIN" -X -q -v ON_ERROR_STOP=0 -d "$CONN" -c "$1"; }
+# A failing statement is reported and counted. The run continues and exits 1 at the end.
+FAILED=0
+run() {
+  "$PSQL_BIN" -X -q -v ON_ERROR_STOP=0 -d "$CONN" -c "$1" || {
+    FAILED=$((FAILED + 1))
+    echo "(section failed: see the error above)" >&2
+  }
+}
 scalar() { "$PSQL_BIN" -X -q -t -A -d "$CONN" -c "$1" | tr -d '[:space:]'; }
 
 section() { printf '\n\n═══ %s ═══\n\n' "$1"; }
@@ -75,17 +88,19 @@ section() { printf '\n\n═══ %s ═══\n\n' "$1"; }
 VERNUM="$(scalar 'SHOW server_version_num')" || true
 [[ -z "$VERNUM" ]] && { echo "error: could not connect" >&2; exit 1; }
 
-# PGOPTIONS travels as a startup parameter. A pooler can drop it silently. Do not
-# run anything unless the read-only default took effect.
+# PGOPTIONS travels as the "options" startup parameter. A pooler can drop all of it,
+# or track only some of the settings. Do not run anything unless all three took effect.
 RO="$(scalar 'SHOW default_transaction_read_only')" || true
-if [[ "$RO" != "on" ]]; then
-  echo "error: default_transaction_read_only is '$RO', not 'on'. A pooler probably dropped the startup options." >&2
-  echo "       Connect to the database directly (not through PgBouncer's transaction pool) and retry." >&2
+ST="$(scalar 'SHOW statement_timeout')" || true
+LT="$(scalar 'SHOW lock_timeout')" || true
+if [[ "$RO" != "on" || "$ST" != "30s" || "$LT" != "2s" ]]; then
+  echo "error: startup options were not applied (default_transaction_read_only='$RO', statement_timeout='$ST', lock_timeout='$LT')." >&2
+  echo "       A pooler probably dropped them. Connect to the database directly (not through PgBouncer) and retry." >&2
   exit 1
 fi
 
 printf '%s\n' "Postgres server_version_num=$VERNUM  database=$(scalar 'SELECT current_database()')"
-printf '%s\n' "read-only session, statement_timeout=30s"
+printf '%s\n' "read-only session, statement_timeout=$ST, lock_timeout=$LT (verified with SHOW)"
 printf '%s\n' "connected as: $(scalar 'SELECT current_user')  (without pg_read_all_stats or pg_monitor, other roles' queries show as <insufficient privilege>)"
 
 # ---------------------------------------------------------------- server state
@@ -112,7 +127,7 @@ run "SELECT pg_postmaster_start_time() AS started_at,
 
 # ------------------------------------------------------- statement-level stats
 
-HAS_PGSS="$(scalar "SELECT count(*) FROM pg_extension WHERE extname='pg_stat_statements'")"
+HAS_PGSS="$(scalar "SELECT count(*) FROM pg_extension WHERE extname='pg_stat_statements'")" || true
 
 if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
   # PG 17 renamed blk_read_time -> shared_blk_read_time.
@@ -166,7 +181,7 @@ if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
   section "Statements spilling to temp files (work_mem or row-estimate problem)"
 
   run "SELECT queryid, calls, temp_blks_written,
-              pg_size_pretty(temp_blks_written * 8192::bigint) AS temp_size,
+              pg_size_pretty(temp_blks_written * current_setting('block_size')::bigint) AS temp_size,
               left(regexp_replace(query, '\s+', ' ', 'g'), 100) AS query
        FROM pg_stat_statements
        WHERE temp_blks_written > 0
@@ -176,6 +191,9 @@ if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
 
   section "Statements generating the most WAL (the write-side cost)"
 
+  if (( VERNUM < 130000 )); then
+    echo "skipped: pg_stat_statements has no WAL columns before PG 13"
+  else
   run "SELECT queryid, calls, wal_records, wal_fpi,
               pg_size_pretty(wal_bytes::numeric) AS wal,
               left(regexp_replace(query, '\s+', ' ', 'g'), 100) AS query
@@ -184,8 +202,12 @@ if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
          AND dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
        ORDER BY wal_bytes DESC
        LIMIT 10;"
+  fi
 
-  run "SELECT * FROM pg_stat_statements_info;" 2>/dev/null || true
+  # pg_stat_statements_info exists from PG 14.
+  if (( VERNUM >= 140000 )); then
+    run "SELECT * FROM pg_stat_statements_info;"
+  fi
 else
   section "pg_stat_statements"
   if [[ "$SKIP_PGSS" == "1" ]]; then
@@ -411,3 +433,8 @@ Next steps
      reference before changing anything.
   4. Change one thing. Re-run this script and compare the same number.
 EOF
+
+if (( FAILED > 0 )); then
+  echo "warning: $FAILED section(s) failed; their output is missing above." >&2
+  exit 1
+fi
