@@ -40,7 +40,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "Introdução - Pix" (docs.asaas.com, 2026-08-13) - https://docs.asaas.com/docs/pix.md - supports: key creation needs approval and proof of life; without a key processing takes longer; API creates only EVP keys; 5 keys for a person, 20 for a company; 1 minute between creations - checked 2026-11-15
 - Asaas, "Criar uma chave" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-uma-chave.md - supports: `POST /v3/pix/addressKeys` with `type` `EVP` only - checked 2026-11-15
 - Asaas, "Tentar pagar QR Code Pix no Sandbox sem chave cadastrada = erro 404" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/tentar-pagar-qr-code-pix-no-sandbox-sem-chave-cadastrada-erro-404.md - supports: 404 paying a QR from an account with no key; registering a key does not fix earlier QR codes - checked 2026-11-15
-- Asaas, "Criar nova cobrança" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-nova-cobranca.md - supports: required fields; `billingType` values; `description` 500 chars; `pixAutomaticAuthorizationId`; response fields `netValue`, `paymentDate`, `clientPaymentDate`, `creditDate`, `invoiceUrl`, `transactionReceiptUrl`, `paymentLink` - checked 2026-11-15
+- Asaas, "Criar nova cobrança" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-nova-cobranca.md - supports: required fields; `billingType` values; `description` 500 chars; `pixAutomaticAuthorizationId`; response fields `netValue`, `clientPaymentDate` (date the payer paid a boleto), `paymentDate` (settlement in Asaas), `creditDate`, `invoiceUrl`, `transactionReceiptUrl`, `paymentLink` - checked 2026-11-15
 - Asaas, "Listar cobranças" (docs.asaas.com MCP `get-endpoint`, 2026) - https://docs.asaas.com/reference/listar-cobrancas.md - supports: `GET /v3/payments` filters `customer`, `subscription`, `status`, `billingType`, `externalReference`, `pixQrCodeId`, date ranges - checked 2026-11-15
 
 ## Payment links
@@ -64,7 +64,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 
 ## Payment events and refunds
 
-- Asaas, "Eventos para cobranças" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/webhook-para-cobrancas.md - supports: meaning of `PAYMENT_CONFIRMED` and `PAYMENT_RECEIVED`; refund and chargeback events including `PAYMENT_PARTIALLY_REFUNDED`; flows for Pix, boleto, credit card (32 days) and debit card (3 days); overdue charges still reach `CONFIRMED`; new attributes announced by email and Discord - checked 2026-11-15
+- Asaas, "Eventos para cobranças" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/webhook-para-cobrancas.md - supports: meaning of `PAYMENT_CONFIRMED` and `PAYMENT_RECEIVED`; refund and chargeback events including `PAYMENT_PARTIALLY_REFUNDED`; flows for Pix, boleto, credit card (32 days) and debit card (3 days); overdue charges still reach `CONFIRMED`; `PAYMENT_RECEIVED_IN_CASH_UNDONE`; the chargeback flow (`CHARGEBACK_REQUESTED`, then `PAYMENT_REFUNDED`, or `CHARGEBACK_DISPUTE` → `AWAITING_CHARGEBACK_REVERSAL` → `CONFIRMED` or `RECEIVED` on the same payment when the merchant wins); new attributes announced by email and Discord - checked 2026-11-15
 - Asaas, "Estornos" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/estornos.md - supports: `refunds` array; count only `DONE`; several refunds per charge - checked 2026-11-15
 - Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED` because Asaas keeps its fee. One integration's notes say card settlement takes 30 days; the docs say 32 and the skill follows the docs - https://docs.asaas.com/docs/webhook-para-cobrancas.md - supports: only that both events exist - checked 2026-11-15
 
@@ -92,6 +92,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "Eventos para Pix Automático" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/eventos-para-pix-automático.md - supports: the ten event names; QR expiry leads to `REFUSED`; payload shapes under `authorization` and `paymentInstruction`; `cancellationReason` and `cancellationDate`; `EXPIRED` has no reason - checked 2026-11-15
 - Observed in production, not in the docs: the payer's bank app shows `description` as "Serviço" and `contractId` as "Código da cobrança"; a second instruction in the same cycle returns 400 `invalid_object`; the first payment's `pixQrCodeId` equals the authorization's `conciliationIdentifier` - https://docs.asaas.com/reference/criar-uma-autorizacao-pix-automatico.md - supports: only the field definitions - checked 2026-11-15
 - This skill's rule: readable `contractId`, reconcile by authorization id and `conciliationIdentifier`; QR expiry in hours; cancel abandoned authorizations; own sweep at period end - https://docs.asaas.com/docs/eventos-para-pix-automático.md - supports: the fields and events the rules use - checked 2026-11-15
+- This skill's rule: grant the first Pix Automático cycle on the first payment and count renewal as on only after `AUTHORIZATION_ACTIVATED`; link no charges before activation - https://docs.asaas.com/docs/faq-2.md - supports: FAQ 11, the first payment stays received when `AUTHORIZATION_REFUSED` follows, and only `ACTIVE` authorizations accept charges (also the callout on https://docs.asaas.com/docs/fluxos-de-webhook.md) - checked 2026-11-15
 
 ## Sandbox
 
@@ -103,7 +104,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 
 ## Errors, limits, pagination
 
-- Asaas, "Códigos HTTP das respostas" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/codigos-http-das-respostas.md - supports: error body shape; 400, 401, 403, 404, 429 meanings; 25,000 requests per 12 hours; 50 concurrent `GET`; `RateLimit-*` headers - checked 2026-11-15
+- Asaas, "Códigos HTTP das respostas" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/codigos-http-das-respostas.md - supports: error body shape; 400, 401, 403, 404 (including an id that belongs to another account), 429 meanings; 25,000 requests per 12 hours; 50 concurrent `GET`; `RateLimit-*` headers - checked 2026-11-15
 - Asaas, "Listagem e paginação" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/listagem-e-paginacao.md - supports: `limit` 1 to 100, `offset`, `hasMore` - checked 2026-11-15
 
 ## Subaccounts and split
@@ -119,4 +120,4 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 
 ## Integration practices
 
-- This skill's rule: every item in `references/integration-practices.md` (persist before `200`, own retry sweep, `503` on missing config, state machine, dedupe grants by payment id, no lock across calls, 404 as done, São Paulo dates, renewal alerts, offline tests, CPF/CNPJ out of logs) - https://docs.asaas.com/docs/outros-erros.md - supports: `200` means delivered and any other code is retried, which the sweep and `503` rules rest on - checked 2026-11-15
+- This skill's rule: every item in `references/integration-practices.md` (token check and `401` before storing, persist before `200`, own retry sweep, `503` on missing config, state machine with chargeback suspend and restore, partial refunds summed from `refunds`, intent rows with a unique `externalReference` and a lookup before retry, no lock across calls, 404 as done only for ids made with the same key, São Paulo dates, renewal alerts, offline tests, CPF/CNPJ out of logs) - https://docs.asaas.com/docs/outros-erros.md - supports: `200` means delivered and any other code is retried; the chargeback flow, `refunds` array, `externalReference` filter and the 404 meaning are cited in their own lines above - checked 2026-11-15

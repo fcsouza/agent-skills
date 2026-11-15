@@ -14,7 +14,7 @@ Base: `https://api-sandbox.asaas.com/v3` (sandbox) or `https://api.asaas.com/v3`
 - `GET /payments/{id}/pixQrCode`: `encodedImage` (base64), `payload` (copia e cola), `expirationDate`.
 - `GET /payments`: list, filter by `customer`, `subscription`, `status`, `billingType`, `externalReference`, `pixQrCodeId`, and date ranges such as `dueDate[ge]`, `dueDate[le]`, `paymentDate[ge]`.
 - `GET /payments/{id}`, `PUT /payments/{id}`, `DELETE /payments/{id}`, `POST /payments/{id}/restore`, `POST /payments/{id}/refund`.
-- Response fields worth storing: `netValue` (after the Asaas fee), `paymentDate`, `clientPaymentDate` (when the payer paid a boleto), `creditDate`, `invoiceUrl`, `transactionReceiptUrl`, `paymentLink`, `subscription`.
+- Response fields worth storing: `netValue` (after the Asaas fee), `clientPaymentDate` (when the payer paid a boleto), `paymentDate` (when Asaas settled it), `creditDate`, `invoiceUrl`, `transactionReceiptUrl`, `paymentLink`, `subscription`.
 - A refunded charge returns a `refunds` array. Count an item as returned only when its `status` is `DONE`; a charge can have several.
 
 ## Payment links

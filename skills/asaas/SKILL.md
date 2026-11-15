@@ -8,7 +8,7 @@ description: >-
 
 Brazilian payment provider. REST and JSON, one API key per environment. Every claim below is traced in `references/sources.md`. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "observed in production, not in the docs" come from live integrations and may change without notice.
 
-The docs serve Markdown: append `.md` to any `docs.asaas.com/docs/<page>` or `/reference/<page>` URL. `https://docs.asaas.com/llms.txt` indexes the per-section indexes (`/docs/llms.txt`, `/reference/llms.txt`, `/recipes/llms.txt`, `/changelog/llms.txt`). The docs MCP server at `https://docs.asaas.com/mcp` has `search`, `fetch`, `list-endpoints` and `get-endpoint` tools. Read the guide page before you write code. The guide pages carry rules the reference pages leave out, and some pages still contradict each other.
+The docs serve Markdown: append `.md` to any `docs.asaas.com/docs/<page>` or `/reference/<page>` URL. `https://docs.asaas.com/llms.txt` indexes the per-section indexes (`/docs/llms.txt`, `/reference/llms.txt`, `/recipes/llms.txt`, `/changelog/llms.txt`). The docs MCP server at `https://docs.asaas.com/mcp` has six tools: `search`, `fetch`, `list-endpoints`, `get-endpoint`, `search-endpoints` and `execute-request`. Read the guide page before you write code. The guide pages carry rules the reference pages leave out, and some pages still contradict each other.
 
 ## Auth and environments
 
@@ -112,14 +112,15 @@ Payment events worth handling:
 - `PAYMENT_CREATED`: a charge exists. A subscription cycle shows up this way.
 - `PAYMENT_RECEIVED`: paid and available in the account. For an ordinary Pix charge this is the money event.
 - `PAYMENT_CONFIRMED`: paid, balance not yet available. Card and boleto, and the success event of a Pix Automático recurring debit.
-- `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE`: money going back. Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED`, because Asaas keeps its fee. Treat both as revocation.
+- `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_RECEIVED_IN_CASH_UNDONE`: money going back. Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED`, because Asaas keeps its fee. This skill's rule: on a partial refund, sum the `DONE` items in the payment's `refunds` array and compare with `value` before you revoke in full.
+- `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE`, `PAYMENT_AWAITING_CHARGEBACK_REVERSAL`: a chargeback. It ends in `PAYMENT_REFUNDED` if the payer wins, or in `PAYMENT_CONFIRMED` / `PAYMENT_RECEIVED` on the same payment id if the merchant wins. This skill's rule: suspend, do not revoke, while it is open.
 - `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_RESTORED`, `PAYMENT_UPDATED`.
 
 Flows: Pix `PAYMENT_CREATED → PAYMENT_RECEIVED`, with `PAYMENT_OVERDUE` between them when late. Boleto inserts `PAYMENT_CONFIRMED` before `PAYMENT_RECEIVED`. Credit card waits 32 days between the two, debit card 3. An overdue charge can still be paid.
 
 ## Building the integration
 
-`references/integration-practices.md` holds this skill's rules for the code around the API: persisting events before the `200` and running your own retry sweep, a payment state machine, deduping grants by payment id, no database lock across an Asaas call, 404 and missing-config handling, São Paulo dates, renewal-job alerts, tests without the network, and keeping CPF/CNPJ out of logs.
+`references/integration-practices.md` holds this skill's rules for the code around the API: persisting events before the `200` and running your own retry sweep, a payment state machine with chargeback suspend and restore, partial refunds, charge-creation idempotency, no database lock across an Asaas call, 404 and missing-config handling, São Paulo dates, renewal-job alerts, tests without the network, and keeping CPF/CNPJ out of logs.
 
 ## Sandbox
 
@@ -158,7 +159,7 @@ Hard limits the docs state:
 - Do not validate payment ids with a pattern. New ids contain an underscore.
 - Do not return `201` or `204` from a webhook handler, and do not let the URL redirect.
 - Do not answer `200` before the event is stored. A `200` ends Asaas's retries for that event.
-- Do not grant access on `PAYMENT_RECEIVED` for Pix Automático. Wait for `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED`.
+- Do not link new Pix Automático charges to an authorization before `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED`. `PAYMENT_RECEIVED` on the first QR code means the first payment arrived, not that the authorization is active.
 - Do not handle only `PAYMENT_RECEIVED`. Pix Automático renewals end in `PAYMENT_CONFIRMED`.
 
 ## Files

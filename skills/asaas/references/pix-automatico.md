@@ -93,7 +93,8 @@ Dead ends: `CANCELLED`, `REFUSED`, `EXPIRED` (reached `finishDate`). Track statu
 
 Consequences:
 
-- Grant access on `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED`, not on the payment. That event carries `authorization.id`, `customerId`, `contractId` and `immediateQrCode.conciliationIdentifier`.
+- From the docs: wait for `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED` before you link new charges to the authorization. `PAYMENT_RECEIVED` does not prove the authorization is active, but the first payment stays received even if `AUTHORIZATION_REFUSED` follows. The activation event carries `authorization.id`, `customerId`, `contractId` and `immediateQrCode.conciliationIdentifier`.
+- This skill's rule: grant the first cycle on the first payment (`PAYMENT_RECEIVED`), since the money is kept either way, and count automatic renewal as on only after `AUTHORIZATION_ACTIVATED`. If `AUTHORIZATION_REFUSED` follows, keep the paid cycle, take one of the FAQ's two ways out, and create no charges against the refused authorization.
 - The authorization is tied to the account that paid the QR code, even when you sent another `customerId`. Do not assume the payer is your customer record.
 - Observed in production, not in the docs: the first payment's `payment.pixQrCodeId` equals the authorization's `immediateQrCode.conciliationIdentifier`. Match the first payment on that pair, not on your customer id.
 - This skill's rule: if you abandon an authorization (the payer never scans, or saving it failed), cancel it at Asaas with `DELETE /v3/pix/automatic/authorizations/{id}` before you drop your own row, so the QR code cannot be paid into nothing. Log any payment you cannot match.
