@@ -65,15 +65,15 @@ The recipe's example sends `birthDate` together with `companyType: MEI`, which t
 
 The response carries the subaccount `id`, its `walletId`, `accountNumber` (`agency`, `account`, `accountDigit`), `personType` (`FISICA` or `JURIDICA`), `commercialInfoExpiration` and the API key.
 
-Where the key sits is unclear. The guides say the response has `apiKey`. The reference schema has no top-level `apiKey`; it puts the key at `accessToken.apiKey`, beside `accessToken.id`, `enabled`, `expirationDate` and `disabledReason`. This skill's rule: read both paths, fail loudly when neither holds a value, and test against sandbox before you rely on one.
+Where the key sits is unclear. The guides, and the prose of the reference page itself, say the response has `apiKey`. The same reference page's schema has no top-level `apiKey`; it puts the key at `accessToken.apiKey`, beside `accessToken.id`, `enabled`, `expirationDate` and `disabledReason`. This skill's rule: read both paths, fail loudly when neither holds a value, and test against sandbox before you rely on one.
 
 The key is shown once and cannot be fetched later.
 
 ### Storing what comes back
 
 - Store `id`, `walletId` and the key at once, tied to the seller's row in your database. The guides ask for a secrets store and no key in logs or admin screens.
-- This skill's rule: write the seller row with a pending state before the call, then fill in the ids. After a timeout, look the seller up with `GET /v3/accounts?cpfCnpj=…` (it also filters by `email`, `name` and `walletId`) before you retry; creating twice gives the seller two accounts. The lookup returns `id` and `walletId` but no key, so a key lost in a crash can only be replaced through key management (section 3), which the docs frame as a BaaS feature.
-- Subaccount creation can carry a fee; see Configurações de Conta > Taxas. A non-BaaS subaccount closed within 48 hours of creation, that never logged in, is closed without that fee (`DELETE /v3/accounts/{id}`). After 48 hours that path is gone.
+- This skill's rule: write the seller row with a pending state before the call, then fill in the ids. After a timeout, look the seller up with `GET /v3/accounts?cpfCnpj=…` (it also filters by `email`, `name` and `walletId`) before you retry; creating twice probably gives the seller two accounts (inference: the docs name no duplicate check). The lookup returns `id` and `walletId` but no key, so a key lost in a crash can only be replaced through key management (section 3), which the docs frame as a BaaS feature.
+- Subaccount creation can carry a fee; see Configurações de Conta > Taxas. A non-BaaS subaccount closed within 48 hours of creation, that never logged in, is closed without that fee (`DELETE /v3/accounts/{id}`, root key). After 48 hours that path is gone. The call needs the IP allowlist on with your server's IP, and "Validação de encerramento de subcontas pela API" enabled in Integrações > Segurança, confirmed with a token. Closing is irreversible.
 
 ## 2. Onboarding and approval
 
@@ -103,7 +103,7 @@ The docs do not give one list of what is blocked before `general` is `APPROVED`.
 - In link onboarding, proof of life is the selfie. The account starts out able to create charges and make transfers, and about 90% of selfies are approved within 5 minutes.
 - Pending registration items can bring temporary blocks, limits on money movement and `403` on financial endpoints.
 - A Pix key needs the account fully approved with proof of life done (see `SKILL.md`), and a charge's QR code falls back to a partner institution without one.
-- The split cancellation reasons include `CUSTOMER_DOCUMENTS_PENDING`, `CUSTOMER_DOCUMENTS_REJECTED`, `BANK_ACCOUNT_PENDING`, `BANK_ACCOUNT_REJECTED`, `BANK_ACCOUNT_AWAITING_AUTHORIZATION` and `WALLET_UNABLE_TO_RECEIVE`. No page explains them, but the names suggest a split to a seller with pending documents can be cancelled.
+- Asaas runs checks when a split settles. A changelog adds the cancellation reasons `BANK_ACCOUNT_AWAITING_AUTHORIZATION`, `BANK_ACCOUNT_PENDING`, `BANK_ACCOUNT_REJECTED`, `CUSTOMER_DOCUMENTS_PENDING`, `CUSTOMER_DOCUMENTS_REJECTED` and `CHECKOUT_VALIDATION_FAILED` for failures found in those checks, beside the existing `WALLET_UNABLE_TO_RECEIVE`. They can arrive in `PAYMENT_SPLIT_CANCELLED`, and integrations must accept them by 2026-11-25. The changelog does not say whose bank account or documents are checked; the names suggest a split to a seller with pending registration can be cancelled at settlement. Subscription splits are not affected.
 
 This skill's rule: do not route money to a seller until `ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED` arrives, and do not create a seller's Pix key or QR codes before it.
 
@@ -133,7 +133,7 @@ In BaaS operations, the root account can manage subaccount keys without logging 
 - They also need the IP allowlist (Whitelist de IPs) on, with your server's outbound IP in it. A `403` means the 2-hour window closed or the IP is not listed.
 - A new key's value comes back once. Lost or expired keys cannot be recovered; create a new one.
 - Rotate by creating the new key, switching your code, checking calls succeed, then disabling the old one.
-- BaaS subaccount keys are not disabled after 3 months unused, but still expire for good after 6 months. Watch `ACCESS_TOKEN_EXPIRED` and `ACCESS_TOKEN_EXPIRING_SOON`.
+- BaaS subaccount keys are not disabled after 3 months unused, but still expire for good after 6 months unused. Watch `ACCESS_TOKEN_EXPIRED`. `ACCESS_TOKEN_EXPIRING_SOON` warns of expiry from inactivity, but is not sent for keys created with a manual expiration date.
 - `accessToken.disabledReason` can read `LACK_OF_USE`, `MANUAL` or `ACCOUNT_OWNER_ARRANGEMENT_TYPE_CHANGED_TO_INDICATION_PARTNER`.
 
 The limit that matters most: during the evaluation period, creation returns the subaccount's key. After it, the operation must be BaaS, or the subaccounts must be branches sharing the root's CNPJ prefix. The two pages word this differently. The creation guide ties the condition to "key management"; the key-management page ties it to "using the subaccounts' keys". Neither says what happens to a key issued during the evaluation once it ends. A non-BaaS marketplace that plans to issue charges with seller keys should confirm this with Asaas before building on it.
@@ -166,7 +166,7 @@ The root account enables it in Integrações > Segurança > Habilitar Split de p
 
 ### Who issues the charge
 
-The charge, its customer, its refunds and its events belong to the account whose key created it. Customers and charges belong to the subaccount they were made in, so a charge issued with a seller's key needs a customer created with that key (inference). Never list the issuing account's own `walletId`; the remainder stays with it by default.
+The charge, its customer and its refunds belong to the account whose key created it. Where its events go is inference and an open question (section 4). Customers and charges belong to the subaccount they were made in, so a charge issued with a seller's key needs a customer created with that key (inference). Never list the issuing account's own `walletId`; the remainder stays with it by default.
 
 Inference from those two rules: the issuing key sets the direction.
 
@@ -203,7 +203,7 @@ Field names differ by endpoint: `split` on `/payments` and `/subscriptions`, `sp
 - No future date: split runs when the charge is received. To control timing, use a transfer instead.
 - A charge pledged as collateral in a credit operation, even at another institution, cannot split.
 
-Who pays the fee: the docs say only that split uses `netValue`. Inference: the fee comes off the charge before anyone is paid, so a fixed recipient gets the full fixed amount and the issuer's remainder absorbs the fee, while percent recipients share it in proportion. With automatic card anticipation and a fixed split set at issue, Asaas uses the highest fee for the card used.
+Who pays the fee: the docs say only that split uses `netValue`. Inference: the fee comes off the charge before anyone is paid, so a fixed recipient gets the full fixed amount and the issuer's remainder absorbs the fee, while percent recipients share it in proportion. Anticipation follows the same pattern: percent splits are computed on the net value after the anticipation fee, so sellers' percent shares shrink when the issuer anticipates. Fixed splits are not reduced; if they no longer fit the smaller net value, the charge is blocked for divergence (the docs' example: R$ 100,00 charge, R$ 90,00 net after anticipation, a R$ 95,00 fixed split must be adjusted). With automatic card anticipation and a fixed split set at issue, Asaas uses the highest fee for the card used.
 
 ### Example
 
@@ -266,7 +266,7 @@ Split works only on charges you create in `MANUAL` mode: send `split` on each `P
 ### Checkout and anticipation
 
 - Checkout takes `splits`, run after the Checkout's charge is received.
-- An anticipated charge splits on the net value after the anticipation fee too. Check a fixed split still fits before you anticipate; `POST /v3/anticipations/simulate` shows the figure.
+- An anticipated charge splits on the net value after the anticipation fee too. Percent shares shrink with it, so recipients share the anticipation fee; fixed shares do not shrink, and a fixed split that no longer fits blocks the charge. Check a fixed split still fits before you anticipate; `POST /v3/anticipations/simulate` shows the figure.
 
 ## 8. Refunds, partial refunds and chargebacks
 
@@ -286,7 +286,7 @@ Refunding a charge with split reverses the splits too: the recipients' credits a
 - The charge's `refunds` array gives each refund a `refundedSplits` list of `id`, `value`, `done`. Count a split as returned only when `done` is `true`, and the refund itself only when its `status` is `DONE`.
 - The split cancellation reasons include `PAYMENT_REFUNDED`, and the split statuses include `PROCESSING_REFUND` and `REFUNDED`. No page says which one a refund before settlement produces.
 
-What the docs do not cover: a recipient whose balance is short when Asaas takes the split back, whether a partial refund with `value` alone touches the splits, and what happens to splits during a chargeback. The chargeback page documents only `chargeback.status` and `reason`. An internal-movement event mentions an "Avalista-Devedor" feature that moves money to settle a subaccount's balance (`INTERNAL_LOAN`), with no page explaining it. This skill's rule: keep each seller's pending refunds and open chargebacks in your own ledger, and hold back payouts that a reversal could hit until the charge can no longer be disputed.
+What the docs do not cover: a recipient whose balance is short when Asaas takes the split back, whether a partial refund with `value` alone touches the splits, and what happens to splits during a chargeback. The chargeback page documents only `chargeback.status` and `reason`. `INTERNAL_TRANSFER_DEBIT` fires only in the Avalista-Devedor flow (`INTERNAL_LOAN`), which no page explains. Inference: a seller gets no debit event when a refund takes back their split. This skill's rule: keep each seller's pending refunds and open chargebacks in your own ledger, and hold back payouts that a reversal could hit until the charge can no longer be disputed.
 
 ## 9. Split statuses and events
 
@@ -297,7 +297,7 @@ Charge events (on the issuer's webhooks):
 | `PAYMENT_SPLIT_DONE` | One split settled. Sent once per split; read `additionalInfo.splitId` |
 | `PAYMENT_SPLIT_CANCELLED` | One split cancelled. Not sent when the withdrawal-validation webhook cancels it |
 | `PAYMENT_SPLIT_DIVERGENCE_BLOCK` | At receipt or anticipation, the splits exceed the net value; value and split are held |
-| `PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED` | The block ended. Not fixed within 2 business days means the splits were cancelled |
+| `PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED` | The block ended. Not fixed within 2 business days means the splits were cancelled. Whether it also fires after a fix in time differs between pages |
 
 Fix a divergence block by updating `split` on the charge within 2 business days; once it fits, the split runs.
 
@@ -312,6 +312,8 @@ Split `status` and reasons:
 | `refusalReason` (guide and webhook example only) | `RECEIVABLE_UNIT_AFFECTED_BY_EXTERNAL_CONTRACTUAL_EFFECT`: contract effects on the receivables stopped the split |
 
 This skill's rule: accept any status string, store unknown ones as they come, and alert on them instead of failing.
+
+This skill's rule: a split cancelled at settlement leaves the seller's share with the issuer. Reconcile cancelled splits daily from the split endpoints (not only from `PAYMENT_SPLIT_CANCELLED`, which a validation cancel does not send) and pay the seller another way, such as a transfer, once the cause is fixed.
 
 Query endpoints, for reconciliation (the docs prefer webhooks for tracking):
 
@@ -330,10 +332,10 @@ An optional webhook that approves or refuses outgoing money before Asaas moves i
 - The root account's setting applies to its subaccounts, BaaS or not.
 - About 5 seconds after the operation (for a split, after the charge is paid and the split settles), Asaas sends a `POST` with `type` (`TRANSFER`, `BILL`, `PIX_QR_CODE`, `MOBILE_PHONE_RECHARGE`, `PIX_REFUND`, `PAYMENT_SPLIT`) and the matching object (`paymentSplit` for a split).
 - Answer `{"status": "APPROVED"}` or `{"status": "REFUSED", "refuseReason": "..."}`. Anything else, or three failed calls, cancels the operation.
-- A refused split is cancelled and the money returns to the issuer. The issuer sees `cancellationReason: EXTERNAL_AUTHORIZATION_REFUSED`; the recipient sees `PAYMENT_SPLIT_VALIDATION_FAILED`. No `PAYMENT_SPLIT_CANCELLED` fires and your `refuseReason` is not shown.
+- A refused split is cancelled and the money returns to the issuer. The issuer sees `cancellationReason: EXTERNAL_AUTHORIZATION_REFUSED`; the recipient sees `PAYMENT_SPLIT_VALIDATION_FAILED`, a generic reason that other settlement checks also return. No `PAYMENT_SPLIT_CANCELLED` fires and your `refuseReason` is not shown.
 - Asaas's checklist: record each operation before the call comes, match the received id, value and payee against your record, check the token, refuse what you do not know, and log each decision.
 
-This skill's rule: if you turn on split validation, a slow or failing endpoint cancels sellers' payouts with no event. Monitor it like a payment path, and have your reconciliation read `cancellationReason` from the split endpoints.
+This skill's rule: if you turn on split validation, an endpoint that fails three times in a row, or answers without a valid status, cancels sellers' payouts with no event. Monitor it like a payment path, and have your reconciliation read `cancellationReason` from the split endpoints.
 
 ## 11. Evaluation period
 
@@ -368,11 +370,12 @@ Balances are not blocked, and sellers can still withdraw. Deleting an unpaid cha
 
 ## Where the docs disagree
 
-- `apiKey` in the create response: top-level in the guides, `accessToken.apiKey` in the reference schema.
+- `apiKey` in the create response: top-level in the guides and in the prose of `reference/criar-subconta`, `accessToken.apiKey` in that same page's schema.
 - `birthDate` with `companyType`: the guide says PF only; the recipe sends both.
-- Split status: the guide lists `REFUSED` and `refusalReason`; the reference enums (payment, paid and received splits) have neither and add `PROCESSING`, `PROCESSING_REFUND` and `BLOCKED_BY_VALUE_DIVERGENCE`. The issuer and recipient sides list different cancellation reasons, which matches the guide's account of a refused validation.
+- Split status: the guide lists `REFUSED` and `refusalReason`; the reference enums (payment, paid and received splits) have neither and add `PROCESSING`, `PROCESSING_REFUND` and `BLOCKED_BY_VALUE_DIVERGENCE`. The issuer and recipient sides list different cancellation reasons: the recipient sees only the generic `PAYMENT_SPLIT_VALIDATION_FAILED` for `EXTERNAL_AUTHORIZATION_REFUSED`, `CHECKOUT_VALIDATION_FAILED` and the bank-account and document reasons.
 - Sandbox approval: `POST /v3/accounts/{id}/approve` in the guide, `POST /v3/sandbox/myAccount/approve` in the reference.
 - Turning on BaaS in sandbox: ask support (onboarding page) or the sandbox settings (BaaS creation page).
+- `PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED`: the split intro and the FAQ send it only when the block expires unfixed; the anticipation page says it fires whenever the block ends.
 - Key access after the evaluation: "key management" (creation guide) or "the subaccounts' keys" (key-management page).
 
 ## What the docs do not answer
@@ -387,4 +390,7 @@ Balances are not blocked, and sellers can still withdraw. Deleting an unpaid cha
 - What happens when a recipient's balance cannot cover a reversed split.
 - What happens to splits during a chargeback.
 - What the Avalista-Devedor (`INTERNAL_LOAN`) movement is and when it fires.
-- Whether split works in Pix Automático `SUBSCRIPTION` mode or on payment links.
+- Whether split works in Pix Automático `SUBSCRIPTION` mode.
+- What the cancellation reasons `PAYMENT_OVERDUE` and `PAYMENT_RECEIVED_IN_CASH` mean. Inference: marking a charge received in cash cancels the seller's split.
+- What happens to a split created before the seller hit the evaluation limit, or before their commercial data expired, that settles after.
+- How long the withdrawal-validation endpoint has to answer. The docs state only that an invalid status or three consecutive failures cancel the operation.

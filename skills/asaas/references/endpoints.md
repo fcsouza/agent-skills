@@ -51,7 +51,7 @@ Base: `https://api-sandbox.asaas.com/v3` (sandbox) or `https://api.asaas.com/v3`
 
 ## Subaccounts
 - `POST /accounts` (root key): required `name`, `email`, `cpfCnpj`, `mobilePhone`, `incomeValue`, `address`, `addressNumber`, `province`, `postalCode`. `birthDate` for a PF seller; `companyType` and optional `taxRegime` for a PJ seller; optional `webhooks[]`. Returns `id`, `walletId` and the key once (guides: `apiKey`; reference schema: `accessToken.apiKey`).
-- `GET /accounts`, `GET /accounts/{id}`, `DELETE /accounts/{id}` (non-BaaS, within 48 hours, never logged in), `POST /accounts/{id}/resendActivationLink` (non-BaaS).
+- `GET /accounts`, `GET /accounts/{id}`, `DELETE /accounts/{id}` (non-BaaS, within 48 hours, never logged in; needs the IP allowlist and "Validação de encerramento de subcontas pela API" enabled), `POST /accounts/{id}/resendActivationLink` (non-BaaS).
 - `GET|POST /accounts/{id}/accessTokens`, `PUT|DELETE /accounts/{id}/accessTokens/{accessTokenId}`: root key, 2-hour access window, IP allowlist on.
 - With the subaccount's own key: `GET /myAccount/status`, `GET /myAccount/documents`, `POST /myAccount/documents/{id}`, `GET|POST|DELETE /myAccount/documents/files/{id}`, `GET|POST /myAccount/commercialInfo/`, `GET /wallets/` (the account's `walletId`).
 - `GET|POST /accounts/{id}/escrow`, `GET|POST /accounts/escrow`: Conta Escrow per subaccount or as the default.
