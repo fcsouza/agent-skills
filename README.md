@@ -174,7 +174,8 @@ bunx skills add fcsouza/agent-skills --list
 ### Updating
 
 ```bash
-# Skills installed with the skills CLI (-g for skills in your home directory)
+# Skills installed with the skills CLI: -p for this project, -g for your home directory
+bunx skills update -p -y
 bunx skills update -g -y
 
 # Plugins (in your shell)
@@ -182,6 +183,8 @@ claude plugin marketplace update fcsouza-agent-skills
 claude plugin update game-dev@fcsouza-agent-skills
 claude plugin update standalone-skills@fcsouza-agent-skills
 ```
+
+Restart Claude Code after `claude plugin update` to load the new version.
 
 ### Manual
 
