@@ -70,7 +70,12 @@ export const authorizeUpgrade = async (
   let headers = request.headers;
   if (origin === null) {
     const authorization = request.headers.get('authorization');
-    if (!(authorization && /^bearer\s+\S/i.test(authorization))) {
+    // The plugin's own test: the literal prefix "bearer " (any case), then a
+    // token that is not blank after trim.
+    const hasToken =
+      authorization?.slice(0, 7).toLowerCase() === 'bearer ' &&
+      authorization.slice(7).trim() !== '';
+    if (!(authorization && hasToken)) {
       return { status: 403 };
     }
     headers = new Headers({ authorization });
