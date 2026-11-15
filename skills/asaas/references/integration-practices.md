@@ -4,7 +4,7 @@ Everything in this file is this skill's rule: practice from integrations that ru
 
 ## Webhook handler
 
-- Store the event row before you answer `200`. Asaas treats `200` as delivered and never sends that event again, so a crash after the answer loses it for good.
+- Store the event row before you answer `200`. Asaas treats `200` as delivered and stops retrying, so a crash after the answer can lose the event.
 - Process from your own table and run your own retry sweep. A workable shape: retry `pending` or `failed` rows after 2 minutes, reclaim rows stuck in `processing` after 10 minutes, stop after 5 attempts and alert. Claim rows with `FOR UPDATE SKIP LOCKED` and compare times against the database clock, not the worker's.
 - Dedupe on the event `id` (Asaas resends the same event with the same `id`).
 - When required config is missing (no key, no webhook token), answer `503`, not `200`. A `503` keeps the event queued for retry; a `200` drops it. The retry schedule covers about 13 hours before the 15th failure pauses the queue, and a paused queue keeps events for 14 days, so you have time to fix the config and reactivate. Alert on it.

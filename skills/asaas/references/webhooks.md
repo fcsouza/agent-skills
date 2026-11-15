@@ -5,7 +5,7 @@ Read this before you point Asaas at any endpoint. The rules sit across the intro
 ## The response contract
 
 - Return a bare HTTP `200`. The FAQ, the paused-queue page and the "other errors" page count only `200` as delivered; `201`, `204` and any `3xx` fail. Two pages still say any 2xx: the queue-penalty page and the API creation guide. `200` satisfies both readings.
-- An event that got `200` is delivered and is never sent again. Persist it before you answer.
+- An event that got `200` counts as delivered and leaves the retry cycle. Do not count on a second delivery: persist it before you answer.
 - 10 seconds to respond. Past that the attempt fails.
 - Persist the event, return `200`, then process it asynchronously. This is Asaas's own recommendation.
 - Redirects are not followed: `301`, `302`, `307` and `308` all fail. Register the final URL, and check hosts that redirect a bare domain to `www`, http to https, or add a trailing slash.

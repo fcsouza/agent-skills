@@ -41,6 +41,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "Criar uma chave" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-uma-chave.md - supports: `POST /v3/pix/addressKeys` with `type` `EVP` only - checked 2026-11-15
 - Asaas, "Tentar pagar QR Code Pix no Sandbox sem chave cadastrada = erro 404" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/tentar-pagar-qr-code-pix-no-sandbox-sem-chave-cadastrada-erro-404.md - supports: 404 paying a QR from an account with no key; registering a key does not fix earlier QR codes - checked 2026-11-15
 - Asaas, "Criar nova cobrança" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-nova-cobranca.md - supports: required fields; `billingType` values; `description` 500 chars; `pixAutomaticAuthorizationId`; response fields `netValue`, `paymentDate`, `clientPaymentDate`, `creditDate`, `invoiceUrl`, `transactionReceiptUrl`, `paymentLink` - checked 2026-11-15
+- Asaas, "Listar cobranças" (docs.asaas.com MCP `get-endpoint`, 2026) - https://docs.asaas.com/reference/listar-cobrancas.md - supports: `GET /v3/payments` filters `customer`, `subscription`, `status`, `billingType`, `externalReference`, `pixQrCodeId`, date ranges - checked 2026-11-15
 
 ## Payment links
 
@@ -65,7 +66,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 
 - Asaas, "Eventos para cobranças" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/webhook-para-cobrancas.md - supports: meaning of `PAYMENT_CONFIRMED` and `PAYMENT_RECEIVED`; refund and chargeback events including `PAYMENT_PARTIALLY_REFUNDED`; flows for Pix, boleto, credit card (32 days) and debit card (3 days); overdue charges still reach `CONFIRMED`; new attributes announced by email and Discord - checked 2026-11-15
 - Asaas, "Estornos" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/estornos.md - supports: `refunds` array; count only `DONE`; several refunds per charge - checked 2026-11-15
-- Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED` because Asaas keeps its fee; one integration measured card settlement at 30 days where the docs say 32 (the skill follows the docs) - https://docs.asaas.com/docs/webhook-para-cobrancas.md - supports: only that both events exist - checked 2026-11-15
+- Observed in production, not in the docs: a full Pix refund can arrive as `PAYMENT_PARTIALLY_REFUNDED` because Asaas keeps its fee. One integration's notes say card settlement takes 30 days; the docs say 32 and the skill follows the docs - https://docs.asaas.com/docs/webhook-para-cobrancas.md - supports: only that both events exist - checked 2026-11-15
 
 ## Webhooks
 
@@ -73,7 +74,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "FAQ de Webhooks" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/faq-de-webhooks.md - supports: only `200` is success; 10-second timeout; same `id` on redelivery; ordering by `sendType`; no Bearer or Basic auth; redirects 301, 302, 307, 308 not followed; JSON body; sandbox may use extra IPs - checked 2026-11-15
 - Asaas, "Fila pausada" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/fila-pausada.md - supports: only `200`; `201`, `204`, `3xx` fail; pause per webhook; events kept and sent after reactivation - checked 2026-11-15
 - Asaas, "Outros Erros" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/outros-erros.md - supports: delivered only on `200`; redirects not followed; any other code is a failed attempt - checked 2026-11-15
-- Asaas, "Penalização de filas" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/penalização-de-filas.md - supports: the retry schedule and alert emails; pause after 15; sequential queues wait behind a penalized event; `POST /v3/webhooks/{id}/removeBackoff` and its strict rate limit; this page alone says any 2xx counts - checked 2026-11-15
+- Asaas, "Penalização de filas" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/penalização-de-filas.md - supports: the retry schedule and alert emails; pause after 15; sequential queues wait behind a penalized event; `POST /v3/webhooks/{id}/removeBackoff` and its strict rate limit; this page says any 2xx counts, as does the API creation guide below - checked 2026-11-15
 - Asaas, "Como reativar fila interrompida" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/como-reativar-fila-interrompida.md - supports: reactivate in the panel or with `PUT /v3/webhooks/{id}` and `interrupted: false`; fix the cause first - checked 2026-11-15
 - Asaas, "Criar novo Webhook pela API" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/criar-novo-webhook-pela-api.md - supports: `sendType` values; `authToken` 32 to 255 chars, no spaces, no simple sequences, not an API key; token returned only on create; example body with `apiVersion` 3; this page says "2xx" - checked 2026-11-15
 - Asaas, "Criar novo webhook" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-novo-webhook.md - supports: required `name`, `url`, `email`, `interrupted`, `enabled`, `events`, `sendType`; full event enum - checked 2026-11-15
@@ -89,7 +90,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "Criar uma autorização" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/criar-uma-autorizacao-pix-automatico.md - supports: required fields; `frequency` values; `contractId` and `description` max 35; `contractId` described as the code of what is authorized; `minLimitValue` rule; `immediateQrCode` fields; statuses; response fields `payload`, `encodedImage`, `immediateQrCode.conciliationIdentifier` - checked 2026-11-15
 - Asaas, "Fluxos de Webhook do Pix Automático" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/fluxos-de-webhook.md - supports: authorization and instruction sequences; recurring debit ends in `PAYMENT_CONFIRMED`; cancellation sequences; do not rely on order alone - checked 2026-11-15
 - Asaas, "Eventos para Pix Automático" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/eventos-para-pix-automático.md - supports: the ten event names; QR expiry leads to `REFUSED`; payload shapes under `authorization` and `paymentInstruction`; `cancellationReason` and `cancellationDate`; `EXPIRED` has no reason - checked 2026-11-15
-- Observed in production, not in the docs: the payer's bank app shows `description` as "Serviço" and `contractId` as "Código da cobrança"; a second instruction in the same cycle returns 400 `invalid_object` - https://docs.asaas.com/reference/criar-uma-autorizacao-pix-automatico.md - supports: only the field definitions - checked 2026-11-15
+- Observed in production, not in the docs: the payer's bank app shows `description` as "Serviço" and `contractId` as "Código da cobrança"; a second instruction in the same cycle returns 400 `invalid_object`; the first payment's `pixQrCodeId` equals the authorization's `conciliationIdentifier` - https://docs.asaas.com/reference/criar-uma-autorizacao-pix-automatico.md - supports: only the field definitions - checked 2026-11-15
 - This skill's rule: readable `contractId`, reconcile by authorization id and `conciliationIdentifier`; QR expiry in hours; cancel abandoned authorizations; own sweep at period end - https://docs.asaas.com/docs/eventos-para-pix-automático.md - supports: the fields and events the rules use - checked 2026-11-15
 
 ## Sandbox
@@ -98,7 +99,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "Adicionando saldo em uma conta Sandbox" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/como-adicionar-dinheiro-para-testes.md - supports: confirming a charge adds balance - checked 2026-11-15
 - Asaas, "Testar pagamento de QRCodes Pix" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/testar-pagamento-de-qrcodes-pix.md - supports: second sandbox account with balance; `POST /v3/pix/qrCodes/pay` - checked 2026-11-15
 - Asaas, "(Apenas sandbox) Confirmar o pagamento" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/confirmar-pagamento.md - supports: `POST /v3/sandbox/payment/{id}/confirm`; the sibling pages give `/overdue` and `/v3/sandbox/myAccount/approve` - checked 2026-11-15
-- Asaas, "O que pode ser testado?" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/o-que-pode-ser-testado.md - supports: the coverage list to check before trusting sandbox - checked 2026-11-15
+- Asaas, "O que pode ser testado?" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/o-que-pode-ser-testado.md - supports: the coverage list to check before trusting sandbox; discounts, interest and fines on boleto or Pix not testable; WhatsApp not sent - checked 2026-11-15
 
 ## Errors, limits, pagination
 

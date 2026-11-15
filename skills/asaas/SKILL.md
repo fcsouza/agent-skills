@@ -57,7 +57,7 @@ A Pix subscription is not Pix Automático: the payer must pay each charge. Pix A
 `POST /v3/customers` before any charge. `name` and `cpfCnpj` are the required fields, so a product that adds Asaas must collect and store a tax id.
 
 ```json
-{ "name": "Marcelo Almeida", "cpfCnpj": "24971563792", "externalReference": "user_123", "notificationDisabled": true }
+{ "name": "Marcelo Almeida", "cpfCnpj": "24971563792", "externalReference": "user_123" }
 ```
 
 - The response holds `cus_…`. Store it.
@@ -74,7 +74,7 @@ POST /v3/lean/payments
 GET /v3/payments/{id}/pixQrCode   → encodedImage (base64), payload (copia e cola), expirationDate
 ```
 
-The dynamic QR code can be paid once and expires 12 months after the charge's due date. `billingType: UNDEFINED` lets the payer choose the method.
+The dynamic QR code can be paid once and expires 12 months after the charge's due date.
 
 Register a Pix key on the account: `POST /v3/pix/addressKeys` with `{"type":"EVP"}` (the API creates only random keys). Without a key, Asaas ties the QR code to a partner institution, it is payable only until 23:59 that day, and processing takes longer. Asaas says this fallback will end, with 30 days' notice. Creating a key needs the account fully approved and proof of life done. Limits: 5 keys for a person, 20 for a company, one minute between creations.
 
@@ -83,7 +83,7 @@ Register a Pix key on the account: `POST /v3/pix/addressKeys` with `{"type":"EVP
 
 ## Payment links
 
-`POST /v3/paymentLinks` creates a hosted page. `chargeType` is `DETACHED` (one charge per payer), `INSTALLMENT` or `RECURRENT` (creates a subscription). The link creates the customer when the payer fills it in, so a returning payer becomes a duplicate customer. Charges from a link carry `paymentLink` in the webhook payload. Observed in production, not in the docs: later charges of a subscription created by a link can lack `paymentLink`; read the subscription to tie them back.
+`POST /v3/paymentLinks` creates a hosted page. `chargeType` is `DETACHED` (one charge per payer), `INSTALLMENT` or `RECURRENT` (creates a subscription). `billingType: UNDEFINED` lets the payer choose the method. The link creates the customer when the payer fills it in, so a returning payer becomes a duplicate customer. Charges from a link carry `paymentLink` in the webhook payload. Observed in production, not in the docs: later charges of a subscription created by a link can lack `paymentLink`; read the subscription to tie them back.
 
 ## Payment ids
 
@@ -105,7 +105,7 @@ POST /v3/subscriptions
 
 ## Webhooks
 
-Read `references/webhooks.md` before you point Asaas at an endpoint. In short: return HTTP `200`. The FAQ and the paused-queue page accept only `200`; the queue-penalty page says any 2xx, so `200` is the only safe answer. Answer within 10 seconds. Redirects are not followed. An event that got `200` counts as delivered and is never resent. 15 consecutive failures pause that webhook's queue, and queued events are deleted after 14 days. Asaas sends the `authToken` you set in the `asaas-access-token` header.
+Read `references/webhooks.md` before you point Asaas at an endpoint. In short: return HTTP `200`. The FAQ and the paused-queue page accept only `200`; the queue-penalty page says any 2xx, so `200` is the only safe answer. Answer within 10 seconds. Redirects are not followed. An event that got `200` counts as delivered and leaves the retry cycle, so do not count on a second delivery. 15 consecutive failures pause that webhook's queue, and queued events are deleted after 14 days. Asaas sends the `authToken` you set in the `asaas-access-token` header.
 
 Payment events worth handling:
 
@@ -123,7 +123,7 @@ Flows: Pix `PAYMENT_CREATED → PAYMENT_RECEIVED`, with `PAYMENT_OVERDUE` betwee
 
 ## Sandbox
 
-Create a separate account at `sandbox.asaas.com` and a sandbox key. Coverage differs from production: check "O que pode ser testado" before you trust a green sandbox run.
+Create a separate account at `sandbox.asaas.com` and a sandbox key. Coverage differs from production: check "O que pode ser testado" before you trust a green sandbox run. For example, discounts, interest and fines on boleto or Pix cannot be tested there, and WhatsApp notices are not sent.
 
 ```http
 POST /v3/sandbox/payment/{id}/confirm    (marks a charge paid; also how you add test balance)
@@ -157,7 +157,7 @@ Hard limits the docs state:
 - Do not generate Pix QR codes on an account with no Pix key.
 - Do not validate payment ids with a pattern. New ids contain an underscore.
 - Do not return `201` or `204` from a webhook handler, and do not let the URL redirect.
-- Do not answer `200` before the event is stored. Asaas will not send it again.
+- Do not answer `200` before the event is stored. A `200` ends Asaas's retries for that event.
 - Do not grant access on `PAYMENT_RECEIVED` for Pix Automático. Wait for `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED`.
 - Do not handle only `PAYMENT_RECEIVED`. Pix Automático renewals end in `PAYMENT_CONFIRMED`.
 

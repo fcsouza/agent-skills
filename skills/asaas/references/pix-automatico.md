@@ -95,6 +95,7 @@ Consequences:
 
 - Grant access on `PIX_AUTOMATIC_RECURRING_AUTHORIZATION_ACTIVATED`, not on the payment. That event carries `authorization.id`, `customerId`, `contractId` and `immediateQrCode.conciliationIdentifier`.
 - The authorization is tied to the account that paid the QR code, even when you sent another `customerId`. Do not assume the payer is your customer record.
+- Observed in production, not in the docs: the first payment's `payment.pixQrCodeId` equals the authorization's `immediateQrCode.conciliationIdentifier`. Match the first payment on that pair, not on your customer id.
 - This skill's rule: if you abandon an authorization (the payer never scans, or saving it failed), cancel it at Asaas with `DELETE /v3/pix/automatic/authorizations/{id}` before you drop your own row, so the QR code cannot be paid into nothing. Log any payment you cannot match.
 
 ## 3. Create recurring charges (MANUAL mode)
