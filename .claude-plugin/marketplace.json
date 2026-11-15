@@ -47,6 +47,7 @@
         "./skills/game-localization",
         "./skills/game-save-load",
         "./skills/game-state-sync",
+        "./skills/game-unity",
         "./skills/gameplay-analytics",
         "./skills/level-design",
         "./skills/matchmaking-system",

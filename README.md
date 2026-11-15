@@ -84,6 +84,7 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [game-godot](skills/game-godot/) | Godot 4 for this stack: GDScript and C#, headless runs and export, Godot 3 traps, WebSocket client to the Bun server |
 | [game-save-load](skills/game-save-load/) | Save and load: browser and server saves, versioned format with migrations, atomic writes, cross-device conflicts |
 | [game-state-sync](skills/game-state-sync/) | Client-server sync: prediction, reconciliation, interpolation, delta compression |
+| [game-unity](skills/game-unity/) | Unity 6 for this stack: Unity CLI and batch mode, API changes, WebSocket client to the Bun server, licensing facts |
 | [gameplay-analytics](skills/gameplay-analytics/) | Retention analytics, funnels, D1/D7/D30 |
 | [matchmaking-system](skills/matchmaking-system/) | Matchmaking, lobbies, rating systems, skill-based queues |
 | [postgres-game-schema](skills/postgres-game-schema/) | Game DB schemas, Drizzle ORM, inventory |
