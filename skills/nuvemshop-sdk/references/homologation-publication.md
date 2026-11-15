@@ -48,20 +48,20 @@ Homologation and publication start only after the full artifact package arrives.
 - Use webhooks instead of repeated GETs. Request only needed scopes.
 - Match the app language to the publication countries.
 - Respect the rate limit and read its headers.
-- Do not build apps the guidelines prohibit: apps that do not use the public APIs, apps that process payments outside the checkout, duplicate apps, apps that mainly share merchant data. Do not ask the merchant to type the store URL at install, and do not use pop-ups for OAuth.
+- Do not build apps the guidelines prohibit: apps that do not use the public APIs, apps that process payments outside the checkout, or duplicate apps. Apps that mainly share merchant data with third parties need Tiendanube's prior written consent and must follow the API terms. Do not ask the merchant to type the store URL at install, and do not use pop-ups for OAuth.
 - After install, consume the `code` in the back end and show the app's sign-up or login screen. If you need a handoff step, use a clear landing page.
 
 ## Design checklist
 
 Priority and obligation come from the checklist page, not from this file. In short:
 
-- High: NubeSDK where required, with no DOM, `document`, `window` or jQuery; Nimbus templates (empty and initial state page, error page, template customization limits are mandatory); component and pattern use (atomic and composite components and customization limits are mandatory).
+- High (homologation may be rejected): NubeSDK where required, with no DOM, `document`, `window` or jQuery; Nimbus templates (empty and initial state page, error page, template customization limits are mandatory); component and pattern use (atomic and composite components and customization limits are mandatory).
 - Medium: UX concepts (action prioritization and responsiveness are mandatory; status, feedback, loading, tables and forms are recommended). Failing these can pause homologation.
-- Low: UX writing (naming, fundamentals, tone of voice, text patterns, all mandatory).
+- Low: UX writing (naming, fundamentals, tone of voice, text patterns, all mandatory). Failing these can also pause homologation.
 
 ## Publication data
 
-The app goes live only when all artifacts and publication items are sent, images and icon are uploaded in the requested sizes, the short and long descriptions are filled, and homologation is approved.
+The app goes live only when you have sent all artifacts and publication items, uploaded images and icon in the requested sizes, filled the short and long descriptions, and passed homologation.
 
 - Images: one package per country. They show real app screens and the main features.
 - Icon: JPEG or PNG, no GIF, exact requested size.

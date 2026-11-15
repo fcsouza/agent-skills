@@ -4,6 +4,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // Header that carries the signature (nuvemshop.dev webhook docs, "Verifying a webhook").
 export const SIGNATURE_HEADER = 'x-linkedstore-hmac-sha256';
 
+// The docs promise this signature only for webhooks created through the API. The three
+// privacy webhooks set in the Partners Portal are not documented as signed: confirm the
+// header arrives on them before you return 401 there, or LGPD requests get rejected.
 // The signature is the lowercase hex HMAC-SHA256 of the raw request body, keyed with the
 // app's client_secret. The store's access_token is not the key.
 export function verifyWebhook(

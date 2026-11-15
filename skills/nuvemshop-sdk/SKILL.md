@@ -12,10 +12,10 @@ The vendor's docs change often (NubeSDK dates moved in 2026). Read the current p
 
 Use these before this skill's references.
 
-- Docs as text. Use https://nuvemshop.dev/en-US/llms.txt (Portuguese: https://nuvemshop.dev/llms.txt). Add `.md` to any docs URL, or send `Accept: text/markdown`. For one area at a time use `https://nuvemshop.dev/en-US/llms-full/apps.txt` (also `api`, `themes`, `storefront-api`, `ai-agents`). A 502 from the docs host is usually transient; retry.
+- Docs as text. Use https://nuvemshop.dev/en-US/llms.txt (Portuguese: https://nuvemshop.dev/llms.txt, Spanish: https://tiendanube.dev/llms.txt). Add `.md` to any docs URL, or send `Accept: text/markdown`. For one area at a time use `https://nuvemshop.dev/en-US/llms-full/apps.txt` (also `api`, `themes`, `storefront-api`, `ai-agents`).
 - Admin MCP: acts on one store after the merchant signs in with OAuth. It covers catalog, categories, stock, prices, orders, customers, coupons, promotions and sectionable theme drafts. Its write tools change real data and its delete tools are irreversible. It does not read docs or build apps. Tools and connector URLs: https://nuvemshop.dev/en-US/ai-agents/admin-mcp.md.
 - Storefront MCP: takes the shopping actions a customer can take (search products, cart, promotions, shipping, payment methods, order tracking) at `https://<store-domain>/api/mcp`, with no OAuth. See https://nuvemshop.dev/en-US/ai-agents/storefront-mcp.md.
-- Official theme skills: `nuvemshop skills install` (from the Nuvemshop CLI) installs 7 `nuvemshop-theme-*` style skills for editing theme code with the CLI. They cover themes only. Use the `nuvemshop-theme-use-cases` skill if it is installed, otherwise https://nuvemshop.dev/en-US/themes/developer-tools/cli/agent-skills.md.
+- Official theme skills: `nuvemshop skills install` (from the Nuvemshop CLI) installs 7 theme skills for editing theme code with the CLI: `nuvemshop-theme-use-cases`, `nuvemshop-theme-fork-workflow`, `nuvemshop-theme-ftp-workflow`, `nuvemshop-fork-and-push-rules`, `nuvemshop-ipanema-architecture`, `nuvemshop-ipanema-schema-reference` and `nuvemshop-classic-theme-architecture`. They cover themes only. Use the `nuvemshop-theme-use-cases` skill if it is installed, otherwise https://nuvemshop.dev/en-US/themes/developer-tools/cli/agent-skills.md.
 - Apps, NubeSDK and homologation have no official skill. This skill covers them.
 
 ## Workflow
@@ -29,7 +29,7 @@ Use these before this skill's references.
    - The Partner Portal app exists with the right distribution type.
    - Install works from `https://www.tiendanube.com/apps/{app_id}/authorize` on a demo store, and the production redirect URL replaced the generated test one.
    - `user_id` is saved as the store id, and a scope change triggers a reinstall and a new token.
-   - Every webhook is verified (next section).
+   - Every webhook registered through the API is verified (next section). Confirm the header arrives on the privacy webhooks before enforcing it there.
    - API calls send `Authorization` and `User-Agent`, paginate, handle `429`, and use webhooks instead of polling.
    - Embedded apps use Nexo, Nimbus, route sync, session tokens and `ErrorBoundary`.
    - Script-injecting apps use NubeSDK and no DOM APIs.
@@ -44,7 +44,7 @@ An endpoint that skips this accepts forged events from anyone who knows the URL.
 - Value: HMAC-SHA256 of the original request body, keyed with the app's `client_secret`, as lowercase hex. The store's `access_token` is not the key. Keep the secret on your server.
 - Hash the raw bytes before you parse or modify the body. A re-serialized JSON body breaks the match.
 - Compare in constant time. The vendor's PHP example uses `==`; constant time is this skill's rule.
-- Reject a missing or wrong signature before any other work.
+- Reject a missing or wrong signature before any other work. The docs promise the signature only for webhooks created through the API. The three required privacy webhooks (store redact, customer redact, customers data request) are set in the Partners Portal, and the docs never say they are signed. Check that the header arrives on them before you return 401 there, so you do not reject mandatory LGPD requests.
 - Answer with a 2xx within 3 seconds. Queue the work and return.
 - Retries: if no 2xx arrives, the first 4 retries come right after the timeout and at about 5, 10 and 15 minutes. Then the wait grows by 1.4 times per attempt for up to 48 hours (up to 16 attempts). A 2xx stops them.
 - Order and duplicates: events can arrive out of order and more than once, so make handlers idempotent. The vendor's rules: identical bodies are separate messages, so do not drop a body just because you saw it before. Messages that differ only in retry data are duplicates.
@@ -80,4 +80,4 @@ Scaffold with `npm create nube-app@latest`. Details, themes and slots: read `ref
 
 ## Related skills
 
-No other skill in this repo covers Nuvemshop. For theme work see the official `nuvemshop-theme-*` skills above.
+No other skill in this repo covers Nuvemshop. For theme work see the official theme skills above.

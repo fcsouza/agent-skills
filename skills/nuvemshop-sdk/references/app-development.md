@@ -19,7 +19,7 @@ Use the official pages for endpoint shapes, scope lists and component props. Thi
 ## App types
 
 - Embedded app: loaded in the merchant Admin through an iframe from a public URL. It uses Nexo and Nimbus.
-- External app: runs outside the Admin and uses the OAuth authorization-code flow.
+- External app: runs outside the Admin. Every app, embedded or external, installs through the OAuth authorization-code flow.
 - Script in the storefront or checkout: a NubeSDK app. Read `nube-sdk.md`.
 - ERP, Payments and Shipping apps get a longer homologation with a demonstration script and a checklist.
 
@@ -53,7 +53,7 @@ Use the official pages for endpoint shapes, scope lists and component props. Thi
 
 - Register with `POST /webhooks` (also `GET`, `PUT /webhooks/{id}`, `DELETE`). You can only register events for resources your scopes cover.
 - The body carries `store_id`, `event`, and usually `id` and `event_launch_ts`. Fetch the changed entity with the id.
-- Verify the signature on every request, answer 2xx within 3 seconds, and handle duplicates and reordering. Rules and code are in `SKILL.md` and `templates/webhook-verify.ts`.
+- Verify the signature on every API-registered webhook (confirm it arrives on the Portal-set privacy webhooks before you enforce it there), answer 2xx within 3 seconds, and handle duplicates and reordering. Rules and code are in `SKILL.md` and `templates/webhook-verify.ts`.
 - `app/uninstalled` arrives right before the vendor deletes your webhooks for that store. Clean up that installation's token and webhook records only.
 
 ## Embedded apps with Nexo

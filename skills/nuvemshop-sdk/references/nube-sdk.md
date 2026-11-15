@@ -76,7 +76,7 @@ This replaces the older rule that storefront apps run only on some themes.
 - The exception is a store whose FTP was opened before 2026-05-11. Its private theme copy has no slots, so no app can render on the storefront. Check the page source for `id="nubesdk-root"`, `id="nubesdk-runtime"` and `class="js-nubesdk-slot"`, or run `grep -rn "nubesdk-slot" .` in the local theme copy. The FTP page explains how to add the slots back.
 - Activation is per app and store pair. A theme with slots can still lack activation for your app. Partner support may need to activate it, including for private apps; send the full list of affected store ids.
 - Slot availability depends on the page and the theme markup. Inspect the page with the Available Slots API before you pick a slot. Storefront, checkout, fixed, custom (theme-defined, `custom_` prefix) and dynamic section slots are listed on the slots pages.
-- `modal_content` opens a dialog; the slots page describes how it closes.
+- `modal_content` opens a dialog. The slots page says how it closes.
 - If a script is active in the Portal but does not load, check four things: the SDK tag on the test store, "Uses Nube SDK" on the script plus the store association, an old FTP theme copy, and production activation after homologation. `POST /scripts` returning 409 means the script is already associated; use `GET /scripts` and do not repeat the POST.
 
 ## Pitfalls
