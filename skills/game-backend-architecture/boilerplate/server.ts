@@ -51,6 +51,45 @@ const route = (
   }
 };
 
+// The upgrade decision. Two kinds of client reach the socket:
+// - Browsers always send Origin. It must be in trustedOrigins, and the session
+//   comes from the cookie or a bearer token, as getSession reads it.
+// - Native clients (Godot, Unity) send no Origin. They must send
+//   `Authorization: Bearer <token>` and the session must come from that token
+//   alone. A cookie does not count. The token is read from the header only,
+//   never from the URL.
+// An Origin the client sets proves nothing, so an untrusted Origin is 403 even
+// with a valid token. No Origin and no valid bearer session is 403.
+// auth.api skips Better Auth's origin checks, which is why this runs here.
+export const authorizeUpgrade = async (
+  auth: GameAuth,
+  request: Request,
+  trustedOrigins: string[],
+): Promise<{ playerId: string } | { status: 401 | 403 }> => {
+  const origin = request.headers.get('origin');
+  let headers = request.headers;
+  if (origin === null) {
+    const authorization = request.headers.get('authorization');
+    // The plugin's own test: the literal prefix "bearer " (any case), then a
+    // token that is not blank after trim.
+    const hasToken =
+      authorization?.slice(0, 7).toLowerCase() === 'bearer ' &&
+      authorization.slice(7).trim() !== '';
+    if (!(authorization && hasToken)) {
+      return { status: 403 };
+    }
+    headers = new Headers({ authorization });
+  } else if (!trustedOrigins.includes(origin)) {
+    return { status: 403 };
+  }
+  const session = await auth.api.getSession({
+    headers,
+    query: { disableCookieCache: true },
+  });
+  if (!session) return { status: origin === null ? 403 : 401 };
+  return { playerId: session.user.id };
+};
+
 // trustedOrigins: the game client origins. Use the same list as Better
 // Auth's `trustedOrigins` option.
 export const createGameServer = (auth: GameAuth, trustedOrigins: string[]) => {
@@ -60,15 +99,9 @@ export const createGameServer = (auth: GameAuth, trustedOrigins: string[]) => {
   // not on the mounted auth handler.
   const game = new Elysia()
     .derive(async ({ request, status }) => {
-      // auth.api skips Better Auth's origin checks, so check Origin here.
-      const origin = request.headers.get('origin');
-      if (!origin || !trustedOrigins.includes(origin)) return status(403);
-      const session = await auth.api.getSession({
-        headers: request.headers,
-        query: { disableCookieCache: true },
-      });
-      if (!session) return status(401);
-      return { playerId: session.user.id };
+      const result = await authorizeUpgrade(auth, request, trustedOrigins);
+      if ('status' in result) return status(result.status);
+      return result;
     })
     .post('/rooms', () => {
       const room = rooms.createRoom({ maxPlayers: 8, tickRate: 20 });

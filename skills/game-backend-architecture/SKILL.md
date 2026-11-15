@@ -19,14 +19,19 @@ The boilerplate targets `elysia` 1.4.32. Use the `elysiajs` skill if it is insta
 2. Game logic runs on a fixed timestep, separate from network I/O. Every tick sees the same `dt`, so the same inputs give the same result.
 3. A room owns its state, its action queue, its player set and its `GameLoop`. Rooms share nothing, and one room runs on one server instance. This holds for session games, where a match has a fixed, small player count. It stops holding when one space must carry more players or entities than one process can tick in its budget; see "When one space outgrows a process".
 4. REST for durable, request-response work (create a room, read a profile, buy an item). WebSocket for the match: actions in, state deltas out.
-5. Authenticate once, on the WebSocket upgrade, from the Better Auth session. The player id comes from that session for the life of the socket, never from a message.
+5. Authenticate once, on the WebSocket upgrade, from the Better Auth session. The player id comes from that session for the life of the socket, never from a message. Browsers are checked by `Origin` plus the session cookie. Native clients (`game-godot`, `game-unity`) send no `Origin` and are checked by a bearer session.
 6. Default to 20 ticks per second. One tick then has a 50 ms budget for every room on the instance. Pick another rate per room when the genre needs it.
 
 ## Wiring the server
 
 1. Define the protocol first in `templates/message-types.ts`. Every message is a member of a discriminated union on `type`. Client messages are one TypeBox schema, `clientMessage`; `ClientMessage` is derived from it with `Static`, and `server.ts` validates with it, so malformed messages are rejected before your code sees them and the type cannot drift from the check.
 2. Create the server with `createGameServer(auth, trustedOrigins)`, passing the Better Auth instance and the game client origins. Put the same origins in Better Auth's `trustedOrigins` option.
-3. The upgrade check lives in `.derive()` on its own Elysia instance, so it does not run on the mounted auth routes. It returns 403 for an untrusted `Origin` and 401 without a session, and the route never upgrades. A direct `auth.api` call skips Better Auth's own origin checks, which is why the server checks `Origin` itself.
+3. The upgrade check is the function `authorizeUpgrade`, called from `.derive()` on its own Elysia instance, so it does not run on the mounted auth routes. The route never upgrades on a failure. A direct `auth.api` call skips Better Auth's own origin checks, which is why the server checks `Origin` itself.
+   - With an `Origin` header (a browser): the origin must be in `trustedOrigins`, else 403. The session comes from the cookie or a bearer token, as `getSession` reads it. No session is 401.
+   - Without an `Origin` header (a native client): the request must carry `Authorization: Bearer <token>`, and the session must come from that token alone, else 403. A cookie on such a request does not count. RFC 6455 says only browser clients must send `Origin` (section 4.1), and that the check is not meant to keep non-browsers out (section 10.2).
+   - An `Origin` the client sets proves nothing, because only a browser guarantees it. An untrusted `Origin` is 403 even with a valid token.
+   - The token is read from the `Authorization` header only, never from the query string: a URL ends up in access logs and proxies.
+   - This needs the `bearer()` plugin on the Better Auth instance (`betterauth-integration`). The token is a session credential: a native client keeps it in the OS secure store (Keychain, Android Keystore), never in a URL, a log line or a crash report.
 4. Put per-request values (the player id) in `.derive()`, not in `store`. `store` is one object shared by every request.
 5. Write game logic in `RoomManager.tickRoom` and `processAction`. The pattern for one action:
 
@@ -94,11 +99,14 @@ The client sends `ping`; the server answers `pong` with its time. On each ping, 
 - Game systems that import WebSocket types and send messages. Systems change state and emit events; the room turns them into messages.
 - Destroying a room the moment it empties. Go through `closing`: stop the loop, persist, notify, then delete.
 - Reading the player id from a client message, or reading the session per message instead of once per upgrade.
+- Trusting an `Origin` header to prove the client is your game. Anyone can set it. `Origin` only protects browsers from hostile pages; a native client is checked by its bearer session.
+- Letting a request with no `Origin` through on a cookie or on no credential. Without a bearer session it is 403.
+- Taking the token from the URL (`/ws?token=...`). It leaks into logs; the server ignores it.
 - Forgetting that the session check runs once. Ban and logout do not close sockets that are already open; use the `kick` fan-out message.
 
 ## Files
 
-- `boilerplate/server.ts`: copy when wiring the server. It mounts the Better Auth handler, checks `Origin` and the session in `.derive()` on the upgrade, and routes WebSocket messages to the room manager.
+- `boilerplate/server.ts`: copy when wiring the server. It mounts the Better Auth handler, runs `authorizeUpgrade` (`Origin` plus session, or bearer without `Origin`) in `.derive()` on the upgrade, and routes WebSocket messages to the room manager.
 - `boilerplate/room-manager.ts`: copy when adding rooms. Read when plugging in game logic: `tickRoom` and `processAction` are the hooks.
 - `boilerplate/game-loop.ts`: copy when a room needs its tick loop; it needs no changes.
 - `boilerplate/fan-out.ts`: copy when you run more than one server instance.
