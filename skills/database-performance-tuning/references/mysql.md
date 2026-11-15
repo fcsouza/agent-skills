@@ -4,10 +4,16 @@ The loop from SKILL.md is unchanged — measure, get the plan, classify, change 
 verify. What changes is the tooling and a few structural facts about InnoDB that have no
 Postgres equivalent.
 
-Version note: MySQL 8.4 is the current LTS and 9.x is the innovation line. Almost
-everything below needs 8.0 or newer. MariaDB diverged after 10.x — its optimizer, its
-`ANALYZE FORMAT=JSON` and its histogram support differ, so check MariaDB's own manual
-rather than assuming MySQL behaviour carries over.
+Version note, checked 2026-11-15: the 8.4 and 9.7 lines are LTS. MySQL 8.0 moved to Oracle
+Sustaining Support on 2026-04-21 and Oracle recommends 8.4 LTS or 9.7 LTS. This file targets
+8.4 and newer and was checked against the 9.7 manual. Where a feature has an introduction
+version below, the version comes from a release note listed in
+[sources.md](sources.md); features without one are described as present in 9.7.
+MariaDB is a separate server with its own optimizer and manual (see its docs); this file
+does not cover it.
+
+For MySQL work on PlanetScale, use the `mysql` skill if it is installed, otherwise
+https://github.com/planetscale/database-skills.
 
 ## 0. Ground truth first
 
@@ -22,6 +28,16 @@ SELECT @@performance_schema;
 
 `performance_schema` must be on for statement-level statistics. `sys` is a set of views
 over it and ships by default in 8.0+.
+
+Not every name below was re-opened on 2026-11-15. Checked in the 9.7 manual: the
+`sys.statement_analysis` view and the related views `statements_with_full_table_scans`,
+`statements_with_errors_or_warnings`, `schema_unused_indexes`, `schema_redundant_indexes`
+and `innodb_lock_waits`; EXPLAIN join types and `Extra` values; invisible indexes; the
+default isolation level; the `innodb_stats_persistent_sample_pages` default of 20. Common
+practice, not rechecked: the other `sys` views, `sys.ps_truncate_all_tables`, the
+`performance_schema` lock tables, `mysqldumpslow`, `pt-query-digest`,
+`pt-online-schema-change`, `gh-ost`, and the primary-key and UUID advice in section 3
+(the UUID advice is this skill's rule).
 
 ## 1. Find the expensive statements
 
@@ -51,20 +67,21 @@ CALL sys.ps_truncate_all_tables(FALSE);
 ```
 
 The slow query log is the other source, and it catches what the digest table has evicted.
-`long_query_time` defaults to 10 seconds, which hides almost everything worth seeing; set
-it lower on a session or for a measurement window, and read the file with `mysqldumpslow`
-or `pt-query-digest`.
+Check `long_query_time` first. A high value hides almost everything worth seeing, so lower
+it for a measurement window. Tools such as `mysqldumpslow` and `pt-query-digest` read the
+log file.
 
 ## 2. Get the plan
 
 ```sql
 EXPLAIN FORMAT=JSON  SELECT ...;   -- estimates, full detail, cost model
-EXPLAIN ANALYZE      SELECT ...;   -- actually runs it, real timings (8.0.18+)
+EXPLAIN ANALYZE      SELECT ...;   -- actually runs it, real timings
 EXPLAIN ANALYZE FORMAT=TREE SELECT ...;
 ```
 
-`EXPLAIN ANALYZE` is the one to reach for — like Postgres's `EXPLAIN (ANALYZE)`, it
-executes the statement and reports what really happened per iterator:
+`EXPLAIN ANALYZE` is the one to reach for. Like Postgres's `EXPLAIN (ANALYZE)`, it
+executes the statement and reports what really happened per iterator (the manual lists
+estimated cost and rows, time to first row, time per iterator, rows and loops):
 
 ```
 -> Nested loop inner join  (cost=1200 rows=980) (actual time=0.05..14.2 rows=1024 loops=1)
@@ -83,11 +100,12 @@ In classic tabular `EXPLAIN`, the columns that carry the most information are `t
 work MySQL could have avoided with the right index. `Using index` is the good one: an
 index-only (covering) read.
 
-`EXPLAIN FORMAT=JSON INTO @var` (8.0.21+) stores the plan in a variable, which is handy for
-diffing plans in a script.
+`EXPLAIN FORMAT=JSON INTO @var` stores the plan in a variable, which is handy for diffing
+plans in a script. `INTO` needs `FORMAT=JSON` written out, and is not allowed with
+`FOR CONNECTION`.
 
-For a query already running, `EXPLAIN FOR CONNECTION <id>` shows the plan it actually got.
-`EXPLAIN ... FOR SCHEMA` lets you plan a statement against a different schema.
+For a query already running, `EXPLAIN ... FOR CONNECTION <id>` shows the plan it actually
+got.
 
 ## 3. InnoDB facts that change how you index
 
@@ -107,20 +125,25 @@ B-tree, ordered by PK. Consequences:
   the columns as trailing key columns.
 
 **Leftmost prefix rule** is the same as Postgres's prefix rule: an index on `(a, b, c)`
-serves `(a)`, `(a, b)` and `(a, b, c)`, and nothing that does not start with `a`. MySQL has
-no skip scan for the general case, so the leading column really is required.
+serves `(a)`, `(a, b)` and `(a, b, c)`. A query that skips the leading column normally cannot
+use the index. MySQL does have a Skip Scan range access method (added in 8.0.13), but the
+manual limits it to one table, no `GROUP BY` or `DISTINCT`, only indexed columns, equality
+constants on the leading parts, and a range condition on a later part. Check `EXPLAIN`
+for `Using index for skip scan` before you count on it, and index for the leading column
+otherwise.
 
-Index features worth knowing (all 8.0+):
+Index features worth knowing (present in the 9.7 manual):
 
-- **Descending indexes** — `INDEX (a ASC, b DESC)` is stored in that order and removes the
-  filesort for mixed-direction sorts. In 5.7 the `DESC` was parsed and ignored.
+- **Descending indexes** — `INDEX (a ASC, b DESC)` is stored in that order and can remove
+  the filesort for mixed-direction sorts.
 - **Invisible indexes** — `ALTER TABLE t ALTER INDEX idx INVISIBLE` hides an index from the
   optimizer while keeping it maintained. This is the safe way to test dropping an index:
   make it invisible, watch for a day, drop it if nothing regressed, or make it visible
   again instantly if something did. Postgres has no equivalent.
-- **Functional indexes** — `INDEX ((lower(email)))` (8.0.13+). Before that you needed a
-  generated column plus an index on it, which still works and is more portable.
-- **Multi-valued indexes** on JSON arrays (8.0.17+), used by `MEMBER OF`, `JSON_CONTAINS`.
+- **Functional indexes** — `INDEX ((lower(email)))` (added in 8.0.13). A generated column
+  plus an index on it also works and is more portable.
+- **Multi-valued indexes** on JSON arrays, used by `MEMBER OF` and `JSON_CONTAINS`. See
+  the `CREATE INDEX` page in the manual for the rules.
 - **Prefix indexes** — `INDEX (url(64))` indexes the first 64 characters. Useful on long
   text, but such an index can never be covering and cannot serve `ORDER BY`.
 
@@ -135,16 +158,21 @@ InnoDB estimates index cardinality by sampling pages. `innodb_stats_persistent_s
 (default 20) controls the depth; raising it for a large, skewed table gives the optimizer
 better numbers at the cost of a slower `ANALYZE TABLE`.
 
-**Histograms** (8.0.3+) cover columns that are *not* indexed, which is exactly where the
-optimizer is otherwise blind:
+**Histograms** cover columns that are *not* indexed, which is where the optimizer is
+otherwise blind:
 
 ```sql
 ANALYZE TABLE orders UPDATE HISTOGRAM ON status, currency WITH 32 BUCKETS;
+ANALYZE TABLE orders UPDATE HISTOGRAM ON status WITH 32 BUCKETS AUTO UPDATE;
 ANALYZE TABLE orders DROP HISTOGRAM ON status;
 ```
 
-Histograms are not updated automatically — re-run `ANALYZE TABLE` after significant data
-change, or they become the source of the wrong estimate rather than the fix.
+By default a histogram is `MANUAL UPDATE`: it stays as it was until you run the statement
+again, and a stale one gives wrong estimates. MySQL 8.4.0 added the `AUTO UPDATE` option. With
+it, a later `ANALYZE TABLE` on the table recalculates the histogram with the same bucket
+count, and so does InnoDB's background recalculation of persistent statistics. Histograms
+that existed before an upgrade to 8.4 stay `MANUAL UPDATE`. Pick `AUTO UPDATE` for columns
+whose distribution drifts.
 
 **Optimizer trace** when you need to know *why* a plan was chosen:
 
@@ -199,17 +227,23 @@ ALTER TABLE orders ADD INDEX idx_tenant_created (tenant_id, created_at),
 
 Stating `ALGORITHM` and `LOCK` explicitly makes MySQL **fail loudly** instead of silently
 falling back to a table copy that blocks writes for hours. That failure is the outcome you
-want — it tells you to use `pt-online-schema-change` or `gh-ost` instead.
+want. It tells you to use an external online schema change tool instead (for example
+`pt-online-schema-change` or `gh-ost`).
 
-`ALGORITHM=INSTANT` (8.0.12+) covers adding a column at the end and a few other cases with
-no rebuild at all.
+`ALGORITHM=INSTANT` changes only metadata and rebuilds nothing. In 9.7 it is the default
+algorithm for adding a column, and the column can go at any position. The manual lists the
+limits: no mixing with `ALTER` actions that lack INSTANT support, no `ROW_FORMAT=COMPRESSED`
+or `FULLTEXT` tables or temporary tables, a row-size check, and at most 1022 columns in the
+internal table after the add. Which other operations support INSTANT differs by version, so
+read the operations table in the Online DDL chapter of the manual for your version rather
+than relying on a list here, and state `ALGORITHM=INSTANT` so the statement fails if it cannot.
 
 Everything in [apply-safely.md](apply-safely.md) about pre-flight checks, backups, batched
 backfills and rollback plans applies here unchanged.
 
 ## Quick translation table
 
-| Postgres | MySQL 8.0+ |
+| Postgres | MySQL 8.4+ |
 | --- | --- |
 | `pg_stat_statements` | `performance_schema.events_statements_summary_by_digest` / `sys.statement_analysis` |
 | `EXPLAIN (ANALYZE, BUFFERS)` | `EXPLAIN ANALYZE FORMAT=TREE` |

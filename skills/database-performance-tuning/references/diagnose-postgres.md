@@ -1,8 +1,9 @@
 # Diagnosing a Postgres server
 
-Everything here is read-only. Run it against a replica when one exists — the numbers for
-query time and index usage are per-server, so a replica tells you about replica traffic,
-but plans, schema and bloat are the same.
+The diagnostic queries here only read. Two steps are exceptions and are marked as such:
+installing `pg_stat_statements` and creating `pgstattuple`. Both are DDL. Ask first. Run the
+queries against a replica when one exists. Query time and index usage are per-server, so a
+replica tells you about replica traffic, but plans, schema and bloat are the same.
 
 Contents:
 1. Statement-level: pg_stat_statements
@@ -31,18 +32,18 @@ It needs `pg_stat_statements` in `shared_preload_libraries` and a restart, then
 
 ### Column names by version
 
-The io-timing columns were renamed in PG 17. Check `SHOW server_version_num` first.
+Column names changed in PG 13, 17 and 18. Check `SHOW server_version_num` first, then use
+the version table in [SKILL.md](../SKILL.md). The two that break queries most often:
+`blk_read_time` became `shared_blk_read_time` in PG 17, and `total_time` became
+`total_exec_time` in PG 13.
 
-| PG 13–16 | PG 17+ |
-| --- | --- |
-| `blk_read_time` | `shared_blk_read_time` |
-| `blk_write_time` | `shared_blk_write_time` |
-| — | `local_blk_read_time`, `local_blk_write_time` |
-| — | `stats_since`, `minmax_stats_since` |
-| — (PG 18 adds) | `wal_buffers_full`, `parallel_workers_to_launch`, `parallel_workers_launched` |
+Query text: only superusers and members of `pg_read_all_stats` see the SQL text and
+`queryid` of other roles' statements. Other roles see `<insufficient privilege>`. Run the
+script as a `pg_monitor` member.
 
-`total_exec_time` / `mean_exec_time` are PG 13+. On PG 12 and older the column is
-`total_time` and there is no plan/exec split.
+Long `IN (...)` lists: on PG 18 and newer, lists that differ only in length share one entry,
+shown as `IN ($1 /*, ... */)`. On PG 17 and older every length is a separate entry, so one
+hot query can fill many rows. Group by hand or pass the list as one array parameter.
 
 ### Top consumers by total time
 
@@ -205,25 +206,27 @@ performance.
 An index on `(a)` is redundant when `(a, b)` exists, because a B-tree can be used for a
 prefix of its key columns. The reverse is not true.
 
-```sql
-SELECT
-  indrelid::regclass AS table_name,
-  array_agg(indexrelid::regclass) AS indexes,
-  pg_size_pretty(sum(pg_relation_size(indexrelid))) AS combined_size
-FROM pg_index
-GROUP BY indrelid, indkey, indclass,
-         coalesce(pg_get_expr(indexprs, indrelid), ''),
-         coalesce(pg_get_expr(indpred,  indrelid), '')
-HAVING count(*) > 1;
-```
+Two indexes are exact duplicates only when all of these match: table, access method,
+uniqueness (and `indnullsnotdistinct` on PG 15+), key columns, operator classes,
+collations, per-column sort options (`indoption`: DESC, NULLS FIRST) and the partial
+predicate. The query is in `scripts/pg-diagnose.sh` (section "Exact duplicate indexes").
+Read its `GROUP BY` before you copy the idea. Dropping any column from that list reports
+false pairs:
 
-Group on the *rendered* expression and predicate, not on the raw `indexprs`/`indpred`
-columns. Those are `pg_node_tree`, which has no equality operator and whose text form
-embeds the parse position — two identical `lower(email)` indexes serialize differently and
-would not group.
+- `(a)` unique and `(a)` plain differ. The unique one enforces a rule.
+- `(a)` and `(a DESC)` differ for ordered scans.
+- Two `text` indexes with different collations answer different comparisons.
+- Two partial indexes with different `WHERE` clauses cover different rows.
 
-That finds exact duplicates. For prefix redundancy, compare the leading columns of every
-index on a table by hand — it is a small list per table and worth doing carefully.
+Group on the *rendered* expression and predicate (`pg_get_expr`), not on the raw
+`indexprs`/`indpred` columns. Those are `pg_node_tree`, which has no equality operator and
+whose text form embeds the parse position, so two identical `lower(email)` indexes would
+not group.
+
+This finds exact duplicates only. For prefix redundancy, compare the leading columns of
+every index on a table by hand. It is a small list per table and worth doing carefully.
+If a duplicate backs a primary key, unique or exclusion constraint, or a foreign key, drop
+the constraint instead of the index.
 
 Note for PG 18 and newer: B-tree **skip scan** lets the planner use a composite index even
 when the query does not constrain the leading column, so a narrow index that used to be
@@ -250,8 +253,9 @@ FROM pg_index WHERE NOT indisvalid;
 Dead tuples that vacuum has not reclaimed. Bloat makes every scan read more pages for the
 same rows, so a query can get slower with no change to the query or the data volume.
 
-Exact numbers need the `pgstattuple` extension, which reads the whole relation and is
-expensive — run it on one table at a time, off-peak:
+Exact numbers need the `pgstattuple` extension. This step is not read-only: `CREATE
+EXTENSION` is DDL, and the functions read the whole relation, so ask first and run it on one
+table at a time, off-peak:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pgstattuple;
@@ -332,6 +336,20 @@ Each Postgres connection is a process with its own memory. Hundreds of mostly-id
 connections cost real RAM and context switches. If the app opens connections per request,
 the answer is a pooler (PgBouncer in transaction mode, or the provider's built-in pooler),
 not a bigger `max_connections`.
+
+Pooler limits that affect diagnosis and tuning, from the PgBouncer manual:
+
+- Transaction pooling hands a server connection to a client only for one transaction. In
+  that mode `SET`/`RESET`, `LISTEN`, `WITH HOLD` cursors, `PREPARE`/`DEALLOCATE`, temp tables
+  with `PRESERVE`/`DELETE ROWS`, `LOAD` and session-level advisory locks do not work.
+  So a session-level `SET work_mem` or `SET lock_timeout` does not carry to the next
+  statement. Use `SET LOCAL` inside a transaction, or a direct connection.
+- PgBouncer accepts only startup parameters it can track. Others raise an error unless
+  `ignore_startup_parameters` lists them (listing `options` makes it ignore everything in
+  `options`). `pg-diagnose.sh` passes its read-only and timeout settings through `PGOPTIONS`,
+  which arrives as the `options` startup parameter. Behind a pooler it either fails to
+  connect or loses the settings. The script stops in the second case. Use the direct
+  connection (the provider's non-pooled URL) for diagnosis.
 
 Note that `work_mem` is per sort or hash node, per connection — a query with three sort
 nodes across 100 connections can allocate 300 × `work_mem`. That is why raising

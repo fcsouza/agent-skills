@@ -2,11 +2,24 @@
 # Read-only Postgres performance diagnostic.
 #
 #   ./pg-diagnose.sh "postgres://user@host:5432/db"
-#   ./pg-diagnose.sh              # uses $DATABASE_URL
+#   ./pg-diagnose.sh "service=mydb"     # entry in ~/.pg_service.conf
+#   ./pg-diagnose.sh                    # uses $DATABASE_URL
 #
-# Every statement runs with default_transaction_read_only=on and a statement
-# timeout, so it cannot write and cannot hang a busy server. It adapts its SQL to
-# the server version: pg_stat_statements renamed its io-timing columns in PG 17.
+# Passwords: never put one in the connection string. The string is a process
+# argument, so `ps` shows it to every user on the machine. The script refuses a
+# string that carries a password. Supply it through ~/.pgpass (or PGPASSFILE),
+# which libpq reads, or as a last resort PGPASSWORD (libpq docs advise against it).
+#
+# Every statement is a SELECT or SHOW. Each connection also starts with
+# default_transaction_read_only=on, a statement timeout and a lock timeout. That
+# is a default, not a lock: any SET in the session undoes it. This script sends
+# none, and it checks the setting took effect before running anything. For a hard
+# guarantee, connect as a role that has no write privileges (pg_monitor).
+#
+# Needs a direct connection. Behind PgBouncer the startup options are rejected
+# or dropped (see references/diagnose-postgres.md); the script then stops.
+#
+# It adapts its SQL to the server version (see the VERNUM branches).
 #
 # Options (must come BEFORE the connection string — getopts stops at the first
 # non-option argument, so trailing flags are silently ignored):
@@ -21,7 +34,7 @@ while getopts "n:qh" opt; do
   case "$opt" in
     n) LIMIT="$OPTARG" ;;
     q) SKIP_PGSS=1 ;;
-    h) sed -n '2,14p' "$0"; exit 0 ;;
+    h) awk 'NR>1 && /^#/ {print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) exit 2 ;;
   esac
 done
@@ -30,6 +43,19 @@ shift $((OPTIND - 1))
 CONN="${1:-${DATABASE_URL:-}}"
 if [[ -z "$CONN" ]]; then
   echo "error: pass a connection string or set DATABASE_URL" >&2
+  exit 2
+fi
+
+# A password in the connection string would show in the process list.
+if [[ "$CONN" =~ ^postgres(ql)?://[^/@?]*:[^/@?]+@ || "$CONN" =~ (^|[[:space:]])password= || "$CONN" =~ [?\&]password= ]]; then
+  cat >&2 <<'EOF'
+error: the connection string contains a password. It would appear in `ps`.
+Remove it and use one of these instead:
+  - ~/.pgpass (chmod 0600), line format host:port:database:user:password
+  - PGPASSFILE pointing at such a file
+  - a service entry (~/.pg_service.conf) selected with "service=NAME"
+  - PGPASSWORD in the environment, only if nothing else is possible
+EOF
   exit 2
 fi
 
@@ -42,15 +68,25 @@ command -v "$PSQL_BIN" >/dev/null 2>&1 || {
 export PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=30s -c lock_timeout=2s"
 
 run() { "$PSQL_BIN" -X -q -v ON_ERROR_STOP=0 -d "$CONN" -c "$1"; }
-scalar() { "$PSQL_BIN" -X -q -t -A -d "$CONN" -c "$1" 2>/dev/null | tr -d '[:space:]'; }
+scalar() { "$PSQL_BIN" -X -q -t -A -d "$CONN" -c "$1" | tr -d '[:space:]'; }
 
 section() { printf '\n\n═══ %s ═══\n\n' "$1"; }
 
-VERNUM="$(scalar 'SHOW server_version_num')"
+VERNUM="$(scalar 'SHOW server_version_num')" || true
 [[ -z "$VERNUM" ]] && { echo "error: could not connect" >&2; exit 1; }
+
+# PGOPTIONS travels as a startup parameter. A pooler can drop it silently. Do not
+# run anything unless the read-only default took effect.
+RO="$(scalar 'SHOW default_transaction_read_only')" || true
+if [[ "$RO" != "on" ]]; then
+  echo "error: default_transaction_read_only is '$RO', not 'on'. A pooler probably dropped the startup options." >&2
+  echo "       Connect to the database directly (not through PgBouncer's transaction pool) and retry." >&2
+  exit 1
+fi
 
 printf '%s\n' "Postgres server_version_num=$VERNUM  database=$(scalar 'SELECT current_database()')"
 printf '%s\n' "read-only session, statement_timeout=30s"
+printf '%s\n' "connected as: $(scalar 'SELECT current_user')  (without pg_read_all_stats or pg_monitor, other roles' queries show as <insufficient privilege>)"
 
 # ---------------------------------------------------------------- server state
 
@@ -134,6 +170,7 @@ if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
               left(regexp_replace(query, '\s+', ' ', 'g'), 100) AS query
        FROM pg_stat_statements
        WHERE temp_blks_written > 0
+         AND dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
        ORDER BY temp_blks_written DESC
        LIMIT 10;"
 
@@ -144,6 +181,7 @@ if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
               left(regexp_replace(query, '\s+', ' ', 'g'), 100) AS query
        FROM pg_stat_statements
        WHERE wal_bytes > 0
+         AND dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
        ORDER BY wal_bytes DESC
        LIMIT 10;"
 
@@ -219,17 +257,42 @@ Caveats before dropping any of these:
   - cover a full business cycle, including month-end jobs
 EOF
 
-section "Exact duplicate indexes (same table, same key columns)"
+section "Exact duplicate indexes (identical definition)"
+
+# Two indexes are exact duplicates only if they match on: table, access method,
+# uniqueness (and NULLS NOT DISTINCT on PG 15+), key columns and expressions,
+# operator classes, collations, per-column sort options (DESC, NULLS FIRST) and
+# the partial predicate. A unique index is never a duplicate of a plain one:
+# it enforces a rule. Only valid indexes outside the system schemas are compared.
+if (( VERNUM >= 150000 )); then
+  NND="i.indnullsnotdistinct"
+else
+  NND="false"
+fi
 
 run "SELECT
-       indrelid::regclass AS table_name,
-       array_agg(indexrelid::regclass) AS indexes,
-       pg_size_pretty(sum(pg_relation_size(indexrelid))) AS combined_size
-     FROM pg_index
-     GROUP BY indrelid, indkey, indclass,
-              coalesce(pg_get_expr(indexprs, indrelid), ''),
-              coalesce(pg_get_expr(indpred,  indrelid), '')
+       i.indrelid::regclass AS table_name,
+       array_agg(i.indexrelid::regclass ORDER BY i.indexrelid) AS indexes,
+       i.indisunique AS is_unique,
+       bool_or(i.indisprimary) AS has_primary_key,
+       pg_size_pretty(sum(pg_relation_size(i.indexrelid))) AS combined_size
+     FROM pg_index i
+     JOIN pg_class ic ON ic.oid = i.indexrelid
+     JOIN pg_class tc ON tc.oid = i.indrelid
+     JOIN pg_namespace n ON n.oid = tc.relnamespace
+     WHERE i.indisvalid
+       AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+     GROUP BY i.indrelid, ic.relam, i.indisunique, ${NND},
+              i.indkey, i.indclass, i.indcollation, i.indoption,
+              coalesce(pg_get_expr(i.indexprs, i.indrelid), ''),
+              coalesce(pg_get_expr(i.indpred,  i.indrelid), '')
      HAVING count(*) > 1;"
+
+cat <<'EOF'
+Before dropping one of a pair: if it backs a primary key, a unique or exclusion
+constraint, or a foreign key, drop the constraint instead of the index. Prefix
+redundancy, (a) next to (a, b), is not detected here; compare leading columns by hand.
+EOF
 
 section "Invalid indexes (failed CREATE INDEX CONCURRENTLY — pure cost, no benefit)"
 
