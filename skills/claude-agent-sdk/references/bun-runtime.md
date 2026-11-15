@@ -1,67 +1,32 @@
-# Bun Runtime — Claude Agent SDK
+# Bun and the TypeScript SDK
 
-The TypeScript SDK bundles a native Claude Code binary (since v0.2.113). When your host process runs on Node.js or Deno, the SDK spawns this binary under the same runtime by default. Several capabilities depend on running the CLI under Bun specifically.
+Checked against `@anthropic-ai/claude-agent-sdk` 0.3.325 on 2026-11-15. Sources are in `sources.md`.
 
-## The `executable` Option
+## The `executable` option
 
-Control which JavaScript runtime spawns the CLI subprocess:
+`executable` is a TypeScript option: `'bun' | 'deno' | 'node'`. The SDK detects the runtime when you leave it out. It does not exist in the Python options (`ClaudeAgentOptions` 0.2.182).
 
-| Value | Description |
-|---|---|
-| `'bun'` | Spawn with Bun (required for fast mode; recommended in Bun apps) |
-| `'node'` | Spawn with Node.js |
-| `'deno'` | Spawn with Deno |
-| auto | SDK detects from the host process runtime |
+## Single-file executable with `bun build --compile`
 
-```typescript
-for await (const msg of query({
-  prompt: "...",
-  options: { executable: 'bun' }
-})) { /* ... */ }
-```
+Inside a compiled executable `require.resolve` does not work in the `$bunfs` virtual filesystem. Without a fix the SDK throws `Native CLI binary for <platform>-<arch> not found`.
 
-## Fast Mode
+The fix, from SDK 0.3.144:
 
-Fast mode (research preview) requires the native Bun binary. When the SDK defaults to Node.js, fast mode is silently unavailable.
+1. Import the platform binary as a file asset: `import binPath from '@anthropic-ai/claude-agent-sdk-<platform>-<arch>/claude' with { type: 'file' }`. On Windows the subpath is `claude.exe`.
+2. Import `extractFromBunfs` from the subpath `@anthropic-ai/claude-agent-sdk/extract`. The package root does not export it.
+3. Call `extractFromBunfs(binPath)` once at startup. It is synchronous. It copies the binary to a per-user temp directory and returns the real path. Outside a compiled executable it returns its input unchanged.
+4. Pass the result as `pathToClaudeCodeExecutable` in the `query()` options.
 
-To enable it:
-1. Install Bun on the host
-2. Set `executable: 'bun'`
-3. Configure fast mode via your model settings
+Each executable embeds one platform's binary. Match the platform package to `--target`. To cross-compile, install the other platform package, for example `bun add @anthropic-ai/claude-agent-sdk-linux-x64 --force`. Then run `bun build --compile --target=<target>`.
 
-Tracked in [issue #216](https://github.com/anthropics/claude-agent-sdk-typescript/issues/216) (open as of July 2026).
+`templates/bun-compile.ts` has the code and `templates/embedded-binary.d.ts` has the type for the binary import. Both typechecked against 0.3.325 in a scratch directory; the repo typecheck does not cover this skill.
 
-## `ReferenceError: Bun is not defined`
+If your package manager skips optional dependencies, the SDK throws the same "binary not found" error. Set `pathToClaudeCodeExecutable` to a separately installed `claude` binary.
 
-Before v0.2.113 the SDK shipped a bundled JavaScript CLI. When Node.js spawned it, unguarded `Bun.which(…)` calls crashed with `ReferenceError: Bun is not defined` — no stderr output, exit code 1 only.
+## Bundling the SDK
 
-- Partially fixed in v0.2.51 (critical paths guarded)
-- Fully eliminated in v0.2.113 (switched to native binary; the bundled JS no longer ships)
+If you bundle the SDK with your own dependencies, the docs describe a `/core` entry (from 0.3.282) that imports `zod` and `@modelcontextprotocol/sdk` from your `node_modules` instead of inlining them. Import from the root or from `/core` in one process, never both. Read the "Import the `/core` entry" section of the TypeScript reference before using it.
 
-On v0.2.113+, this error shouldn't appear. If you still see it, set `executable: 'bun'` as a workaround. Tracked in [issue #266](https://github.com/anthropics/claude-agent-sdk-typescript/issues/266) (closed).
+## Serverless
 
-## `bun build --compile` — Single-binary Apps
-
-When you compile a TypeScript app with `bun build --compile`, Bun embeds all dependencies inside the resulting binary via `Bun.embeddedFiles`. The native Claude Code binary (an optional npm package dependency) gets embedded, but standard path resolution can't find it at runtime inside the compiled binary.
-
-SDK ≥ v0.3.144 provides a workaround:
-
-```typescript
-import {
-  extractFromBunfs,
-  pathToClaudeCodeExecutable
-} from "@anthropic-ai/claude-agent-sdk";
-
-// Call once at process startup, before any query() calls
-await extractFromBunfs();
-
-// SDK uses the extracted path automatically.
-// Or pass it explicitly:
-const options = { pathToClaudeCodeExecutable };
-```
-
-## Serverless Deployments
-
-The native binary is approximately 230 MB. AWS Lambda and Vercel Functions impose a 250 MB unzipped function size cap, which the SDK's binary alone nearly reaches. The TypeScript SDK is generally not viable for serverless deployments — use a long-running container instead.
-
-See [issue #329](https://github.com/anthropics/claude-agent-sdk-typescript/issues/329) for discussion.
+The binary is large. Measure the installed platform package against your function size limit. On the machine used for this check, the `darwin-arm64` package was 332 MB installed. A long-running container avoids the limit.
