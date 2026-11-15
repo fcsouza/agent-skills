@@ -32,13 +32,14 @@ Checked against Unity 6000.3, NativeWebSocket at commit `bf3280c` (master, 2026-
 | Build | What the handshake can carry | Consequence |
 |---|---|---|
 | Web (WebGL) | The browser WebSocket API takes only a URL and subprotocols: no `Authorization` or other custom header. The browser adds `Origin` (RFC 6455 requires it from browser clients) and its cookies. | Serve the build from an origin in the server's trusted origins, sign the player in through Better Auth on that site, and let the session cookie authenticate the socket. This skill's rule: keep the build and the server on the same site, because the cookie's SameSite setting decides whether the browser sends it; Better Auth's cookie page does not state the default. |
-| Desktop, mobile | `ClientWebSocketOptions.SetRequestHeader` sets any request header; NativeWebSocket passes its header dictionary to it. RFC 6455 lets a non-browser client omit `Origin`. | Send `Authorization: Bearer <token>` as a request header (the token comes from the sign-in response headers). Send no `Origin`. The bearer path needs Better Auth's `bearer()` plugin on the server; Better Auth says to use it only for clients that cannot use cookies. |
+| Desktop, mobile | `ClientWebSocketOptions.SetRequestHeader` sets any request header; NativeWebSocket passes its header dictionary to it. RFC 6455 lets a non-browser client omit `Origin`. | Send `Authorization: Bearer <token>` as a request header (the token comes from the `set-auth-token` response header after sign-in). Send no `Origin`. The bearer path needs Better Auth's `bearer()` plugin on the server; Better Auth says to use it only for clients that cannot use cookies. |
 
 Rules (this skill's):
 
 - The `Origin` check protects players' browsers from other sites. A native client can send any header, so its security rests on the session token, not on `Origin`. A leaked token gives full access to that player's account until the session is revoked.
 - Store the native token where the platform keeps secrets, never in the save file or `PlayerPrefs`.
-- Never put the token in the URL query string: URLs end up in logs.
+- Never put the token in the URL query string, a log, a crash report or an analytics event: URLs and logs are read by more people than the player.
+- A WebGL build must not read or store `set-auth-token`; it relies on the httpOnly cookie (`betterauth-integration`).
 - Test the header path on each target platform before you rely on it. No Unity page documents which handshake headers each player runtime lets through.
 
 ```csharp
