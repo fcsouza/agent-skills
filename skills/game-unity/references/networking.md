@@ -27,12 +27,12 @@ Checked against Unity 6000.3, NativeWebSocket at commit `bf3280c` (master, 2026-
 
 ## Authentication, per build
 
-`betterauth-integration` reads the session once, from the upgrade request's headers, and the server in `game-backend-architecture` rejects the upgrade with 403 when `Origin` is missing or not in its trusted list, and with 401 without a session.
+`betterauth-integration` reads the session once, from the upgrade request's headers, and the server in `game-backend-architecture` rejects the upgrade with 403 when `Origin` is present but not in its trusted list, and with 401 without a session. An upgrade with no `Origin` passes only when it carries `Authorization: Bearer` and the session check finds a session.
 
 | Build | What the handshake can carry | Consequence |
 |---|---|---|
 | Web (WebGL) | The browser WebSocket API takes only a URL and subprotocols: no `Authorization` or other custom header. The browser adds `Origin` (RFC 6455 requires it from browser clients) and its cookies. | Serve the build from an origin in the server's trusted origins, sign the player in through Better Auth on that site, and let the session cookie authenticate the socket. This skill's rule: keep the build and the server on the same site, because the cookie's SameSite setting decides whether the browser sends it; Better Auth's cookie page does not state the default. |
-| Desktop, mobile | `ClientWebSocketOptions.SetRequestHeader` sets any request header; NativeWebSocket passes its header dictionary to it. RFC 6455 lets a non-browser client omit `Origin`; expect none and log the upgrade headers on the server to confirm. | Send `Authorization: Bearer <token>` (the token comes from the sign-in response headers) and an `Origin` from the trusted list. The bearer path needs Better Auth's `bearer()` plugin on the server; Better Auth says to use it only for clients that cannot use cookies. |
+| Desktop, mobile | `ClientWebSocketOptions.SetRequestHeader` sets any request header; NativeWebSocket passes its header dictionary to it. RFC 6455 lets a non-browser client omit `Origin`. | Send `Authorization: Bearer <token>` as a request header (the token comes from the sign-in response headers). Send no `Origin`. The bearer path needs Better Auth's `bearer()` plugin on the server; Better Auth says to use it only for clients that cannot use cookies. |
 
 Rules (this skill's):
 
@@ -42,7 +42,7 @@ Rules (this skill's):
 - Test the header path on each target platform before you rely on it. No Unity page documents which handshake headers each player runtime lets through.
 
 ```csharp
-// Unity 6000.3, NativeWebSocket bf3280c. Native builds send headers; WebGL ignores them.
+// Unity 6000.3, NativeWebSocket bf3280c. Native builds only: WebGL drops the headers.
 using System.Collections.Generic;
 using NativeWebSocket;
 using UnityEngine;
@@ -50,14 +50,12 @@ using UnityEngine;
 public class ServerConnection : MonoBehaviour
 {
     [SerializeField] string url = "wss://play.example.com/ws";
-    [SerializeField] string trustedOrigin = "https://play.example.com";
     WebSocket socket;
 
     public async void Open(string bearerToken)
     {
         var headers = new Dictionary<string, string>
         {
-            { "Origin", trustedOrigin },
             { "Authorization", "Bearer " + bearerToken },
         };
         socket = new WebSocket(url, headers);
