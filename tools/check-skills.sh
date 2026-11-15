@@ -449,7 +449,7 @@ check_r1() { # repo-level flag: 1 when README and marketplace are in scope
       printf '(design|engineering|narrative|infrastructure)-%s\n' "$name"
     done
   } >"$patterns"
-  # The skills install with `bunx skills`; README keeps the public `npx skills` line.
+  # Skills must say `bunx skills`. This check scans skill dirs only, not the README.
   { cat "$patterns"; printf '%s\n' 'npx skills'; } >"$skill_patterns"
 
   for dir in "${SKILLS[@]}"; do

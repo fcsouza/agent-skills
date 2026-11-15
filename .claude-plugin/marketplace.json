@@ -5,7 +5,7 @@
     "url": "https://github.com/fcsouza"
   },
   "metadata": {
-    "description": "Game development skills for AI agents — design, engineering, narrative, infrastructure, and React animations — plus Claude Code mods",
+    "description": "Game development skills and standalone skills for AI agents, plus Claude Code mods",
     "version": "2.0.0"
   },
   "renames": {
@@ -75,19 +75,28 @@
     {
       "name": "standalone-skills",
       "source": "./",
-      "description": "Standalone skills — React animations, OpenClaw Genie and the Judge PR review.",
-      "version": "1.0.0",
+      "description": "Standalone skills: Claude Agent SDK, database tuning, Foundry VTT, the Judge PR review, Nuvemshop apps, OpenClaw and Motion for React.",
+      "version": "1.1.0",
       "keywords": [
-        "react",
-        "animations",
+        "claude-agent-sdk",
+        "postgres",
+        "mysql",
+        "foundry-vtt",
+        "code-review",
+        "nuvemshop",
         "openclaw",
-        "code-review"
+        "react",
+        "animations"
       ],
       "category": "development",
       "skills": [
-        "./skills/react-animations",
+        "./skills/claude-agent-sdk",
+        "./skills/database-performance-tuning",
+        "./skills/foundry-vtt-dev",
+        "./skills/judge",
+        "./skills/nuvemshop-sdk",
         "./skills/openclaw-genie",
-        "./skills/judge"
+        "./skills/react-animations"
       ]
     },
     {
