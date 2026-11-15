@@ -128,6 +128,12 @@ run "SELECT pg_postmaster_start_time() AS started_at,
 # ------------------------------------------------------- statement-level stats
 
 HAS_PGSS="$(scalar "SELECT count(*) FROM pg_extension WHERE extname='pg_stat_statements'")" || true
+# CREATE EXTENSION alone is not enough: the library must also be in shared_preload_libraries.
+PGSS_LOADED="$(scalar "SELECT current_setting('shared_preload_libraries') ~ 'pg_stat_statements'")" || true
+if [[ "${HAS_PGSS:-0}" != "0" && "$PGSS_LOADED" != "t" ]]; then
+  HAS_PGSS=0
+  PGSS_NOT_LOADED=1
+fi
 
 if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
   # PG 17 renamed blk_read_time -> shared_blk_read_time.
@@ -215,6 +221,8 @@ else
   section "pg_stat_statements"
   if [[ "$SKIP_PGSS" == "1" ]]; then
     echo "skipped (-q)"
+  elif [[ "${PGSS_NOT_LOADED:-0}" == "1" ]]; then
+    echo "Installed but not loaded: add pg_stat_statements to shared_preload_libraries and restart."
   else
     cat <<'EOF'
 NOT INSTALLED. Without it you cannot rank queries by cost and every conclusion
