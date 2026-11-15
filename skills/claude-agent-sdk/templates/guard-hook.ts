@@ -6,45 +6,29 @@ import {
   tool,
   type HookCallback,
 } from '@anthropic-ai/claude-agent-sdk';
-import { existsSync, lstatSync, readlinkSync, realpathSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename } from 'node:path';
 import { z } from 'zod';
 
-// Matches .env, .env.local, .ENV.production and so on.
+// Matches .env, .env.local, .ENV.production and so on, ignoring a Windows stream suffix (":x")
+// and trailing dots or spaces.
 const ENV_FILE = /^\.env(\..+)?$/i;
 
-// The folder as the OS sees it: symlinked folders resolved, missing tail folders kept as text.
-// A missing folder that is itself a dangling link throws, which the caller treats as a denial.
-function osDir(dir: string): string {
-  if (existsSync(dir)) return realpathSync(dir);
-  if (lstatSync(dir, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error('dangling folder link');
-  const parent = dirname(dir);
-  return parent === dir ? dir : join(osDir(parent), basename(dir));
-}
-
-// True if the path, or any symlink hop it leads through, names an .env file. Each hop is
-// resolved against the real folder, and dangling links are followed with readlink, so a write
-// through a link or a symlinked folder is still caught. Windows stream suffixes (":x") and
-// trailing dots and spaces are stripped from each name. Throws on a link loop (a denial).
-export function hitsEnvFile(filePath: string, cwd: string) {
-  let path = resolve(cwd, filePath);
-  for (let hops = 0; ; hops++) {
-    path = join(osDir(dirname(path)), basename(path));
-    if (ENV_FILE.test((basename(path).split(':')[0] ?? '').replace(/[. ]+$/, ''))) return true;
-    if (!lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) return false;
-    if (hops >= 40) throw new Error('too many symlinks');
-    path = resolve(dirname(path), readlinkSync(path));
-  }
+// A policy check on the name the tool asked for. It is not a security boundary: a symlink, or a
+// path through a symlinked folder, can still reach an .env file, and so can Bash or a script.
+// For a boundary the operating system enforces, run the agent in a sandbox
+// (https://code.claude.com/docs/en/sandboxing.md) or under a user that cannot write the file.
+export function namesEnvFile(filePath: string) {
+  return ENV_FILE.test((basename(filePath).split(':')[0] ?? '').replace(/[. ]+$/, ''));
 }
 
 export const blockEnvWrites: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse') return {};
-  // Fail closed: a missing or non-string path, or any error while resolving it, is a denial.
+  // Fail closed: a missing or non-string path, or any error, is a denial.
   let denied = true;
   try {
     const { file_path: filePath } = input.tool_input as { file_path?: unknown };
     if (typeof filePath === 'string' && filePath !== '') {
-      denied = hitsEnvFile(filePath, input.cwd);
+      denied = namesEnvFile(filePath);
     }
   } catch {
     denied = true;
