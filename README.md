@@ -11,7 +11,7 @@ A plugin bundles skills you install in one step.
 | Plugin | Description | Platform |
 |--------|-------------|----------|
 | [game-dev](skills/game-dev/) | Game development skills for design, art and assets, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
-| standalone-skills | The seven skills under [Standalone](#standalone) below | Various |
+| standalone-skills | The eight skills under [Standalone](#standalone) below | Various |
 
 ## Claude Code Mods
 
@@ -35,10 +35,11 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 
 ### Standalone
 
-Each skill stands on its own. Install one, or all seven with the `standalone-skills` plugin.
+Each skill stands on its own. Install one, or all eight with the `standalone-skills` plugin.
 
 | Skill | Description | Platform |
 |-------|-------------|----------|
+| [asaas](skills/asaas/) | Charge in Brazil with the Asaas API: Pix charges and QR codes, Pix Automático, subscriptions, customers, webhooks and sandbox, plus the `$aact_` key quoting traps | [Asaas](https://www.asaas.com) |
 | [claude-agent-sdk](skills/claude-agent-sdk/) | Build agents with the Claude Agent SDK in TypeScript or Python: permissions, settings isolation, subagents, hooks, custom tools, sessions and hosting, with pointers to the official docs | Claude Agent SDK |
 | [database-performance-tuning](skills/database-performance-tuning/) | Find and fix slow Postgres and MySQL queries: measure first, read the plan, change one thing, verify. Ships a read-only Postgres diagnostic script | PostgreSQL / MySQL |
 | [foundry-vtt-dev](skills/foundry-vtt-dev/) | Build and migrate Foundry VTT v14 modules and game systems: manifests, TypeDataModel, ApplicationV2 sheets, GM-checked queries, Active Effects V2, Regions, world migrations, Vite build and release | [Foundry VTT](https://foundryvtt.com) |
