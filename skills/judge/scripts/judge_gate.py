@@ -148,4 +148,9 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (AttributeError, TypeError) as e:
+        # A nested value has the wrong shape (a string where an object belongs, say).
+        print(f"malformed input: wrong shape in findings.json ({e})", file=sys.stderr)
+        sys.exit(2)
