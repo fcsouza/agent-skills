@@ -1,6 +1,6 @@
 # Review Standards
 
-Adapted from The Judge v1.4.0 by Felipe Rodrigues (github.com/felipfr), https://github.com/tech-leads-club/agent-skills, CC-BY-4.0. Modified: the report goes to the terminal, nits are never suppressed, and hardening gaps on sensitive paths are listed instead of dropped.
+Adapted from The Judge v1.4.0 by Felipe Rodrigues (github.com/felipfr) and Tech Leads Club, https://github.com/tech-leads-club/agent-skills. Licence: see [NOTICE.md](../NOTICE.md). Modified: the report goes to the terminal, nits are never suppressed, hardening gaps on sensitive paths are listed instead of dropped, denial of service is excluded only when it has no concrete trigger, and missing input validation is excluded only on fields that never cross a trust boundary.
 
 Load this file at Step 3 of the workflow. It defines what each pass looks for, what it must never flag, and the bar for escalation. Global rule across all passes: generation optimizes for recall, verification (Step 4) optimizes for precision. Flag freely here; kill freely there.
 

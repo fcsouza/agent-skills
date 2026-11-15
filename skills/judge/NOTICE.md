@@ -2,9 +2,10 @@
 
 This skill adapts The Judge v1.4.0 from https://github.com/tech-leads-club/agent-skills (packages/skills-catalog/skills/(quality)/the-judge).
 
-- `SKILL.md` and `references/review-standards.md`: CC-BY-4.0, by Felipe Rodrigues (github.com/felipfr). Changes are listed at the top of each file.
-- `scripts/scan_bypasses.py`: MIT, under the upstream notice below.
-- `scripts/judge_gate.py`: written for this repo, MIT under the repo's LICENSE.
+- `SKILL.md`: CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/), by Felipe Rodrigues (github.com/felipfr) and Tech Leads Club. Changes are listed at the top of the file.
+- `references/review-standards.md`: adapted from the upstream file of the same name, which carries no licence header. The upstream LICENSE puts SKILL.md files under CC-BY-4.0 and code under MIT, so this file credits the authors under both. Changes are listed at the top of the file.
+- `scripts/scan_bypasses.py`: MIT, under the upstream notice below. Unchanged apart from its header line.
+- `scripts/judge_gate.py`: adapted from upstream `scripts/review_gate.py`, MIT, under the upstream notice below.
 
 ## Upstream MIT License
 

@@ -1,5 +1,6 @@
 ---
 name: judge
+license: CC-BY-4.0
 description: Use when a pull request, branch, or diff must be reviewed before merge or auto-merge, including PRs a subagent built. Triggers on "judge this PR", "review this PR", "review before merge", "revise esse PR", "julga esse PR", "faz o code review", "pode mergear?".
 ---
 
@@ -7,7 +8,7 @@ description: Use when a pull request, branch, or diff must be reviewed before me
 
 Review a change before merge, report in the terminal, then fix what the review found. The report shows what was checked as well as what was found, so the reader can see where the review did not look.
 
-Adapted from The Judge v1.4.0 by Felipe Rodrigues (github.com/felipfr), https://github.com/tech-leads-club/agent-skills, CC-BY-4.0. Modified: terminal report instead of a GitHub review, a coverage table, fresh-context reviewers, and a fix loop. Licence details: [NOTICE.md](NOTICE.md).
+Adapted from The Judge v1.4.0 by Felipe Rodrigues (github.com/felipfr) and Tech Leads Club, https://github.com/tech-leads-club/agent-skills, under CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: terminal report instead of a GitHub review, a coverage table, fresh-context reviewers, and a fix loop. Licence details: [NOTICE.md](NOTICE.md).
 
 ## Rules
 
@@ -28,7 +29,7 @@ Adapted from The Judge v1.4.0 by Felipe Rodrigues (github.com/felipfr), https://
 | 🟡 nit | Minor | none |
 | 🟣 pre-existing | Bug this change did not introduce | none; report as follow-up |
 
-Verdict is `MERGE` only with zero open 🔴 and 🟠. A finding the user accepts in their own words counts as closed; record the quote.
+Verdict is `MERGE` only with zero open 🔴 and 🟠. A finding the user accepts in their own words counts as closed: set `status` to `accepted` and put the quote in `accepted_reason`.
 
 ## Workflow
 
@@ -99,7 +100,16 @@ python3 <judge-skill-dir>/scripts/judge_gate.py findings.json changed-files.txt
 }
 ```
 
-The gate fails when a changed file is neither reviewed nor skipped, a core file lacks a pass with no `unverified` reason, a cited `path:line` does not exist, a 🔴 or 🟠 has no evidence, or the verdict disagrees with the open findings. Fix the input until it exits 0. Do not edit the gate.
+A core file a pass did not reach goes in `unverified` as `{"path": "...", "reason": "..."}`. Evidence `type` is `internal` (`path:line`, relative to the repo root), `external` (an https URL) or `repro` (the command and its output). A `fixed` finding needs `fixed_in` naming the commit.
+
+The gate fails when:
+
+- a changed file is neither core nor skipped, or a skipped file has no reason;
+- a core file lacks a pass and has no `unverified` entry;
+- a cited `path:line` does not exist or points outside the repo;
+- a 🔴 or 🟠 has no evidence;
+- finding ids repeat, `claims` is missing, or `round` is not 1 to 3;
+- the verdict disagrees with the open findings. Fix the input until it exits 0. Do not edit the gate.
 
 ### Step 6: Report
 
@@ -123,4 +133,4 @@ Fix every 🔴 and 🟠. Fix 🟡 inside the change's scope. Leave 🟣 as follo
 
 After fixing, run a new round: rerun Step 1, mark each finding `fixed` (with `fixed_in` naming the commit) or `open`, and send the fix diff to a fresh subagent that looks for new 🔴 only. Add files the fix touched to the file list and coverage. Rerun the gate and print the report again.
 
-Two fix rounds at most. If a 🔴 or 🟠 is still open after round 3, stop and give the user the open findings and what was tried. Do not merge or enable auto-merge while the verdict is `FIX_FIRST`.
+Two fix rounds at most. If a 🔴 or 🟠 is still open after the second fix round (round 3), stop and give the user the open findings and what was tried. Do not merge or enable auto-merge while the verdict is `FIX_FIRST`.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Adapted from review_gate.py in The Judge v1.4.0, tech-leads-club/agent-skills. MIT License, Copyright (c) 2026 Tech Leads Club.
 # invariant: stdlib only, no network. Run from the repo root so cited paths resolve.
 # Checks what a regex can check: every changed file is accounted for, every
 # finding cites evidence that exists, and the verdict matches the open findings.
@@ -25,6 +26,8 @@ def check_internal(ref, label):
     path, sep, line = ref.rpartition(":")
     if not sep or not line.isdigit() or int(line) < 1:
         return [f"{label}: internal evidence '{ref}' must be path:line"]
+    if os.path.isabs(path) or os.path.normpath(path).startswith(".."):
+        return [f"{label}: cited path '{path}' must be relative and inside the repo"]
     total = line_count(path)
     if total is None:
         return [f"{label}: cited file '{path}' does not exist in this checkout"]
@@ -105,11 +108,17 @@ def main():
         print(f"malformed input: {e}", file=sys.stderr)
         return 2
 
+    if not isinstance(data, dict):
+        print("malformed input: findings.json must hold a JSON object", file=sys.stderr)
+        return 2
     v = []
     findings = data.get("findings")
     if not isinstance(findings, list):
         v.append("SCHEMA: 'findings' must be a list")
         findings = []
+    if not all(isinstance(f, dict) for f in findings):
+        v.append("SCHEMA: every finding must be a JSON object")
+        findings = [f for f in findings if isinstance(f, dict)]
     ids = [f.get("id") for f in findings]
     if len(ids) != len(set(ids)):
         v.append("SCHEMA: finding ids must be unique")
@@ -118,7 +127,7 @@ def main():
     v += check_coverage(data, changed)
 
     round_n = data.get("round", 1)
-    if not isinstance(round_n, int) or not 1 <= round_n <= MAX_ROUND:
+    if isinstance(round_n, bool) or not isinstance(round_n, int) or not 1 <= round_n <= MAX_ROUND:
         v.append(f"ROUND: must be 1..{MAX_ROUND} (one review plus two fix rounds), got {round_n!r}")
 
     open_real = [f for f in findings
