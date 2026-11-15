@@ -25,9 +25,18 @@ function realName(filePath: string) {
 
 const blockEnvWrites: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse') return {};
-  const { file_path: filePath } = input.tool_input as { file_path?: string };
-  // Fail closed: a write with no path, or a path to any .env* file, is denied.
-  if (!filePath || ENV_FILE.test(realName(filePath))) {
+  const { file_path: filePath } = input.tool_input as { file_path?: unknown };
+  // Fail closed: a missing or non-string path, a path that cannot be resolved,
+  // or a path to any .env* file is denied.
+  let denied = true;
+  if (typeof filePath === 'string' && filePath !== '') {
+    try {
+      denied = ENV_FILE.test(realName(filePath));
+    } catch {
+      denied = true;
+    }
+  }
+  if (denied) {
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
