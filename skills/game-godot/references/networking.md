@@ -30,11 +30,11 @@ Checked against Godot 4.7.2-stable, the 4.7 documentation, Better Auth's docs an
 
 When the game page is on a portal, the session cookie is cross-site and a `Lax` or `Strict` cookie does not travel. Better Auth documents its one-time-token plugin as single-use session tokens for cross-domain authentication: a token tied to the current session, valid 3 minutes by default (`expiresIn`, in minutes), turned back into the session on the server with `auth.api.verifyOneTimeToken({ body: { token } })`. Carrying it in the WebSocket URL is this skill's inference; Better Auth's page does not describe WebSockets.
 
-- Not run for this skill. How a web export on a portal gets a session to ask for the token with is not covered by any page opened; the bearer route below needs CORS to expose `set-auth-token`, which was not checked.
+- Not run for this skill. How a web export on a portal gets a session to ask for the token with is not covered by any page opened. A web export must not read or store `set-auth-token` (`betterauth-integration`).
 - The client asks for a token over HTTP with its session, then connects to `wss://api.example.com/ws?token=<one-time token>`.
 - Godot's HTTP docs advise against credentials in GET URL parameters. Put only the short-lived one-time token in the URL, never the session or bearer token (this skill's rule).
 - HTTP calls from a web export to another origin need CORS headers on the server (Godot's HTTPClient note).
-- Server change: the upgrade check must read `token` from the URL, verify it with `verifyOneTimeToken`, and refuse the upgrade when verification fails (expired, already used, unknown). Add the portal's origin to the trusted origins.
+- Server change: the upgrade check must read `token` from the URL, verify it with `verifyOneTimeToken`, and refuse the upgrade when verification fails (expired, already used, unknown). Add the portal's origin to the trusted origins. This check must run before the Origin and cookie branch of `authorizeUpgrade`, which returns 401 for a trusted Origin with no cookie.
 - The server and any proxy in front of it must keep the `?token=` query string out of access and proxy logs (this skill's rule): the token is short-lived, but a logged URL still exposes it inside its window.
 - Ask for these changes in `game-backend-architecture`; do not fork the server code in the Godot project.
 
@@ -42,7 +42,7 @@ When the game page is on a portal, the session cookie is cross-site and a `Lax` 
 
 - Better Auth's bearer plugin returns a token in the `set-auth-token` response header after sign-in, and `getSession` then accepts `Authorization: Bearer <token>`. Its docs warn to use it only for clients that cannot use cookies, which a native Godot build is.
 - Sign in with `HTTPRequest` and read `set-auth-token` from the response headers.
-- Where the token lives (this skill's rule): in memory for the session. If the player should stay signed in across restarts, in a file under `user://`, the writable user-data path. Never in `res://` or the export, never in a URL, never in a log or `print()`. Anyone with access to the player's files can read a token stored this way; sign-out should delete the file and revoke the session.
+- Where the token lives (this skill's rule): in memory for the session. If the player should stay signed in across restarts, prefer the platform's secure store through a keystore plugin, as `betterauth-integration` asks. A plain file under `user://` is weaker than that rule; use it only when no secure store is available. Never in `res://` or the export, never in a URL, never in a log or `print()`. Anyone with access to the player's files can read a token stored this way; sign-out should delete the file and revoke the session.
 
 ```gdscript
 # Godot 4.7.2, native builds only. Each entry is one full header line:
