@@ -6,21 +6,31 @@ import {
   tool,
   type HookCallback,
 } from '@anthropic-ai/claude-agent-sdk';
-import { lstatSync, readlinkSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
+import { existsSync, lstatSync, readlinkSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 
 // Matches .env, .env.local, .ENV.production and so on.
 const ENV_FILE = /^\.env(\..+)?$/i;
 
-// True if the path, or any symlink hop it leads through, names an .env file. A dangling link
-// (`ln -s .env config`) is followed with readlink, so a write through it is still caught.
-// Windows stream suffixes (":x") and trailing dots and spaces are stripped from each name.
-// Throws on a link loop, which the caller treats as a denial.
+// The folder as the OS sees it: symlinked folders resolved, missing tail folders kept as text.
+// A missing folder that is itself a dangling link throws, which the caller treats as a denial.
+function osDir(dir: string): string {
+  if (existsSync(dir)) return realpathSync(dir);
+  if (lstatSync(dir, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error('dangling folder link');
+  const parent = dirname(dir);
+  return parent === dir ? dir : join(osDir(parent), basename(dir));
+}
+
+// True if the path, or any symlink hop it leads through, names an .env file. Each hop is
+// resolved against the real folder, and dangling links are followed with readlink, so a write
+// through a link or a symlinked folder is still caught. Windows stream suffixes (":x") and
+// trailing dots and spaces are stripped from each name. Throws on a link loop (a denial).
 export function hitsEnvFile(filePath: string, cwd: string) {
   let path = resolve(cwd, filePath);
   for (let hops = 0; ; hops++) {
-    if (ENV_FILE.test(basename(path).split(':')[0].replace(/[. ]+$/, ''))) return true;
+    path = join(osDir(dirname(path)), basename(path));
+    if (ENV_FILE.test((basename(path).split(':')[0] ?? '').replace(/[. ]+$/, ''))) return true;
     if (!lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) return false;
     if (hops >= 40) throw new Error('too many symlinks');
     path = resolve(dirname(path), readlinkSync(path));
