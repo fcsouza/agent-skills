@@ -41,6 +41,7 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Godot 4: GDScript or C#, headless export, WebSocket client to our server | `game-godot` |
 | Saves, slots, save versions and migration, cloud sync conflicts | `game-save-load` |
 | Lag, desync, jitter; prediction, reconciliation, interpolation | `game-state-sync` |
+| Unity: Unity CLI and batch mode, API traps, WebSocket client to our server | `game-unity` |
 | Player events, retention, funnels | `gameplay-analytics` |
 | Pairing players, lobbies, ranks | `matchmaking-system` |
 | Tables, player data, inventory, Drizzle | `postgres-game-schema` |
