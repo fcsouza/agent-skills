@@ -15,8 +15,7 @@
     "node_modules",
     "skills/claude-agent-sdk",
     "skills/database-performance-tuning",
-    "skills/foundry-vtt-module-dev",
-    "skills/foundry-vtt-system-dev",
+    "skills/foundry-vtt-dev",
     "skills/openclaw-genie",
     "skills/react-animations"
   ]

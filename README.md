@@ -38,11 +38,12 @@ Skills are individual, cherry-pickable modules. Install only what you need.
 |-------|-------------|----------|
 | [claude-agent-sdk](skills/claude-agent-sdk/) | Build production AI agents with the Claude Agent SDK — query(), hooks, subagents, custom tools, MCP servers, sessions, permissions, hosting | Claude Code / API |
 | [database-performance-tuning](skills/database-performance-tuning/) | Diagnose and fix slow databases like a DBA — pg_stat_statements, EXPLAIN plans, index design, query rewrites, vacuum and bloat, safe online rollout. Ships a read-only diagnostic script | PostgreSQL / MySQL |
-| [foundry-vtt-module-dev](skills/foundry-vtt-module-dev/) | Build, extend, and maintain Foundry VTT v14 modules — TypeDataModel, ApplicationV2 (detached windows), ActorSheetV2, hooks, sockets, dice, canvas/PIXI, Scene Levels, Regions as templates, ActiveEffects V2, v13→v14 migration, boilerplate files | [Foundry VTT](https://foundryvtt.com) |
-| [foundry-vtt-system-dev](skills/foundry-vtt-system-dev/) | Build Foundry VTT v14 game systems — system.json documentTypes, Actor/Item TypeDataModel, dice mechanics, combat/initiative, ActiveEffect V2 subtypes, data migration, character sheets, status effects, macros, enrichers | [Foundry VTT](https://foundryvtt.com) |
+| [foundry-vtt-dev](skills/foundry-vtt-dev/) | Build and migrate Foundry VTT v14 modules and game systems — manifests, documentTypes and TypeDataModel, ApplicationV2 sheets, GM-checked queries, dice and message modes, Active Effects V2, Regions as templates, Scene Levels, world migrations, Vite build and release | [Foundry VTT](https://foundryvtt.com) |
 | [openclaw-genie](skills/openclaw-genie/) | OpenClaw gateway skill that points to the official docs and sets the safety rules for install, secrets, channels, network exposure and deployment | [OpenClaw](https://openclaw.ai) |
 | [nuvemshop-sdk](skills/nuvemshop-sdk/) | Prepare, audit, implement, homologate, and publish Nuvemshop/Tiendanube apps — OAuth, API, NubeSDK, Nexo, Nimbus, webhooks, and App Store approval | [Nuvemshop](https://dev.nuvemshop.com.br/docs/getting-started) |
 | [react-animations](skills/react-animations/) | React animation patterns and utilities | React |
+
+Upgrading: `foundry-vtt-module-dev` and `foundry-vtt-system-dev` are now one skill, `foundry-vtt-dev`. Remove the two old skills and install `foundry-vtt-dev`.
 
 ### Game Dev
 

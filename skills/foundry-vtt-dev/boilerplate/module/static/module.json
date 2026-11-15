@@ -1,0 +1,46 @@
+{
+  "id": "my-module",
+  "title": "My Module",
+  "description": "A Foundry VTT v14 module. Replace this with your actual module description.",
+  "version": "1.0.0",
+  "type": "module",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "documentTypes": {
+    "Actor": {
+      "hero": {}
+    }
+  },
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "you@example.com",
+      "url": "https://github.com/yourname"
+    }
+  ],
+  "esmodules": ["scripts/main.mjs"],
+  "styles": [
+    {
+      "src": "styles/my-module.css",
+      "layer": "modules"
+    }
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "packs": [],
+  "relationships": {
+    "systems": [],
+    "requires": [],
+    "recommends": []
+  },
+  "url": "https://github.com/yourname/my-module",
+  "manifest": "https://github.com/yourname/my-module/releases/latest/download/module.json",
+  "download": "https://github.com/yourname/my-module/releases/download/v1.0.0/module.zip"
+}
