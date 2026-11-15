@@ -1,0 +1,22 @@
+{
+  "name": "my-module",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Foundry VTT module.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build --mode production",
+    "serve": "vite",
+    "format": "ultracite fix",
+    "lint": "ultracite check"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "ultracite": "8.2.1",
+    "vite": "8.3.8"
+  }
+}

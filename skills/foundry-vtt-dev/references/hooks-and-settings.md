@@ -1,0 +1,706 @@
+# Hooks & Settings
+
+Deep reference for Foundry VTT v14's hook system and settings API.
+
+**Changed in v14:**
+
+- Every render fires a `preRender<Class>` hook first.
+- Detached windows fire `openDetachedWindow` and `closeDetachedWindow`.
+- Placeables get `get<Document>PlaceableContextOptions`.
+- Token movement fires `planToken`.
+- `canvasTearDown`, `drawLayer` and `tearDownLayer` gained an options argument.
+- Hook registration logs sit behind `CONFIG.debug.hooks`.
+- Token movement keys split away from canvas panning keys.
+
+See `v14-migration.md`.
+
+---
+
+## 1. Hook Basics
+
+```js
+// Register a persistent listener — returns a numeric ID
+const hookId = Hooks.on("updateActor", (actor, changes, options, userId) => {
+  console.log("Actor updated:", actor.name);
+});
+
+// One-shot listener — automatically removed after first call
+Hooks.once("ready", () => {
+  console.log("Foundry is ready.");
+});
+
+// Unregister by ID
+Hooks.off("updateActor", hookId);
+
+// Unregister by function reference
+const myHandler = () => { /* ... */ };
+Hooks.on("updateActor", myHandler);
+Hooks.off("updateActor", myHandler);
+```
+
+Always store hook IDs when you register inside a class — you'll need them to clean up in `_onClose()` or when your module is disabled.
+
+**Changed in v14:** `Hooks.on` and `Hooks.off` only log to the console when `CONFIG.debug.hooks` is `true`. In v13 they logged on every call. Set `CONFIG.debug.hooks = true` in a macro when you need to trace which hooks fire and in what order.
+
+---
+
+## 2. Lifecycle Hooks
+
+Foundry fires these hooks in order as it initializes. What is safe to access changes at each stage.
+
+### init
+
+```js
+Hooks.once("init", () => {
+  // Safe: CONFIG, game.system, game.modules
+  // Not safe: game.user, game.actors, canvas
+  //
+  // Register here:
+  // - CONFIG.Actor.dataModels / CONFIG.Item.dataModels
+  // - Custom sheets via Actors.registerSheet() / Items.registerSheet()
+  // - game.settings.register() and game.settings.registerMenu()
+  // - Handlebars helpers
+  // - Document class overrides
+
+  CONFIG.Actor.dataModels = { hero: HeroData, npc: NpcData };
+  Actors.registerSheet("my-module", HeroActorSheet, { types: ["hero"], makeDefault: true });
+  game.settings.register("my-module", "enableFeature", { /* ... */ });
+});
+```
+
+### i18nInit
+
+```js
+Hooks.once("i18nInit", () => {
+  // Safe: game.i18n is fully loaded — localization strings are available
+  // Use to register Handlebars helpers that need localized strings
+  Handlebars.registerHelper("myModuleLocalize", key => game.i18n.localize(key));
+});
+```
+
+### setup
+
+```js
+Hooks.once("setup", () => {
+  // Safe: all packages initialized, game.system, game.modules, game.settings
+  // Documents are available in their collections but NOT yet rendered
+  // Not safe: canvas, game.user (not fully resolved yet)
+  //
+  // Use to:
+  // - Further modify CONFIG after other modules have had init
+  // - Register keybindings
+  // - Set up module API that other modules might need before ready
+
+  game.keybindings.register("my-module", "openMyPanel", {
+    name:         "MY_MODULE.Keybinding.openMyPanel",
+    hint:         "MY_MODULE.Keybinding.openMyPanelHint",
+    editable:     [{ key: "KeyM", modifiers: ["Control"] }],
+    onDown:       () => { new MyPanel().render({ force: true }); }
+  });
+});
+```
+
+Keybindings must be registered in `setup`, not `init` — `game.keybindings` is not available during `init`.
+
+### ready
+
+```js
+Hooks.once("ready", () => {
+  // Safe: everything — game.user, game.actors, game.scenes, game.items,
+  //       game.settings, canvas, ui.*
+  //
+  // Use to:
+  // - Run data migrations
+  // - Start socket listeners
+  // - Initialize UI components that need full game state
+  // - Register Hooks for runtime events
+
+  runMigrations();
+  game.socket.on("module.my-module", handleSocketEvent);
+});
+```
+
+**Summary table:**
+
+| Stage      | CONFIG | game.settings | game.actors | game.user | canvas |
+|------------|--------|---------------|-------------|-----------|--------|
+| init       | yes    | yes (register)| no          | no        | no     |
+| i18nInit   | yes    | yes           | no          | no        | no     |
+| setup      | yes    | yes           | yes (read)  | partial   | no     |
+| ready      | yes    | yes           | yes         | yes       | yes    |
+
+---
+
+## 3. Document Hooks
+
+Foundry fires pre/post hooks for every document operation. The naming convention is:
+- Pre-hooks: `pre[Action][DocumentType]` — cancellable by returning `false`
+- Post-hooks: `[action][DocumentType]` — informational, cannot cancel
+
+### Common hooks and their signatures
+
+```js
+// Actor CRUD
+Hooks.on("preCreateActor",  (document, data, options, userId) => { /* return false to cancel */ });
+Hooks.on("createActor",     (document, options, userId) => { });
+Hooks.on("preUpdateActor",  (document, changes, options, userId) => { /* return false to cancel */ });
+Hooks.on("updateActor",     (document, changes, options, userId) => { });
+Hooks.on("preDeleteActor",  (document, options, userId) => { /* return false to cancel */ });
+Hooks.on("deleteActor",     (document, options, userId) => { });
+
+// Item CRUD
+Hooks.on("preCreateItem",   (document, data, options, userId) => { });
+Hooks.on("createItem",      (document, options, userId) => { });
+Hooks.on("preUpdateItem",   (document, changes, options, userId) => { });
+Hooks.on("updateItem",      (document, changes, options, userId) => { });
+Hooks.on("preDeleteItem",   (document, options, userId) => { });
+Hooks.on("deleteItem",      (document, options, userId) => { });
+
+// Chat
+Hooks.on("preCreateChatMessage", (document, data, options, userId) => { });
+Hooks.on("createChatMessage",    (document, options, userId) => { });
+
+// Combat lifecycle
+Hooks.on("preCreateCombat",  (document, data, options, userId) => { });
+Hooks.on("createCombat",     (document, options, userId) => { });
+Hooks.on("updateCombat",     (document, changes, options, userId) => { });
+Hooks.on("deleteCombat",     (document, options, userId) => { });
+Hooks.on("combatStart",      (combat, updateData) => { });
+Hooks.on("combatTurn",       (combat, updateData, updateOptions) => { });
+Hooks.on("combatRound",      (combat, updateData, updateOptions) => { });
+```
+
+### Practical example — enforce constraint in a pre-hook
+
+```js
+// Prevent any actor from exceeding their maximum HP
+Hooks.on("preUpdateActor", (actor, changes, options, userId) => {
+  if (changes.system?.health?.value !== undefined) {
+    const maxHP = actor.system.health.max;
+    changes.system.health.value = Math.min(changes.system.health.value, maxHP);
+  }
+});
+
+// Cancel deletion of "protected" actors
+Hooks.on("preDeleteActor", (actor, options, userId) => {
+  if (actor.getFlag("my-module", "protected")) {
+    ui.notifications.warn(`${actor.name} is protected and cannot be deleted.`);
+    return false;
+  }
+});
+```
+
+---
+
+## 4. Render Hooks
+
+Fired when any Application renders. The class name is appended to `render` or `get`.
+
+Substitute your own class name for the base class to target one application; the hooks fire once for every class in the inheritance chain, so `renderApplicationV2` fires for every framed app and `renderHeroActorSheet` only for yours.
+
+```js
+// Before the render — v14. Mutate the context before the template sees it.
+Hooks.on("preRenderHeroActorSheet", (app, context, options) => {
+  context.myModuleBadge = app.document.getFlag("my-module", "badge");
+});
+
+// After the render
+Hooks.on("renderActorSheetV2", (app, html, context, options) => {
+  // app     — the ApplicationV2 instance
+  // html    — the rendered HTMLElement
+  // context — the object passed to the template
+  html.querySelector(".window-content")?.classList.add("my-module-style");
+});
+
+// Add an entry to a sheet's header menu — v14 entry shape
+Hooks.on("getHeaderControlsActorSheetV2", (app, controls) => {
+  controls.push({
+    label: "MY_MODULE.Tools.open",
+    icon: "fa-solid fa-wand-magic-sparkles",
+    visible: () => game.user.isGM,
+    onClick: () => new MyTool(app.document).render({ force: true })
+  });
+});
+
+// Handle drag-and-drop onto sheets
+Hooks.on("dropActorSheetData", (actor, sheet, data) => {
+  // data.type — e.g. "Item", "Actor", "Macro"
+  if ( data.type === "Item" ) return false;   // false cancels the default handling
+});
+Hooks.on("dropItemSheetData", (item, sheet, data) => { /* v14 */ });
+```
+
+`preRender<Class>` uses `Hooks.callAll`, so returning `false` does not cancel the render. Throw inside `_preRender` if you need to abort. `getHeaderControls<Class>` entries use `label` / `visible` / `onClick` and take an optional `action` naming an entry in the app's `DEFAULT_OPTIONS.actions`. `getApplicationV1HeaderButtons` still exists for appv1 apps and keeps the old `{label, class, icon, onclick}` shape.
+
+### Detached window hooks (v14)
+
+```js
+Hooks.on("openDetachedWindow", (id, win) => {
+  // id  — the window's unique identifier
+  // win — the WindowProxy; write to win.document, not the global document
+});
+Hooks.on("closeDetachedWindow", (id, win) => { /* tear down what you injected */ });
+```
+
+`activateEditorLegacy(editor, options, initialContent)` is also new in v14. It fires when the editor activation button is pressed and exists only to bridge code written for the removed TinyMCE path; it goes away with the appv1 editor.
+
+```js
+
+// React to a specific app rendering — e.g. the settings window
+Hooks.on("renderSettingsConfig", (app, html, data) => {
+  // Inject a custom control after a specific setting
+  const target = html.querySelector(`[name="my-module.enableFeature"]`);
+  if (target) {
+    target.closest(".form-group").insertAdjacentHTML("afterend", `
+      <div class="form-group">
+        <label>Custom Info</label>
+        <p class="notes">This is injected by my-module.</p>
+      </div>
+    `);
+  }
+});
+```
+
+---
+
+## 5. Canvas Hooks
+
+```js
+// Canvas is initialized but layers are not yet ready
+Hooks.on("canvasInit", (canvas) => {
+  console.log("Canvas initializing for scene:", canvas.scene.name);
+});
+
+// Canvas is fully ready — all layers, tokens, and tiles are rendered
+Hooks.on("canvasReady", (canvas) => {
+  const scene = canvas.scene;
+  console.log(`Canvas ready: ${scene.name}, ${canvas.tokens.placeables.length} tokens`);
+
+  // Safe to interact with canvas layers here
+  canvas.tokens.placeables.forEach(token => {
+    if (token.actor?.getFlag("my-module", "glowing")) {
+      addGlowEffect(token);
+    }
+  });
+});
+
+// Canvas view panned or zoomed
+Hooks.on("canvasPan", (canvas, position) => {
+  // position: { x, y, scale }
+  console.log("Canvas panned to:", position);
+});
+
+// Something was dropped onto the canvas
+Hooks.on("dropCanvasData", (canvas, data, event) => {
+  // data carries the drag payload plus the canvas {x, y} of the drop
+  // return false to prevent the default handling
+  console.log("Dropped onto canvas:", data.type, data.x, data.y);
+});
+
+// Canvas teardown — v14 passes options describing what comes next
+Hooks.on("canvasTearDown", (canvas, options) => {
+  // options.nextScene — the Scene about to be drawn, or null if going blank
+  // options.nextLevel — the Level about to be drawn, or null
+});
+
+// Layer draw and teardown — v14 added the options argument to both
+Hooks.on("drawLayer", (layer, options) => { });
+Hooks.on("tearDownLayer", (layer, options) => { });   // options is CanvasTearDownOptions
+
+// Highlight objects on the canvas (e.g. during targeting)
+Hooks.on("highlightObjects", (active) => {
+  // active: boolean
+});
+
+// Token movement — v14 adds planToken alongside moveToken/stopToken/pauseToken
+Hooks.on("planToken", (document) => {
+  // The token's movement has been planned but not yet committed
+});
+```
+
+### Placeable context menus (v14)
+
+The Document name goes inside the hook name: `getTokenPlaceableContextOptions`, `getWallPlaceableContextOptions`, and so on. `getPlaceableContextOptions` is only the naming template — registering that literal name never fires.
+
+```js
+Hooks.on("getTokenPlaceableContextOptions", (app, entries) => {
+  entries.push({
+    label: "MY_MODULE.Canvas.inspect",
+    icon: "fa-solid fa-magnifying-glass",
+    visible: () => game.user.isGM,
+    onClick: () => canvas.tokens.controlled[0]?.actor?.sheet.render({ force: true })
+  });
+});
+```
+
+---
+
+## 6. Hooks.callAll vs Hooks.call
+
+```js
+// Hooks.callAll — runs ALL listeners regardless of return value
+// Used for post-hooks (informational, no cancellation)
+Hooks.callAll("myModule.dataReady", payload);
+
+// Hooks.call — stops if ANY listener returns false
+// Used for pre-hooks (cancellable operations)
+const allowed = Hooks.call("myModule.beforeAction", context);
+if (allowed === false) return; // cancelled by a listener
+```
+
+When writing your own hooks:
+- Use `Hooks.call` when the action can be cancelled by another module.
+- Use `Hooks.callAll` when you're broadcasting an event and all listeners should run.
+
+```js
+// Exposing a cancellable hook from your module
+async function doImportantThing(actor) {
+  const context = { actor, cancel: false };
+  if (Hooks.call("myModule.preImportantThing", context) === false) return;
+
+  // do the thing...
+
+  Hooks.callAll("myModule.importantThingDone", actor);
+}
+```
+
+---
+
+## 7. Keybinding API
+
+Register keyboard shortcuts in the `setup` hook. Users can rebind them in Settings → Configure Controls.
+
+### Full registration
+
+```js
+Hooks.once("setup", () => {
+  game.keybindings.register("my-module", "quickAttack", {
+    name:     "MY_MODULE.Keybinding.quickAttack.name",
+    hint:     "MY_MODULE.Keybinding.quickAttack.hint",
+    editable: [
+      { key: "KeyA", modifiers: [] },                    // default: A
+      { key: "KeyA", modifiers: ["Shift"] }              // alternate: Shift+A
+    ],
+    onDown: () => { quickAttack(); },                    // fires on key press
+    onUp:   () => { clearTargeting(); },                 // fires on key release (optional)
+    repeat: false,                                       // true = fires repeatedly while held
+    restricted: false,                                   // true = GM only
+    reservedModifiers: ["Shift"],                        // prevent Shift from being used as a modifier conflict
+    precedence: CONST.KEYBINDING_PRECEDENCE.PRIORITY     // NORMAL or PRIORITY
+  });
+});
+```
+
+### GM-only shortcut
+
+```js
+game.keybindings.register("my-module", "gmPanel", {
+  name:       "MY_MODULE.Keybinding.gmPanel.name",
+  hint:       "MY_MODULE.Keybinding.gmPanel.hint",
+  editable:   [{ key: "KeyG", modifiers: ["Control", "Shift"] }],
+  onDown:     () => { new GmPanel().render({ force: true }); },
+  restricted: true      // only GMs can use this binding
+});
+```
+
+### Modifier keys
+
+Available modifiers: `"Control"`, `"Shift"`, `"Alt"`, `"Meta"` (Cmd on Mac, Win on Windows).
+
+Key codes follow the `KeyboardEvent.code` format: `"KeyA"`, `"Digit1"`, `"Space"`, `"F1"`, `"ArrowUp"`, etc.
+
+### Core bindings that changed in v14
+
+Token movement and canvas panning are now separate bindings. In v13 the `pan*` bindings did both jobs.
+
+| Binding | Default keys | Does |
+|---|---|---|
+| `core.moveUp` / `moveDown` / `moveLeft` / `moveRight` | `W` `S` `A` `D` | Move controlled tokens |
+| `core.moveUpLeft` / `moveUpRight` / `moveDownLeft` / `moveDownRight` | — | Diagonal token movement |
+| `core.ascend` / `core.descend` | `E` / `Q` | Move tokens up and down between Scene Levels |
+| `core.panUp` / `panDown` / `panLeft` / `panRight` (+ diagonals) | Arrows, numpad | Pan the canvas |
+
+If your module rebinds or listens for WASD movement, target the `move*` bindings; `pan*` no longer moves tokens.
+
+---
+
+## 8. Settings Registration
+
+Register all settings in the `init` hook.
+
+```js
+Hooks.once("init", () => {
+  const moduleId = "my-module";
+
+  // Boolean toggle (shows as checkbox)
+  game.settings.register(moduleId, "enableFeature", {
+    name:    "MY_MODULE.Settings.enableFeature.name",
+    hint:    "MY_MODULE.Settings.enableFeature.hint",
+    scope:   "world",    // "world" = DB, GM-only write | "client" = localStorage, per-user
+    config:  true,       // true = visible in Settings UI; false = hidden (API-only)
+    type:    Boolean,
+    default: true,
+    onChange: value => {
+      console.log("enableFeature changed to:", value);
+    }
+  });
+
+  // Dropdown (choices object)
+  game.settings.register(moduleId, "difficulty", {
+    name:    "MY_MODULE.Settings.difficulty.name",
+    hint:    "MY_MODULE.Settings.difficulty.hint",
+    scope:   "world",
+    config:  true,
+    type:    String,
+    choices: {
+      easy:   "MY_MODULE.Settings.difficulty.easy",
+      normal: "MY_MODULE.Settings.difficulty.normal",
+      hard:   "MY_MODULE.Settings.difficulty.hard"
+    },
+    default: "normal"
+  });
+
+  // Number with range slider
+  game.settings.register(moduleId, "volumeLevel", {
+    name:    "MY_MODULE.Settings.volumeLevel.name",
+    hint:    "MY_MODULE.Settings.volumeLevel.hint",
+    scope:   "client",
+    config:  true,
+    type:    Number,
+    range:   { min: 0, max: 100, step: 5 },
+    default: 80,
+    onChange: value => setVolume(value / 100)
+  });
+
+  // Free text
+  game.settings.register(moduleId, "campaignTitle", {
+    name:    "MY_MODULE.Settings.campaignTitle.name",
+    hint:    "MY_MODULE.Settings.campaignTitle.hint",
+    scope:   "world",
+    config:  true,
+    type:    String,
+    default: ""
+  });
+
+  // Hidden setting (no UI, API access only)
+  game.settings.register(moduleId, "migrationVersion", {
+    scope:   "world",
+    config:  false,
+    type:    Number,
+    default: 0
+  });
+});
+```
+
+`scope: "world"` — stored in the server database. Only GMs can write. All connected clients read the same value.
+
+### Core settings that changed in v14
+
+| Setting | Status |
+|---|---|
+| `core.messageMode` | New. The user's default chat message mode, a key of `CONFIG.ChatMessage.modes`. Client scope. |
+| `core.rollMode` | Deprecated until v16. Reads and writes proxy to `core.messageMode` through `Roll._mapLegacyRollMode`. |
+| `core.gridTemplates` | Deprecated, no replacement. MeasuredTemplate is gone; see `measured-templates.md`. |
+| `core.coneTemplateType` | Deprecated, no replacement. |
+
+Reading either deprecated setting logs a compatibility warning.
+`scope: "client"` — stored in `localStorage`. Each player has their own value. GMs cannot override other players' settings.
+
+---
+
+## 9. Settings Get / Set
+
+```js
+const moduleId = "my-module";
+
+// Get is synchronous
+const isEnabled = game.settings.get(moduleId, "enableFeature");    // Boolean
+const difficulty = game.settings.get(moduleId, "difficulty");       // "easy"|"normal"|"hard"
+const volume     = game.settings.get(moduleId, "volumeLevel");      // Number
+
+// Set is async — returns a Promise
+await game.settings.set(moduleId, "enableFeature", false);
+await game.settings.set(moduleId, "migrationVersion", 3);
+
+// Pattern: read-modify-write
+const currentVersion = game.settings.get(moduleId, "migrationVersion");
+if (currentVersion < 3) {
+  await runMigrationV3();
+  await game.settings.set(moduleId, "migrationVersion", 3);
+}
+```
+
+---
+
+## 10. Settings Submenus
+
+For complex settings that don't fit in a single row, register a submenu pointing to an ApplicationV2.
+
+```js
+Hooks.once("init", () => {
+  const moduleId = "my-module";
+
+  // Register the submenu entry (appears as a button in the settings list)
+  game.settings.registerMenu(moduleId, "advancedConfig", {
+    name:       "MY_MODULE.Settings.advancedConfig.name",
+    label:      "MY_MODULE.Settings.advancedConfig.label",   // button text
+    hint:       "MY_MODULE.Settings.advancedConfig.hint",
+    icon:       "fa-solid fa-cog",
+    type:       AdvancedConfigApp,   // ApplicationV2 subclass to open
+    restricted: true                 // true = GM only
+  });
+});
+
+// The ApplicationV2 that handles the submenu
+const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+class AdvancedConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "my-module-advanced-config",
+    classes: ["my-module", "settings-submenu"],
+    window: {
+      title: "MY_MODULE.Settings.advancedConfig.title",
+      icon:  "fa-solid fa-cog"
+    },
+    position: { width: 480, height: "auto" },
+    form: {
+      handler:        AdvancedConfigApp.#onSubmit,
+      closeOnSubmit:  true
+    }
+  };
+
+  static PARTS = {
+    form: { template: "modules/my-module/templates/settings/advanced-config.hbs" }
+  };
+
+  async _prepareContext(options) {
+    const moduleId = "my-module";
+    return {
+      specialMode:    game.settings.get(moduleId, "specialMode"),
+      debugLevel:     game.settings.get(moduleId, "debugLevel"),
+      customEndpoint: game.settings.get(moduleId, "customEndpoint")
+    };
+  }
+
+  static async #onSubmit(event, form, formData) {
+    const moduleId = "my-module";
+    const data     = foundry.utils.expandObject(formData.object);
+    await game.settings.set(moduleId, "specialMode",    data.specialMode);
+    await game.settings.set(moduleId, "debugLevel",     data.debugLevel);
+    await game.settings.set(moduleId, "customEndpoint", data.customEndpoint);
+    ui.notifications.info("Advanced settings saved.");
+  }
+}
+```
+
+The submenu's backing settings (`specialMode`, `debugLevel`, `customEndpoint`) should be registered with `config: false` since they're managed by the submenu UI, not the auto-generated settings rows.
+
+---
+
+## 11. DataModel-Backed Settings
+
+A `DataModel` subclass works as the `type` in `game.settings.register()`. This replaces JSON-stringified objects with validated, typed, auto-migrated structured settings.
+
+### Define a settings DataModel
+
+```js
+class ModuleSettings extends foundry.abstract.DataModel {
+  static defineSchema() {
+    const fields = foundry.data.fields;
+    return {
+      difficulty:   new fields.StringField({
+        required: true, initial: "normal",
+        choices: ["easy", "normal", "hard"]
+      }),
+      showTooltips: new fields.BooleanField({ initial: true }),
+      maxPartySize: new fields.NumberField({ required: true, integer: true, min: 1, max: 12, initial: 6 }),
+      customColor:  new fields.ColorField({ initial: "#ff6600" })
+    };
+  }
+}
+```
+
+### Register and use
+
+```js
+Hooks.once("init", () => {
+  game.settings.register("my-module", "config", {
+    name:    "MY_MODULE.Settings.config.name",
+    hint:    "MY_MODULE.Settings.config.hint",
+    scope:   "world",
+    config:  true,
+    type:    ModuleSettings,     // DataModel class instead of Boolean/String/etc.
+    default: {}
+  });
+});
+
+// Get returns a DataModel instance — access fields as properties
+const settings = game.settings.get("my-module", "config");
+console.log(settings.difficulty);     // "normal"
+console.log(settings.maxPartySize);   // 6
+
+// Set with a plain object — partial updates work
+await game.settings.set("my-module", "config", { difficulty: "hard" });
+// Other fields (showTooltips, maxPartySize, customColor) are unchanged
+```
+
+The DataModel validates all data on set — invalid values throw before saving. The `default: {}` uses the model's `initial` values for each field. A single `DataField` also works as `type`, which is how core registers `core.messageMode`:
+
+```js
+game.settings.register("my-module", "mode", {
+  scope: "client",
+  config: false,
+  type: new foundry.data.fields.StringField({ required: true, blank: false, initial: "public" })
+});
+```
+
+**Changed in v14:** validation calls `type.validate(value, {fallback: false, strict: true})`, so a bad value throws a `DataModelValidationError` directly instead of the older two-step failure check.
+
+---
+
+## 12. Cleanup Pattern
+
+Always clean up hook registrations when an application closes. Unregistered hooks continue to run even after the window is gone, causing memory leaks and ghost behavior.
+
+```js
+class MyPanel extends HandlebarsApplicationMixin(ApplicationV2) {
+  // Store hook IDs registered during this instance's lifetime
+  #hookIds = [];
+
+  async _onRender(context, options) {
+    // Register runtime hooks and track their IDs
+    this.#hookIds.push(
+      Hooks.on("updateActor", this.#onActorUpdate.bind(this)),
+      Hooks.on("updateCombat", this.#onCombatUpdate.bind(this)),
+      Hooks.on("canvasReady", this.#onCanvasReady.bind(this))
+    );
+  }
+
+  async _onClose(options) {
+    // Remove every registered hook
+    for (const id of this.#hookIds) {
+      Hooks.off("updateActor",   id);
+      Hooks.off("updateCombat",  id);
+      Hooks.off("canvasReady",   id);
+    }
+    this.#hookIds = [];
+  }
+
+  #onActorUpdate(actor, changes, options, userId) {
+    // React to actor updates while this panel is open
+    this.render({ parts: ["body"] });
+  }
+
+  #onCombatUpdate(combat, changes, options, userId) {
+    if (changes.turn !== undefined || changes.round !== undefined) {
+      this.render({ parts: ["initiative"] });
+    }
+  }
+
+  #onCanvasReady(canvas) {
+    this.render({ force: true });
+  }
+}
+```
+
+For module-level hooks (registered once at module load, not tied to a specific window), store IDs in your module's global scope and remove them only if the module provides an explicit teardown path. These are rare — most dynamic listeners belong to an application instance.

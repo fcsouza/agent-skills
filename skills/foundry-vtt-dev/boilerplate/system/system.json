@@ -1,0 +1,104 @@
+{
+  "id": "my-system",
+  "title": "My System",
+  "description": "A custom game system for Foundry VTT.",
+  "version": "1.0.0",
+  "type": "system",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "Your Name",
+      "url": "https://github.com/yourname"
+    }
+  ],
+  "documentTypes": {
+    "Actor": {
+      "character": {
+        "htmlFields": ["biography"],
+        "filePathFields": {
+          "portrait": ["IMAGE"]
+        }
+      },
+      "npc": {
+        "htmlFields": ["biography"]
+      }
+    },
+    "Item": {
+      "weapon": {
+        "htmlFields": ["description"]
+      },
+      "spell": {
+        "htmlFields": ["description"]
+      }
+    }
+  },
+  "background": "systems/my-system/assets/background.webp",
+  "grid": {
+    "type": 1,
+    "distance": 5,
+    "units": "ft",
+    "diagonals": 0
+  },
+  "primaryTokenAttribute": "health",
+  "secondaryTokenAttribute": "power",
+  "esmodules": ["scripts/main.mjs"],
+  "styles": [{ "src": "styles/my-system.css" }],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "packs": [
+    {
+      "name": "core-items",
+      "label": "Core Items",
+      "path": "packs/core-items",
+      "type": "Item",
+      "system": "my-system"
+    },
+    {
+      "name": "core-spells",
+      "label": "Core Spells",
+      "path": "packs/core-spells",
+      "type": "Item",
+      "system": "my-system"
+    },
+    {
+      "name": "core-npcs",
+      "label": "Core NPCs",
+      "path": "packs/core-npcs",
+      "type": "Actor",
+      "system": "my-system"
+    }
+  ],
+  "packFolders": [
+    {
+      "name": "Core Content",
+      "color": "#7a4",
+      "packs": ["core-npcs"],
+      "folders": [
+        {
+          "name": "Equipment",
+          "color": "#a47",
+          "packs": ["core-items", "core-spells"]
+        }
+      ]
+    }
+  ],
+  "socket": true,
+  "flags": {
+    "hotReload": {
+      "extensions": ["css", "hbs", "json"],
+      "paths": ["styles/my-system.css", "templates", "lang"]
+    },
+    "my-system": {
+      "needsMigrationVersion": "1.0.0",
+      "compatibleMigrationVersion": "0.5.0"
+    }
+  }
+}

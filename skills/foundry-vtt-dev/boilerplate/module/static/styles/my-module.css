@@ -1,0 +1,45 @@
+/* Loaded through module.json "styles" with "layer": "modules", so these rules
+   sit in core's modules cascade layer. Scope every rule to the sheet class. */
+.my-module.hero .hero-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+}
+
+.my-module.hero .ability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.my-module.hero .ability {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid var(--color-border, #7a7971);
+  border-radius: 4px;
+  padding: 0.25rem;
+}
+
+.my-module.hero .inventory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.my-module.hero .item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.my-module.hero .item-name {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .my-module.hero * {
+    transition: none;
+  }
+}
