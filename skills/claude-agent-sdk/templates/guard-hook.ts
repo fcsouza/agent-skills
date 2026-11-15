@@ -6,12 +6,17 @@ import {
   tool,
   type HookCallback,
 } from '@anthropic-ai/claude-agent-sdk';
+import { basename } from 'node:path';
 import { z } from 'zod';
+
+// Matches .env, .env.local, .ENV.production and so on.
+const ENV_FILE = /^\.env(\..+)?$/i;
 
 const blockEnvWrites: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse') return {};
-  const toolInput = input.tool_input as { file_path?: string };
-  if (toolInput.file_path?.endsWith('.env')) {
+  const { file_path: filePath } = input.tool_input as { file_path?: string };
+  // Fail closed: a write with no path, or a path to any .env* file, is denied.
+  if (!filePath || ENV_FILE.test(basename(filePath))) {
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -43,6 +48,8 @@ export function run(prompt: string) {
       mcpServers: { weather },
       // MCP tools are named mcp__<server>__<tool>; list them or they are not auto-approved.
       allowedTools: ['Read', 'Write', 'Edit', 'mcp__weather__*'],
+      // This hook only sees Write and Edit. Bash can still write files: leave Bash out of
+      // allowedTools, or add a Bash rule, if .env files must stay untouched.
       hooks: { PreToolUse: [{ matcher: 'Write|Edit', hooks: [blockEnvWrites] }] },
     },
   });
