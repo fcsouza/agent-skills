@@ -82,8 +82,9 @@ Connection rules for the script:
   `service=NAME` entry in `~/.pg_service.conf`. `PGPASSWORD` works but the libpq manual
   advises against it.
 - **Direct connection only.** The script sends its read-only and timeout settings as
-  startup options. PgBouncer rejects startup parameters it does not track, drops them if
-  `ignore_startup_parameters` lists `options`, and tracks only some settings. The script
+  startup options. PgBouncer rejects startup parameters it does not track, or drops them if
+  `ignore_startup_parameters` lists `options`; tracked ones such as
+  `default_transaction_read_only` still apply. The script
   checks `default_transaction_read_only`, `statement_timeout` and `lock_timeout` with `SHOW`
   and stops if any is not applied. Details in
   [references/diagnose-postgres.md](references/diagnose-postgres.md).

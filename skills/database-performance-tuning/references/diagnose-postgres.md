@@ -345,8 +345,9 @@ Pooler limits that affect diagnosis and tuning, from the PgBouncer manual:
   So a session-level `SET work_mem` or `SET lock_timeout` does not carry to the next
   statement. Use `SET LOCAL` inside a transaction, or a direct connection.
 - PgBouncer accepts only startup parameters it can track. Others raise an error unless
-  `ignore_startup_parameters` lists them (listing `options` makes it ignore everything in
-  `options`, which drops every setting sent that way). PgBouncer supports the `options`
+  `ignore_startup_parameters` lists them (listing `options` makes it ignore the unknown
+  parameters inside `options`: tracked ones such as `default_transaction_read_only` survive,
+  the timeouts are dropped). PgBouncer supports the `options`
   startup parameter since 1.20.0 (2023-07-20), and only for settings it tracks, which
   `track_extra_parameters` can extend. `pg-diagnose.sh` passes its read-only and timeout
   settings through `PGOPTIONS`, which arrives as `options`. Behind a pooler the connection

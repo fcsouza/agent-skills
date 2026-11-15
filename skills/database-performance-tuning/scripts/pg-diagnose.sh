@@ -204,9 +204,12 @@ if [[ "$SKIP_PGSS" == "0" && "${HAS_PGSS:-0}" != "0" ]]; then
        LIMIT 10;"
   fi
 
-  # pg_stat_statements_info exists from PG 14.
-  if (( VERNUM >= 140000 )); then
+  # pg_stat_statements_info exists from PG 14, once the extension itself is updated.
+  if (( VERNUM >= 140000 )) &&
+    [[ "$(scalar "SELECT to_regclass('pg_stat_statements_info') IS NOT NULL")" == "t" ]]; then
     run "SELECT * FROM pg_stat_statements_info;"
+  else
+    echo "skipped: pg_stat_statements_info is missing (PG 13 or older, or the extension needs ALTER EXTENSION pg_stat_statements UPDATE)"
   fi
 else
   section "pg_stat_statements"

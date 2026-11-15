@@ -213,7 +213,8 @@ Extended statistics also work on expressions, which fixes estimates for
   storage normally costs more than four times sequential access, and that 4.0 is used
   because most random reads are assumed to hit cache. It also says decreasing the value
   might be appropriate if the data is likely to be completely in cache, such as when the
-  database is smaller than the total server memory, or network latency is high. Many people set about 1.1 on SSD. That figure is
+  database is smaller than the total server memory, or network latency is high. Many people
+  set about 1.1 on SSD. That figure is
   community practice, not from the manual. Treat it as a hypothesis: change it in a
   session, compare plans and timings on the real workload, and keep it only if they improve.
 - **`maintenance_work_mem`** — used by index builds and vacuum. Raising it makes
