@@ -10,7 +10,7 @@ A plugin bundles skills you install in one step.
 
 | Plugin | Description | Platform |
 |--------|-------------|----------|
-| [game-dev](skills/game-dev/) | Game development skills for design, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
+| [game-dev](skills/game-dev/) | Game development skills for design, art and assets, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
 
 ## Claude Code Mods
 
@@ -65,13 +65,19 @@ Start with `game-dev`. It routes a game task to the right skill below and states
 | [quest-mission-design](skills/quest-mission-design/) | Quests, objectives, quest trees |
 | [ui-ux-game](skills/ui-ux-game/) | HUD, menus, onboarding, accessibility |
 
+#### Art and assets
+
+| Skill | Description |
+|-------|-------------|
+| [elevenlabs-sound-music](skills/elevenlabs-sound-music/) | SFX generation, adaptive music, voice acting |
+| [game-blender](skills/game-blender/) | Blender in a game asset pipeline: headless export, glTF and FBX, LODs, collision, baking |
+
 #### Engineering
 
 | Skill | Description |
 |-------|-------------|
 | [betterauth-integration](skills/betterauth-integration/) | Player login, staff roles, session checks on WebSocket |
 | [bullmq-game-queues](skills/bullmq-game-queues/) | Job queues, async events, scheduled tasks |
-| [elevenlabs-sound-music](skills/elevenlabs-sound-music/) | SFX generation, adaptive music, voice acting |
 | [game-anti-cheat](skills/game-anti-cheat/) | Defend an online game against cheating: server-side validation, hidden-state filtering, detection, enforcement |
 | [game-backend-architecture](skills/game-backend-architecture/) | Game servers, WebSocket, rooms, tick loops |
 | [game-client](skills/game-client/) | Browser game client: choose plain web, Phaser, PixiJS or Three.js/R3F; loop, input, assets, canvas sizing, cleanup |
