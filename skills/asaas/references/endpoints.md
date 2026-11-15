@@ -50,8 +50,16 @@ Base: `https://api-sandbox.asaas.com/v3` (sandbox) or `https://api.asaas.com/v3`
 - `GET /pix/transactions/recurrings`, `GET /pix/transactions/recurrings/{id}`, `POST /pix/transactions/recurrings/{id}/cancel`.
 
 ## Subaccounts
-- `POST /accounts`: required `name`, `email`, `cpfCnpj`, `mobilePhone`, `incomeValue`, `address`, `addressNumber`, `province`, `postalCode`. Returns `apiKey` (once) and `walletId`.
-- `GET /accounts`, `GET /accounts/{id}`, `GET|POST /accounts/{id}/accessTokens`, `PUT|DELETE /accounts/{id}/accessTokens/{accessTokenId}`.
+- `POST /accounts` (root key): required `name`, `email`, `cpfCnpj`, `mobilePhone`, `incomeValue`, `address`, `addressNumber`, `province`, `postalCode`. `birthDate` for a PF seller; `companyType` and optional `taxRegime` for a PJ seller; optional `webhooks[]`. Returns `id`, `walletId` and the key once (guides: `apiKey`; reference schema: `accessToken.apiKey`).
+- `GET /accounts`, `GET /accounts/{id}`, `DELETE /accounts/{id}` (non-BaaS, within 48 hours, never logged in), `POST /accounts/{id}/resendActivationLink` (non-BaaS).
+- `GET|POST /accounts/{id}/accessTokens`, `PUT|DELETE /accounts/{id}/accessTokens/{accessTokenId}`: root key, 2-hour access window, IP allowlist on.
+- With the subaccount's own key: `GET /myAccount/status`, `GET /myAccount/documents`, `POST /myAccount/documents/{id}`, `GET|POST|DELETE /myAccount/documents/files/{id}`, `GET|POST /myAccount/commercialInfo/`, `GET /wallets/` (the account's `walletId`).
+- `GET|POST /accounts/{id}/escrow`, `GET|POST /accounts/escrow`: Conta Escrow per subaccount or as the default.
+
+## Splits
+- `split[]` on `POST /payments` and `POST /subscriptions`; `splits[]` on `POST /installments`, `PUT /installments/{id}/splits` and Checkout. Item: `walletId` (required), `fixedValue`, `percentualValue`, `totalFixedValue` (installments), `installmentNumber` (`/installments`, not with `totalFixedValue`), `externalReference`, `description`.
+- `GET /payments/splits/paid`, `GET /payments/splits/paid/{id}`, `GET /payments/splits/received`, `GET /payments/splits/received/{id}`, `GET /finance/split/statistics`.
+- `POST /payments/{id}/refund` takes `value`, `description` and `splitRefunds[]` (`id`, `value`).
 
 ## Sandbox only
 - `POST /sandbox/payment/{id}/confirm`: mark a charge paid.

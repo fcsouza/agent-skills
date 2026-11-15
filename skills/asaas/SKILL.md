@@ -6,7 +6,7 @@ description: >-
 
 # Asaas API
 
-Brazilian payment provider. REST and JSON, one API key per environment. Every claim below is traced in `references/sources.md`. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "observed in production, not in the docs" come from live integrations and may change without notice.
+Brazilian payment provider. REST and JSON, one API key per environment. Every claim below is traced in `references/sources.md`. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "inference" follow from a doc line, but no page states them outright. Lines marked "observed in production, not in the docs" come from live integrations and may change without notice.
 
 The docs serve Markdown: append `.md` to any `docs.asaas.com/docs/<page>` or `/reference/<page>` URL. `https://docs.asaas.com/llms.txt` indexes the per-section indexes (`/docs/llms.txt`, `/reference/llms.txt`, `/recipes/llms.txt`, `/changelog/llms.txt`). The docs MCP server at `https://docs.asaas.com/mcp` has six tools: `search`, `fetch`, `list-endpoints`, `get-endpoint`, `search-endpoints` and `execute-request`. Read the guide page before you write code. The guide pages carry rules the reference pages leave out, and some pages still contradict each other.
 
@@ -136,19 +136,15 @@ To pay a Pix QR code with `POST /v3/pix/qrCodes/pay`, use a second sandbox accou
 
 ## Subaccounts and payment split
 
-This skill does not cover subaccounts (subcontas) or payment split. Marketplaces need both. Read these pages first:
+A marketplace gives each seller a subaccount (`POST /v3/accounts`, root key) and splits each charge's net value between Asaas accounts by `walletId`. Read `references/subaccounts-and-split.md` before you build it. The points that break integrations:
 
-- Subaccounts: `docs/subcontas`, `docs/criacao-de-subcontas`, `reference/criar-subconta` (`POST /v3/accounts`), `docs/gerenciamento-de-chaves-de-api-de-subcontas`.
-- Split: `docs/split-de-pagamentos` (English: `docs/payment-split-overview`), `docs/split-em-cobrancas-avulsas`, `docs/split-em-assinaturas`, `docs/faq-do-split`, `docs/mecanismo-para-validacao-de-saque-via-webhooks`.
-
-Hard limits the docs state:
-
-- Only PJ (CNPJ) accounts can create subaccounts.
-- New API subaccount users start an evaluation period at the first production subaccount: up to 10 subaccounts, R$ 2.000 of charges per subaccount, 60 days at most. Past any limit, new subaccounts, charges, subscriptions and payment links are blocked until the evaluation ends.
-- Sandbox allows 20 subaccounts per day.
-- The create response returns the subaccount `apiKey` once and its `walletId`. Store both.
-- Split is blocked by default for accounts that never used it. The root account enables it in Integrações > Segurança, with an SMS or Token App code. Until then a request with `split` returns `invalid_action`.
-- Split is calculated on `netValue`, after fees. Percentages may not exceed 100%; fixed values may not exceed the net value. Do not list your own `walletId`. A refund also reverses the splits.
+- Only PJ (CNPJ) accounts can create subaccounts. The first production subaccount starts an evaluation period: up to 10 subaccounts, R$ 2.000 of charges per subaccount, 60 days at most. Past any limit, new subaccounts, charges, subscriptions and payment links are blocked until Asaas approves the operation. Sandbox allows 20 subaccounts per day.
+- The create response returns the subaccount's API key once, its `walletId` and its `id`. The guides put the key at `apiKey`; the reference schema puts it at `accessToken.apiKey`. Store all three at once.
+- After the evaluation period, the docs tie further use of subaccount keys to BaaS, or to branches that share the root's CNPJ prefix. One page says this of the keys, another of key management. Confirm with Asaas before a non-BaaS marketplace issues charges with seller keys.
+- Track onboarding with the `ACCOUNT_STATUS_*` webhooks; the account is approved when `general` is `APPROVED`. Each subaccount has its own webhooks; tell sellers apart by `account.id`.
+- Split is blocked until the root account enables it in Integrações > Segurança. Until then a request with `split` returns `invalid_action`.
+- Split uses `netValue`, after fees. Percentages may not exceed 100%; the total may not exceed the net value. Never list the issuing account's own `walletId`: the remainder stays with whoever issued the charge, so the issuing key sets which way the money flows (inference).
+- A refund reverses the splits; `splitRefunds` sets how much each recipient returns. A subscription whose split outgrows the net value is blocked; if you do not fix it within 2 business days, it resumes with no split.
 
 ## Pitfalls
 
@@ -167,5 +163,6 @@ Hard limits the docs state:
 - `references/pix-automatico.md`: read before you build Pix Automático. Authorization, eligibility, the first payment, retries, `paymentCreationMode`, events.
 - `references/webhooks.md`: read before you register a webhook or debug a paused queue. Delivery contract, retry schedule, penalties, ordering.
 - `references/integration-practices.md`: read when you write the webhook handler, the grant logic, the renewal job or the tests.
+- `references/subaccounts-and-split.md`: read before you create a subaccount, send `split`, or handle a seller's onboarding, refund or payout. Creation, onboarding, keys, webhooks, split rules, refunds, events, withdrawal validation, evaluation limits.
 - `references/endpoints.md`: read when you need an endpoint, its method or its payload fields.
 - `references/sources.md`: read when you need the page behind a claim or want to recheck one.
