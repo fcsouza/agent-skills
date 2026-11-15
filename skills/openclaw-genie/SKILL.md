@@ -1,268 +1,77 @@
 ---
 name: openclaw-genie
-version: 1.2.0
 description: >-
-  Use when the user asks about OpenClaw — installation, configuration, agents,
-  channels, memory, tools, hooks, skills, deployment, Docker, multi-agent,
-  OAuth, gateway, CLI, browser, exec, PDF, voice, secrets, sandboxing, sessions,
-  cron, webhooks, heartbeat, sub-agents, nodes, companion devices, canvas,
-  camera, or messaging platform integration. Also invoke for questions about
-  running OpenClaw agents: memory recall (memory_search), cron scheduling,
-  multi-agent setup, or any openclaw.json behavior. OpenClaw has proprietary
-  configuration syntax (SecretRef, dmPolicy, node.invoke, tool profiles) and
-  CLI commands that require this skill to answer correctly.
+  Covers installing, configuring, securing and deploying OpenClaw, the self-hosted AI assistant gateway, by sending the agent to the official docs. Use when a task involves OpenClaw: installing it, editing openclaw.json, storing tokens as secrets, connecting a chat channel, exposing the gateway beyond localhost, or running it in Docker or on a VPS.
 ---
 
 # OpenClaw Genie
 
-OpenClaw is a self-hosted personal AI agent gateway (MIT license, open source).
-It connects LLM agents to 22+ messaging platforms natively (WhatsApp, Telegram,
-Discord, Slack, Signal, iMessage, MS Teams, Matrix, and more) with 50+
-integrations (Gmail, GitHub, Obsidian, Spotify, and more) through a single
-Gateway process. All data stays local.
+OpenClaw changes fast, and its docs are the only source that stays current. This skill holds the decisions and the safety rules. It does not restate the CLI, the config keys or the channel list.
 
----
+## Read the docs first
 
-## Quick Start
+OpenClaw publishes its docs for agents: an index at `https://docs.openclaw.ai/llms.txt`, and every page as Markdown when you add `.md` to its URL. I found no official OpenClaw MCP server or agent skill for operating it.
 
-```bash
-# One-liner install (macOS/Linux, requires Node 22+)
-curl -fsSL https://openclaw.ai/install.sh | bash
+1. Fetch `https://docs.openclaw.ai/llms.txt`.
+2. Fetch the page you need, for example `https://docs.openclaw.ai/install.md`.
+3. Run `openclaw --version` before you trust a key name. A page may describe a newer release than the one installed.
 
-# Or via npm
-npm install -g openclaw@latest
+Do not quote a version, a channel count or a model id from memory. Read it from the page.
 
-# Interactive setup — gateway, workspace, channels, skills
-openclaw onboard --install-daemon
+## Install
 
-# Verify
-openclaw status
-openclaw gateway status
-```
+- Read the Node requirement from `npm view openclaw engines` and `https://docs.openclaw.ai/install.md`. Do not rely on a version you remember.
+- Prefer the package manager: `npm install -g openclaw@latest`, then `openclaw onboard --install-daemon`. The install page lists an extra npm flag for some npm versions. Read it.
+- Do not run `curl ... | bash` for `install.sh`. The install page offers it as the fast path but gives no checksum or signature step for the script. If the user wants it, say what it does, give the command, and let them run it.
+- After install run `openclaw doctor`, `openclaw gateway status` and `openclaw security audit`.
 
-Web Control UI: `http://127.0.0.1:18789/`
+## Configuration and secrets
 
----
+- The config file is `~/.openclaw/openclaw.json`. Edit it with `openclaw config get/set/patch/unset`, then run `openclaw config validate`.
+- Secrets never go into the file as plaintext, into shell history or onto a command line. Use a SecretRef: `{ source: "env" | "file" | "exec" | "store", provider: "default", id: "..." }`. An env value may be written as `"${VAR}"`. The form `{ "$secret": "NAME" }` is not valid.
+- Plaintext stays readable by the agent. After you migrate credentials, run `openclaw secrets audit --check`.
+- Set `gateway.auth.mode` explicitly when the gateway token or password is a SecretRef.
+- For id rules and provider blocks read `https://docs.openclaw.ai/gateway/secrets.md` and `https://docs.openclaw.ai/gateway/secrets/secretref-contract.md`.
 
-## Core Architecture
+## Channels
 
-```
-Channels (WhatsApp, Discord, Telegram, Slack, Signal, …)
-        ↓
-    Gateway  ← WebSocket control plane (port 18789), single source of truth
-        ↓
-    Agents   ← isolated workspaces, sessions, memory, tools
-        ↓
-    Tools    ← exec, browser, skills, hooks, messaging, sub-agents
-        ↓
-    Nodes    ← companion devices (macOS/iOS/Android): camera, canvas, screen
-```
+- Read `https://docs.openclaw.ai/channels.md`. It is generated and labels each channel as core, bundled plugin, official plugin or external plugin. Do not assume a channel ships in core.
+- The docs suggest Telegram first. `openclaw channels add --channel telegram --use-env` takes the token from the environment. A `--token <bot-token>` flag also exists, but it puts the token in shell history.
+- For iMessage the docs prefer the native `imsg` channel for new setups.
+- An "external plugin" is maintained outside the OpenClaw repo. Tell the user before you install one.
+- Set who may message the bot (DM pairing or an allowlist) before you connect a channel to an agent that has tools. See `https://docs.openclaw.ai/gateway/security/access-control.md`.
 
-- **Gateway**: Multiplexed port (WebSocket + HTTP + Control UI). Hot-reloads config.
-- **Agents**: Fully isolated — own workspace, session store, memory, auth profiles, sandbox.
-- **Channels**: 22+ native adapters run simultaneously. Deterministic routing: replies return to origin.
-- **Nodes**: Paired companion devices that expose `canvas.*`, `camera.*`, `screen.*`, `device.*`, `notifications.*` via `node.invoke`.
-- **Sessions**: Key format `agent:<agentId>:<channel>:<scope>:<chatId>`. DM scopes: `main`, `per-peer`, `per-channel-peer`, `per-account-channel-peer`.
+## Exposure and security
 
----
+The docs' threat model says the assistant can run arbitrary shell commands, read and write files, and send messages. Browser control gives the model a real browser. Whoever reaches the gateway with valid auth gets that power. Treat the gateway as a control plane.
 
-## Agent Configuration
+- Keep `gateway.bind` at `"loopback"`. For remote access prefer an SSH tunnel or Tailscale Serve.
+- Do not set `bind` to `lan`, `tailnet`, `custom` or `0.0.0.0` unless gateway auth (token, password or a correctly set up trusted proxy) is on and a firewall limits the source addresses. Tell the user that this gives the reachable party shell and browser control. Work through `https://docs.openclaw.ai/gateway/security/exposure-runbook.md` first.
+- Do not port-forward the gateway or put it on the public internet without an identity-aware proxy.
+- Docker bypasses UFW. A published port (`-p` or Compose `ports:`) routes around host `INPUT` rules, so a UFW deny does not protect it. Enforce the rule in the `DOCKER-USER` chain. The rules are in `https://docs.openclaw.ai/gateway/security/network-exposure.md`. Verify with a port scan from outside.
+- Leave every `dangerously*` config key unset. Do not enable one to clear an error.
+- Do not point browser control at a profile that holds logged-in sessions the agent should not use.
+- Run `openclaw security audit` and fix what it reports. Add `--deep` for live gateway checks.
 
-Workspace files in `~/.openclaw/workspace/` (default agent) or `~/.openclaw/workspace-<agentId>/`:
+## Deployment
 
-| File | Purpose |
-|------|---------|
-| `SOUL.md` | Agent personality and system prompt |
-| `IDENTITY.md` | Name, emoji, avatar |
-| `USER.md` | User profile information |
-| `MEMORY.md` | Curated long-term memory |
-| `memory/YYYY-MM-DD.md` | Daily append-only session logs |
-| `TOOLS.md` | Tool usage guidance |
-| `BOOTSTRAP.md` | One-time init tasks (deleted after first run) |
-| `HEARTBEAT.md` | Periodic check-in instructions |
+- Docker: follow `https://docs.openclaw.ai/install/docker.md`. The setup script is `scripts/docker/setup.sh` in the repo.
+- Cloud hosts (Fly.io, Hetzner, GCP and others) each have a page under `https://docs.openclaw.ai/install/`. Find it in `llms.txt`. Keep secrets in the host's secret store, not on a command line.
+- Back up `~/.openclaw` before an upgrade or migration. See `https://docs.openclaw.ai/install/backups.md`.
 
-Bootstrap injection: IDENTITY → SOUL → USER → MEMORY → daily log → skills → session.
-Limits: 20,000 chars/file, 150,000 chars total (configurable).
+## Pitfalls
 
-Multi-agent config uses `agents.list[]` and `bindings[]` in openclaw.json (see `references/multi-agent.md`).
+- Answering from a remembered config schema. Fetch the page and check `openclaw --version`.
+- Writing a bot token into `openclaw.json`, `.env` or shell history.
+- Binding to the LAN "just to test" and leaving it.
+- Trusting UFW for a Docker-published port.
+- Installing an external plugin without telling the user.
+- Quoting a model id or tool-profile default from memory. Read the page.
 
----
+## Files
 
-## Configuration — openclaw.json
+- `references/sources.md`: read when you need the official page behind a claim in this skill before you repeat it.
 
-Location: `~/.openclaw/openclaw.json` (JSON5 — comments and trailing commas OK).
+## Related skills
 
-```jsonc
-{
-  "models": {           // primary, fallbacks, aliases, image model
-    "primary": "anthropic/claude-sonnet-4-5",
-    "fallbacks": ["openai/gpt-4o"]
-  },
-  "channels": { },      // discord, telegram, whatsapp, slack, signal, …
-  "agents": { },        // list, defaults, bindings, broadcast, subagents
-  "tools": { },         // profiles, allow/deny, loop detection, exec config
-  "skills": { },        // entries, load dirs, install manager
-  "browser": { },       // profiles, SSRF policy, executable path
-  "sandbox": { },       // mode (off/non-main/all), scope, Docker hardening
-  "gateway": { },       // port, auth, discovery, binding
-  "automation": { },    // cron, webhooks, heartbeat
-  "hooks": { },         // internal hooks config
-  "session": { },       // dmScope, resets, sendPolicy, maintenance
-  "auth": { }           // OAuth profiles, key rotation, order
-}
-```
-
-- **Env vars**: `~/.openclaw/.env`, `${VAR}` substitution in config strings.
-- **`$include`**: Nested file inclusion (up to 10 levels).
-- **Hot reload**: `hybrid` mode (default) — safe changes hot-apply, critical ones auto-restart. Debounce 300ms.
-- **Strict validation**: Unknown keys prevent Gateway startup.
-
-For full reference, read `references/configuration.md`.
-
----
-
-## Channels Quick Reference
-
-| Channel | Setup | Notes |
-|---------|-------|-------|
-| Discord | `openclaw channels add discord` | Bot API + Gateway; servers, DMs, threads, slash commands, voice |
-| Telegram | `openclaw channels add telegram` | grammY; groups, forums, inline buttons, webhook mode |
-| WhatsApp | `openclaw channels add whatsapp` | Baileys; QR pairing, media, polls |
-| Slack | `openclaw channels add slack` | Bolt SDK; socket or HTTP mode, native streaming |
-| Signal | `openclaw channels add signal` | signal-cli; privacy-focused, auto-daemon |
-| iMessage | `openclaw channels add bluebubbles` | BlueBubbles; reactions, edits, groups |
-| Google Chat | `openclaw channels add googlechat` | HTTP webhook app |
-| IRC | `openclaw channels add irc` | NickServ, channels + DMs |
-| MS Teams | `openclaw plugins install @openclaw/msteams` | Adaptive Cards, polls |
-| Matrix | `openclaw plugins install @openclaw/matrix` | E2EE, threads, rooms |
-| Mattermost | `openclaw plugins install @openclaw/mattermost` | Self-hosted |
-| Nextcloud Talk | `openclaw plugins install @openclaw/nextcloud-talk` | Self-hosted |
-| WebChat | Built-in web UI | Browser-based access at gateway URL |
-
-**Access control**: DM policy (`pairing`/`allowlist`/`open`/`disabled`), group policy, mention gating. Multi-account per channel supported.
-
-For per-channel details, read `references/channels.md`.
-
----
-
-## Memory System
-
-- **Daily logs**: `memory/YYYY-MM-DD.md` — today + yesterday loaded at session start
-- **Long-term**: `MEMORY.md` — curated facts, decisions, preferences (private sessions only)
-- **Tools**: `memory_search` (vector recall, ~400-token chunks) and `memory_get` (file reads)
-- **Hybrid search**: BM25 (exact tokens) + vector (semantic) with configurable weights
-- **Post-processing**: MMR deduplication (lambda 0.7) + temporal decay (30-day half-life)
-- **Providers**: auto-selects local → OpenAI → Gemini → Voyage → Mistral
-- **QMD backend**: Optional local-first sidecar (BM25 + vectors + reranking)
-- **Auto flush**: Silent agentic turn before context compaction preserves important memories
-
-For full memory config, read `references/memory.md`.
-
----
-
-## Tools Overview
-
-| Tool | Purpose |
-|------|---------|
-| `exec` | Shell commands (sandbox/gateway/node hosts) |
-| `process` | Background process management |
-| `browser` | Chromium automation (navigate, click, type, screenshot) |
-| `web_search` | Brave Search API queries |
-| `web_fetch` | URL → markdown extraction |
-| `memory_search` | Semantic vector search over memory |
-| `memory_get` | Direct memory file reads |
-| `message` | Cross-channel messaging (send, react, thread, pin, poll) |
-| `sessions_spawn` | Sub-agent runs (one-shot or persistent, up to depth 5) |
-| `canvas` | Node Canvas UI (HTML display on connected devices) |
-| `nodes` | Paired device control: camera snap/clip, screen record, notifications, canvas A2UI |
-| `pdf` | Native PDF analysis (up to 10 PDFs, Anthropic/Google native mode, extraction fallback) |
-
-**Access control**: Profiles (`minimal`, `coding`, `messaging`, `full`), allow/deny lists, tool groups (`group:fs`, `group:runtime`, `group:sessions`, `group:web`, `group:ui`, `group:automation`).
-**Default profile** (since v2026.3.2): onboarding defaults to `messaging` (not `coding`).
-
-For full tools, skills, and hooks reference, read `references/tools.md`.
-
----
-
-## Hooks & Automation
-
-**Hooks** — event-driven TypeScript handlers in `<workspace>/hooks/`:
-
-| Event | Trigger |
-|-------|---------|
-| `command:new/reset/stop` | Session lifecycle |
-| `agent:bootstrap` | Pre-injection (can mutate bootstrap files) |
-| `gateway:startup` | After channels load |
-| `message:received/sent` | Message lifecycle |
-| `tool_result_persist` | Synchronous tool result transform |
-
-**Automation** — built into Gateway:
-- **Cron**: Scheduled jobs (cron expressions, intervals, one-shot). Isolated or main-session.
-- **Webhooks**: `/hooks/wake` (system events), `/hooks/agent` (isolated turns), custom mapped endpoints.
-- **Heartbeat**: Periodic check-ins (default 30min), batches multiple checks per turn.
-
-**Voice** — macOS/iOS wake word + talk mode overlay; continuous voice on Android with ElevenLabs or system TTS; OpenAI-compatible STT endpoint (`messages.tts.openai.baseUrl`).
-
----
-
-## Deployment Options
-
-```bash
-# Local service (default)
-openclaw gateway install && openclaw gateway start
-
-# One-liner Docker
-./docker-setup.sh
-
-# Manual Docker
-docker build -t openclaw:local -f Dockerfile .
-docker compose up -d openclaw-gateway
-```
-
-**Cloud**: Fly.io, Railway, Render, GCP, Hetzner, Cloudflare Workers, Ansible.
-**Sandbox**: Docker isolation for untrusted sessions. Modes: `off`, `non-main`, `all`. Scopes: `session`, `agent`, `shared`.
-**Remote access**: Tailscale/VPN preferred, SSH tunnel fallback.
-
-For full deployment guide, read `references/deployment.md`.
-
----
-
-## CLI Essentials
-
-| Command | Purpose |
-|---------|---------|
-| `openclaw onboard` | Interactive first-time setup |
-| `openclaw gateway start/stop/status` | Service management |
-| `openclaw channels add/list/status/login` | Channel management |
-| `openclaw models list/set/auth/scan` | Model config + auth |
-| `openclaw skills list/info/check` | Skill management |
-| `openclaw hooks list/enable/disable/install` | Hook management |
-| `openclaw agent --message "..."` | Single agent turn |
-| `openclaw agents list/add/delete` | Multi-agent management |
-| `openclaw sessions` | List/manage sessions |
-| `openclaw browser` | Browser control (50+ subcommands) |
-| `openclaw cron list/add/run` | Scheduled jobs |
-| `openclaw nodes status` | List paired companion nodes |
-| `openclaw devices list/approve` | Manage device pairing requests |
-| `openclaw config get/set/unset/validate` | Config helpers (`validate` checks file before startup) |
-| `openclaw doctor [--fix]` | Health checks + auto-repair |
-| `openclaw security audit [--deep]` | Security audit |
-| `openclaw logs [--follow]` | Tail gateway logs |
-| `openclaw memory search "query"` | Vector search |
-| `openclaw dns setup` | CoreDNS + Tailscale discovery |
-| `openclaw tui` | Terminal UI |
-
-**Global flags**: `--dev`, `--profile <name>`, `--json`, `--no-color`
-
----
-
-## When to Read Reference Files
-
-| If you need… | Read |
-|--------------|------|
-| Full openclaw.json, model providers, env vars, auth, OAuth | `references/configuration.md` |
-| Per-channel setup, routing, access control, streaming, multi-account | `references/channels.md` |
-| Memory files, vector search, QMD, embeddings, hybrid search | `references/memory.md` |
-| Exec, browser, skills, hooks, tool access, sub-agents, nodes | `references/tools.md` |
-| Docker, cloud deploy, sandboxing, native install, security | `references/deployment.md` |
-| Multi-agent config, bindings, broadcast, sub-agents, workspaces | `references/multi-agent.md` |
+None.
