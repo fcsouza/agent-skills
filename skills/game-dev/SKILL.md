@@ -22,13 +22,19 @@ Find the task in the table, then load the skill named beside it. Commands run a 
 | Quests, missions, objectives, rewards | `quest-mission-design` |
 | HUD, menus, onboarding, accessibility | `ui-ux-game` |
 
+### Art and assets
+
+| Need | Skill |
+|---|---|
+| Sound effects, music, voice | `elevenlabs-sound-music` |
+| 3D models from Blender: headless export, glTF and FBX, LODs, collision, baking | `game-blender` |
+
 ### Engineering
 
 | Need | Skill |
 |---|---|
 | Login, sessions, roles, WebSocket auth | `betterauth-integration` |
 | Queues, delayed jobs, scheduled work | `bullmq-game-queues` |
-| Sound effects, music, voice | `elevenlabs-sound-music` |
 | Cheating: input validation, hidden state, dupes, detection, bans | `game-anti-cheat` |
 | Game server, WebSocket, rooms, tick loop | `game-backend-architecture` |
 | Browser client: stack choice (web, Phaser, PixiJS, Three.js), loop, input, assets | `game-client` |
