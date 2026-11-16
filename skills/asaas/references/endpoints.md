@@ -70,6 +70,6 @@ Base: `https://api-sandbox.asaas.com/v3` (sandbox) or `https://api.asaas.com/v3`
 ## Errors and limits
 `{"errors":[{"code":"invalid_access_token","description":"..."}]}`. 400 for validation (several items can come back), 401 for auth, 403 for permission or an IP outside the allowlist (also a `GET` sent with a body), 404 for a missing resource or one in another account, 429 for limits.
 
-The docs say to use `code` in code and `description` to understand the cause. Their 400 example has Portuguese descriptions that name the field, such as "O campo value deve ser informado". Observed in production, not in the docs: 400 descriptions come in Portuguese and name the field or rule.
+The docs say to use `code` in code and `description` to understand the cause, and to read `errors` on a 400 to find the field or rule to fix. Their 400 example is in Portuguese: "O campo value deve ser informado". Observed in production, not in the docs: 400 descriptions come in Portuguese.
 
 Limits: 25,000 requests per 12 hours per account, 50 concurrent `GET` requests, and per-endpoint rate limits reported in `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.

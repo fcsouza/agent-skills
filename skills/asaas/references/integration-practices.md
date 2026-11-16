@@ -38,10 +38,12 @@ Two workers, a reclaimed lease or a retry after a timeout can each create the sa
 
 When staff edit, cancel or mark paid by hand a charge that also exists at Asaas, the Asaas charge stays payable. The payer can pay the old amount, or pay twice: once at the desk and once by Pix.
 
-- Delete the Asaas charge first (`DELETE /v3/payments/{id}`), then change your own record. A deleted charge is no longer open for payment, fires `PAYMENT_DELETED` and can be restored. Deleting one charge of a subscription does not end the subscription.
+- Read the charge first (`GET /v3/payments/{id}`). Delete it only when its `status` is `PENDING` or `OVERDUE`, as in offboarding below. The delete page names no states a delete refuses, so do not count on a failed delete to catch a paid charge. Any other status means the payer may have paid: block the manual change and process the payment.
+- Delete the Asaas charge (`DELETE /v3/payments/{id}`), then change your own record. A deleted charge is no longer open for payment, fires `PAYMENT_DELETED` and can be restored. Deleting one charge of a subscription does not end the subscription.
 - If the delete fails, block the manual change and show the error. A 404 counts as done only under the same-key rule in "Calling the API".
-- For a new amount, create a new charge under a new intent key (see "Creating charges").
+- For a new amount, create a new charge under a new intent key (see "Creating charges"). Deleting removed the charge's split, so send `split` again on the new charge (see `references/subaccounts-and-split.md`).
 - Your own delete comes back as `PAYMENT_DELETED`. Do not read it as the payer cancelling.
+- A restore (`POST /v3/payments/{id}/restore`) makes the deleted charge payable again after staff recorded it by hand. On `PAYMENT_RESTORED` for a charge changed by hand, alert, or delete it again.
 - Asaas also offers `POST /v3/payments/{id}/receiveInCash` for a payment made outside Asaas. It fires `PAYMENT_RECEIVED` and credits no balance, and the charge's `billingType` becomes `RECEIVED_IN_CASH`. If you use it, do not count that event as money in.
 
 ## Calling the API
@@ -64,7 +66,7 @@ When staff edit, cancel or mark paid by hand a charge that also exists at Asaas,
 - A renewal job that creates charges should alert when it creates none while subscriptions sit inside the creation window. Schedule it mid-window, not at the edge, so one failed run still leaves days to recover.
 - No event fires when a paid period ends after a cancellation. Run a daily sweep that ends access at period end.
 - Per-seat or usage pricing: when the count changes, enqueue one delayed job per customer under a fixed job id, so a burst of edits syncs once. Make sure a finished job releases its id, or it swallows the next change. The job computes the price from your own data and sends `PUT /v3/subscriptions/{id}` with the new `value`; the reference gives `PUT`, not `POST`. Add a daily job that syncs every active subscription, to catch a lost job.
-- Send `updatePendingPayments: true` only before the customer has paid anything, for example during a trial: the first charge then follows the real seat count. After the first payment, leave the flag out, so a charge already issued keeps its value and the new price starts with the next one. Subscription charges exist up to 40 days before their due date, so the payer may already hold the pending one, and a rewritten Pix charge needs a new QR code. A Pix Automático authorization with a fixed `value` cannot follow a price change; see `references/pix-automatico.md`.
+- Send `updatePendingPayments: true` only before the customer has paid anything, for example during a trial: the first charge then follows the real seat count. After the first payment, leave the flag out, so a charge already issued keeps its value and the new price starts with the next one. Subscription charges exist up to 40 days before their due date, so the payer may already hold the pending one. After such an update, fetch the charge's QR code and invoice link again and send them to the payer, so they cannot pay the old amount. A Pix Automático authorization with a fixed `value` cannot follow a price change; see `references/pix-automatico.md`.
 
 ## Tests
 

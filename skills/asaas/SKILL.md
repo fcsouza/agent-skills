@@ -39,7 +39,11 @@ The `$` is part of the key. `.env` loaders read `$aact_…` as a variable refere
 
 Single quotes work in Compose and fail in Bun. A backslash works in Bun and fails in Compose. This skill's rule: check the key's prefix at startup and fail loudly when it is missing or malformed.
 
-An unset variable empties the key a second way. In Compose, `${VAR:-default}` gives the default when `VAR` is unset or empty. So `ASAAS_API_KEY: ${ASAAS_API_KEY:-}` hands the container the variable set to `''`, not unset (tested with Compose v5.5.0). Code defaults such as `process.env.X ?? fallback` then never apply, because `''` is not `undefined`. This skill's rule: turn `''` into `undefined` when you read the environment, and also fail at startup when the key is empty while any other Asaas setting (base URL, webhook token) is set. Without that check, the normalising step turns a key the `$` trap emptied into "Asaas off". For a service that cannot run without the key, `${ASAAS_API_KEY:?error}` makes Compose refuse to start.
+An unset variable empties the key a second way. In Compose, `${VAR:-default}` gives the default when `VAR` is unset or empty. So `ASAAS_API_KEY: ${ASAAS_API_KEY:-}` hands the container the variable set to `''`, not unset (tested with Compose v5.5.0). Code defaults such as `process.env.X ?? fallback` then never apply, because `''` is not `undefined`.
+
+This skill's rule: turn `''` into `undefined` when you read the environment, and also fail at startup when the key is empty while any other Asaas setting (base URL, webhook token) is set. Without that check, the normalising step turns a key the `$` trap emptied into "Asaas off".
+
+For a service that cannot run without the key, `${ASAAS_API_KEY:?error}` makes Compose refuse to start.
 
 ## Choosing how to charge on a schedule
 
