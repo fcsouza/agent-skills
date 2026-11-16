@@ -43,7 +43,7 @@ When staff edit, cancel or mark paid by hand a charge that also exists at Asaas,
 - If the delete fails, block the manual change and show the error. A 404 counts as done only under the same-key rule in "Calling the API".
 - For a new amount, create a new charge under a new intent key (see "Creating charges"). Deleting removed the charge's split, so send `split` again on the new charge (see `references/subaccounts-and-split.md`).
 - Your own delete comes back as `PAYMENT_DELETED`. Do not read it as the payer cancelling.
-- A restore (`POST /v3/payments/{id}/restore`) makes the deleted charge payable again after staff recorded it by hand. On `PAYMENT_RESTORED` for a charge changed by hand, alert, or delete it again.
+- A restore (`POST /v3/payments/{id}/restore`) makes the deleted charge payable again after staff recorded it by hand. On `PAYMENT_RESTORED` for a charge changed by hand, alert, or delete it again. A payment can also land between your `GET` and your `DELETE`, so treat `PAYMENT_RECEIVED` or `PAYMENT_CONFIRMED` on a charge staff changed by hand the same way: alert, and refund or reconcile the extra payment.
 - Asaas also offers `POST /v3/payments/{id}/receiveInCash` for a payment made outside Asaas. It fires `PAYMENT_RECEIVED` and credits no balance, and the charge's `billingType` becomes `RECEIVED_IN_CASH`. If you use it, do not count that event as money in.
 
 ## Calling the API
