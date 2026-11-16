@@ -34,15 +34,28 @@ Two workers, a reclaimed lease or a retry after a timeout can each create the sa
 - A sweeper picks up `pending` rows whose lease has expired, since a worker can die after the commit and leave the cycle uncharged. It, and any retry, first queries `GET /v3/payments?externalReference=<key>` and keeps only results whose `externalReference` equals the key exactly (the docs call the field a free search field). If one matches, store its id; create a charge only if none does.
 - Never hold a database lock or an open transaction across an Asaas call. Calls can take many seconds. Save each Asaas id (customer, charge, authorization) the moment it exists, then continue.
 
+## Manual changes to a charge
+
+When staff edit, cancel or mark paid by hand a charge that also exists at Asaas, the Asaas charge stays payable. The payer can pay the old amount, or pay twice: once at the desk and once by Pix.
+
+- Delete the Asaas charge first (`DELETE /v3/payments/{id}`), then change your own record. A deleted charge is no longer open for payment, fires `PAYMENT_DELETED` and can be restored. Deleting one charge of a subscription does not end the subscription.
+- If the delete fails, block the manual change and show the error. A 404 counts as done only under the same-key rule in "Calling the API".
+- For a new amount, create a new charge under a new intent key (see "Creating charges").
+- Your own delete comes back as `PAYMENT_DELETED`. Do not read it as the payer cancelling.
+- Asaas also offers `POST /v3/payments/{id}/receiveInCash` for a payment made outside Asaas. It fires `PAYMENT_RECEIVED` and credits no balance, and the charge's `billingType` becomes `RECEIVED_IN_CASH`. If you use it, do not count that event as money in.
+
 ## Calling the API
 
 - On cleanup calls (`DELETE` of a subscription, charge or authorization), treat 404 as "already done" only when the id was created with the same key. Otherwise alert: the id may belong to another account.
 - Page through lists with `offset` and `limit` (1 to 100) until `hasMore` is false.
 - When several products share one Asaas account, prefix `externalReference` with the product and give each product its own key and webhook.
+- On a 400, show the user the `description` of each item in `errors`. It comes in Portuguese and names the field or rule (see `references/endpoints.md`), so a form can say what to fix. Branch on `code`, never on the text. For any other status, show a generic "try again" message and log the body.
 
 ## Dates
 
 - Work in `America/Sao_Paulo`. Due dates are calendar dates in Brazil; a UTC conversion can move a charge to the wrong day.
+- Datetimes such as `pixQrCode.expirationDate` arrive as `YYYY-MM-DD HH:MM:SS` with no offset, in Brasília time (see `SKILL.md`). Parse them with an explicit offset, `new Date(value.replace(' ', 'T') + '-03:00')`. Never let the runtime read them as local time or UTC.
+- To turn a date-only value (`dueDate`, `paymentDate`) into an instant, anchor it at noon Brasília: `` new Date(`${day}T12:00:00-03:00`) ``. Midnight shows as the day before in any zone west of Brasília; noon keeps the day from UTC-12 to UTC+8.
 - `clientPaymentDate` is when the payer paid (the schema documents it for boleto); `paymentDate` is when Asaas settled the charge. For "when did the customer pay", read `clientPaymentDate`, then `paymentDate`, then the event's `dateCreated`. For cash flow, use `paymentDate` and `creditDate`.
 
 ## Recurring jobs
@@ -50,6 +63,8 @@ Two workers, a reclaimed lease or a retry after a timeout can each create the sa
 - Offboarding a customer: cancel any Pix Automático authorization, then delete the subscription or the `PENDING` and `OVERDUE` charges. Treat 404 as done under the same-key condition above.
 - A renewal job that creates charges should alert when it creates none while subscriptions sit inside the creation window. Schedule it mid-window, not at the edge, so one failed run still leaves days to recover.
 - No event fires when a paid period ends after a cancellation. Run a daily sweep that ends access at period end.
+- Per-seat or usage pricing: when the count changes, enqueue one delayed job per customer under a fixed job id, so a burst of edits syncs once. Make sure a finished job releases its id, or it swallows the next change. The job computes the price from your own data and sends `PUT /v3/subscriptions/{id}` with the new `value`; the reference gives `PUT`, not `POST`. Add a daily job that syncs every active subscription, to catch a lost job.
+- Send `updatePendingPayments: true` only before the customer has paid anything, for example during a trial: the first charge then follows the real seat count. After the first payment, leave the flag out, so a charge already issued keeps its value and the new price starts with the next one. Subscription charges exist up to 40 days before their due date, so the payer may already hold the pending one, and a rewritten Pix charge needs a new QR code. A Pix Automático authorization with a fixed `value` cannot follow a price change; see `references/pix-automatico.md`.
 
 ## Tests
 

@@ -14,6 +14,7 @@ Base: `https://api-sandbox.asaas.com/v3` (sandbox) or `https://api.asaas.com/v3`
 - `GET /payments/{id}/pixQrCode`: `encodedImage` (base64), `payload` (copia e cola), `expirationDate`.
 - `GET /payments`: list, filter by `customer`, `subscription`, `status`, `billingType`, `externalReference`, `pixQrCodeId`, and date ranges such as `dueDate[ge]`, `dueDate[le]`, `paymentDate[ge]`.
 - `GET /payments/{id}`, `PUT /payments/{id}`, `DELETE /payments/{id}`, `POST /payments/{id}/restore`, `POST /payments/{id}/refund`.
+- `POST /payments/{id}/receiveInCash`: record a payment made outside Asaas. Fires `PAYMENT_RECEIVED`, credits no balance, sets `billingType` to `RECEIVED_IN_CASH`.
 - Response fields worth storing: `netValue` (after the Asaas fee), `clientPaymentDate` (when the payer paid a boleto), `paymentDate` (when Asaas settled it), `creditDate`, `invoiceUrl`, `transactionReceiptUrl`, `paymentLink`, `subscription`.
 - A refunded charge returns a `refunds` array. Count an item as returned only when its `status` is `DONE`; a charge can have several.
 
@@ -68,5 +69,7 @@ Base: `https://api-sandbox.asaas.com/v3` (sandbox) or `https://api.asaas.com/v3`
 
 ## Errors and limits
 `{"errors":[{"code":"invalid_access_token","description":"..."}]}`. 400 for validation (several items can come back), 401 for auth, 403 for permission or an IP outside the allowlist (also a `GET` sent with a body), 404 for a missing resource or one in another account, 429 for limits.
+
+The docs say to use `code` in code and `description` to understand the cause. Their 400 example has Portuguese descriptions that name the field, such as "O campo value deve ser informado". Observed in production, not in the docs: 400 descriptions come in Portuguese and name the field or rule.
 
 Limits: 25,000 requests per 12 hours per account, 50 concurrent `GET` requests, and per-endpoint rate limits reported in `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.

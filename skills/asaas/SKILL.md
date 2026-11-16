@@ -39,6 +39,8 @@ The `$` is part of the key. `.env` loaders read `$aact_…` as a variable refere
 
 Single quotes work in Compose and fail in Bun. A backslash works in Bun and fails in Compose. This skill's rule: check the key's prefix at startup and fail loudly when it is missing or malformed.
 
+An unset variable empties the key a second way. In Compose, `${VAR:-default}` gives the default when `VAR` is unset or empty. So `ASAAS_API_KEY: ${ASAAS_API_KEY:-}` hands the container the variable set to `''`, not unset (tested with Compose v5.5.0). Code defaults such as `process.env.X ?? fallback` then never apply, because `''` is not `undefined`. This skill's rule: turn `''` into `undefined` when you read the environment, and also fail at startup when the key is empty while any other Asaas setting (base URL, webhook token) is set. Without that check, the normalising step turns a key the `$` trap emptied into "Asaas off". For a service that cannot run without the key, `${ASAAS_API_KEY:?error}` makes Compose refuse to start.
+
 ## Choosing how to charge on a schedule
 
 Three products sound alike. Only one is a recurring Pix debit.
@@ -79,6 +81,7 @@ The dynamic QR code can be paid once and expires 12 months after the charge's du
 Register a Pix key on the account: `POST /v3/pix/addressKeys` with `{"type":"EVP"}` (the API creates only random keys). Without a key, Asaas ties the QR code to a partner institution, it is payable only until 23:59 that day, and processing takes longer. Asaas says this fallback will end, with 30 days' notice. Creating a key needs the account fully approved and proof of life done. Limits: 5 keys for a person, 20 for a company, one minute between creations.
 
 - If you update the charge, fetch a new QR code.
+- `expirationDate` has no offset: the reference types it `date-time` and its example is `2022-06-24 23:59:59`. No page names the time zone. Observed in production, not in the docs: Asaas datetimes in this format are Brasília time. Parse them as such; see "Dates" in `references/integration-practices.md`.
 - The sandbox 404 page says a key registered later does not fix QR codes made before it. Create a new charge.
 
 ## Payment links
@@ -120,7 +123,7 @@ Flows: Pix `PAYMENT_CREATED → PAYMENT_RECEIVED`, with `PAYMENT_OVERDUE` betwee
 
 ## Building the integration
 
-`references/integration-practices.md` holds this skill's rules for the code around the API: persisting events before the `200` and running your own retry sweep, a payment state machine with chargeback suspend and restore, partial refunds, charge-creation idempotency, no database lock across an Asaas call, 404 and missing-config handling, São Paulo dates, renewal-job alerts, tests without the network, and keeping CPF/CNPJ out of logs.
+`references/integration-practices.md` holds this skill's rules for the code around the API: persisting events before the `200` and running your own retry sweep, a payment state machine with chargeback suspend and restore, partial refunds, charge-creation idempotency, deleting the Asaas charge before staff change it by hand, no database lock across an Asaas call, 404 and missing-config handling, which error messages to show users, São Paulo dates and zoneless datetimes, per-seat price sync, renewal-job alerts, tests without the network, and keeping CPF/CNPJ out of logs.
 
 ## Sandbox
 
@@ -141,7 +144,7 @@ A marketplace gives each seller a subaccount (`POST /v3/accounts`, root key) and
 - Only PJ (CNPJ) accounts can create subaccounts. The first production subaccount starts an evaluation period: up to 10 subaccounts, R$ 2.000 of charges per subaccount, 60 days at most. Past any limit, new subaccounts, charges, subscriptions and payment links are blocked until Asaas approves the operation. Sandbox allows 20 subaccounts per day.
 - The create response returns the subaccount's API key once, its `walletId` and its `id`. The guides put the key at `apiKey`; the reference schema puts it at `accessToken.apiKey`. Store all three at once.
 - After the evaluation period, the docs tie further use of subaccount keys to BaaS, or to branches that share the root's CNPJ prefix. One page says this of the keys, another of key management. Confirm with Asaas before a non-BaaS marketplace issues charges with seller keys.
-- Track onboarding with the `ACCOUNT_STATUS_*` webhooks; the account is approved when `general` is `APPROVED`. Each subaccount has its own webhooks; tell sellers apart by `account.id`.
+- Track onboarding with the `ACCOUNT_STATUS_*` webhooks; the account is approved when `general` is `APPROVED`. Each subaccount has its own webhooks; tell sellers apart by `account.id`, or by a tenant id in each subaccount's webhook URL.
 - Split is blocked until the root account enables it in Integrações > Segurança. Until then a request with `split` returns `invalid_action`.
 - Split uses `netValue`, after fees. Percentages may not exceed 100%; the total may not exceed the net value. Never list the issuing account's own `walletId`: the remainder stays with whoever issued the charge, so the issuing key sets which way the money flows (inference).
 - A refund reverses the splits; `splitRefunds` sets how much each recipient returns. A subscription whose split outgrows the net value is blocked; if you do not fix it within 2 business days, it resumes with no split.
@@ -162,7 +165,7 @@ A marketplace gives each seller a subaccount (`POST /v3/accounts`, root key) and
 
 - `references/pix-automatico.md`: read before you build Pix Automático. Authorization, eligibility, the first payment, retries, `paymentCreationMode`, events.
 - `references/webhooks.md`: read before you register a webhook or debug a paused queue. Delivery contract, retry schedule, penalties, ordering.
-- `references/integration-practices.md`: read when you write the webhook handler, the grant logic, the renewal job or the tests.
-- `references/subaccounts-and-split.md`: read before you create a subaccount, send `split`, or handle a seller's onboarding, refund or payout. Creation, onboarding, keys, webhooks, split rules, refunds, events, withdrawal validation, evaluation limits.
+- `references/integration-practices.md`: read when you write the webhook handler, the grant logic, manual charge edits, the renewal or price-sync job, error messages or the tests.
+- `references/subaccounts-and-split.md`: read before you create a subaccount, send `split`, or handle a seller's onboarding, refund or payout. Creation, storing and encrypting keys, onboarding, keys, webhook routing, split rules, refunds, events, withdrawal validation, evaluation limits.
 - `references/endpoints.md`: read when you need an endpoint, its method or its payload fields.
 - `references/sources.md`: read when you need the page behind a claim or want to recheck one.
