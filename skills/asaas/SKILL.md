@@ -6,7 +6,7 @@ description: >-
 
 # Asaas API
 
-Brazilian payment provider. REST and JSON, one API key per environment. Every claim below is traced in `references/sources.md`. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "inference" follow from a doc line, but no page states them outright. Lines marked "observed in production, not in the docs" come from live integrations and may change without notice.
+Brazilian payment provider. REST and JSON, one API key per environment. Every claim below is traced in `references/sources.md`. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "inference" follow from a doc line, but no page states them outright. Lines marked "observed in production, not in the docs" or "observed in sandbox, not in the docs" come from live integrations and may change without notice.
 
 The docs serve Markdown: append `.md` to any `docs.asaas.com/docs/<page>` or `/reference/<page>` URL. `https://docs.asaas.com/llms.txt` indexes the per-section indexes (`/docs/llms.txt`, `/reference/llms.txt`, `/recipes/llms.txt`, `/changelog/llms.txt`). The docs MCP server at `https://docs.asaas.com/mcp` has six tools: `search`, `fetch`, `list-endpoints`, `get-endpoint`, `search-endpoints` and `execute-request`. Read the guide page before you write code. The guide pages carry rules the reference pages leave out, and some pages still contradict each other.
 
@@ -138,6 +138,8 @@ POST /v3/sandbox/payment/{id}/confirm    (marks a charge paid; also how you add 
 POST /v3/sandbox/payment/{id}/overdue    (forces a charge overdue)
 POST /v3/sandbox/myAccount/approve       (approves the sandbox account)
 ```
+
+Observed in sandbox, not in the docs: `/sandbox/payment/{id}/confirm` settles the charge as a boleto, and refunds work only for Pix and card. So a charge confirmed through `/confirm` cannot be refunded in sandbox, splits included. Paying the QR code from a second sandbox account (below) may settle it as Pix; that path was not tried.
 
 To pay a Pix QR code with `POST /v3/pix/qrCodes/pay`, use a second sandbox account that holds a balance. A QR code from an account with no Pix key can return 404. Email and SMS notifications do go out in sandbox, so use only addresses and numbers you may use.
 
