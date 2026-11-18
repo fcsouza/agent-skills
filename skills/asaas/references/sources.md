@@ -1,6 +1,6 @@
 # Sources
 
-Each line names the page opened and the claim it supports. All pages are Asaas's own docs on docs.asaas.com (Portuguese, `.md` form) unless noted. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "inference" follow from a doc line, but no page states them outright. Lines marked "observed in production" come from live integrations and have no docs page.
+Each line names the page opened and the claim it supports. All pages are Asaas's own docs on docs.asaas.com (Portuguese, `.md` form) unless noted. Lines marked "this skill's rule" are advice, not vendor facts. Lines marked "inference" follow from a doc line, but no page states them outright. Lines marked "observed in production" or "observed in sandbox" come from live integrations and have no docs page.
 
 ## Docs tooling
 
@@ -113,6 +113,7 @@ Each line names the page opened and the claim it supports. All pages are Asaas's
 - Asaas, "Testar pagamento de QRCodes Pix" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/testar-pagamento-de-qrcodes-pix.md - supports: second sandbox account with balance; `POST /v3/pix/qrCodes/pay` - checked 2026-11-15
 - Asaas, "(Apenas sandbox) Confirmar o pagamento" (docs.asaas.com, 2026) - https://docs.asaas.com/reference/confirmar-pagamento.md - supports: `POST /v3/sandbox/payment/{id}/confirm`; the sibling pages give `/overdue` and `/v3/sandbox/myAccount/approve` - checked 2026-11-15
 - Asaas, "O que pode ser testado?" (docs.asaas.com, 2026) - https://docs.asaas.com/docs/o-que-pode-ser-testado.md - supports: the coverage list to check before trusting sandbox; discounts, interest and fines on boleto or Pix not testable; WhatsApp not sent - checked 2026-11-15
+- Observed in sandbox, not in the docs: `/sandbox/payment/{id}/confirm` settles the charge as a boleto, so the refund (Pix or card only) of a charge confirmed this way cannot be tested - https://docs.asaas.com/reference/confirmar-pagamento.md - supports: only the confirm endpoint - checked 2026-11-18
 
 ## Errors, limits, pagination
 
@@ -194,6 +195,7 @@ Every line here backs `references/subaccounts-and-split.md` and the summary in `
 - Inference, not stated in the docs: listing and updating a subaccount's webhooks takes that subaccount's key - https://docs.asaas.com/reference/codigos-http-das-respostas.md - supports: a 404 when the id belongs to another account; per-account webhooks are cited above - checked 2026-11-16
 - Inference, not stated in the docs: the issuing key sets the split direction; a subaccount-issued charge needs a customer made with that key; who bears the fee under fixed vs percent splits; root-issued charges send events to root webhooks; a seller gets no debit event when a refund takes back a split; a cash-received charge cancels the split; duplicate creates give two accounts; the `myAccount` calls take the subaccount key - https://docs.asaas.com/docs/criacao-de-subcontas.md - supports: customers and charges belong to the subaccount, and the split pages say the remainder stays with the issuer and split uses `netValue` - checked 2026-11-15
 - Docs contradictions, each between two pages cited above: `apiKey` location (criacao-de-subcontas vs criar-subconta); `birthDate` with `companyType` (criacao-de-subcontas vs the recipe); split status lists (split-de-pagamentos vs listar-splits-pagos and criar-nova-cobranca); sandbox approve path (aprovação-de-contas vs aprovar-conta); sandbox BaaS (onboarding page vs BaaS creation page); when `PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED` fires (split-de-pagamentos and faq-do-split vs split-em-cobrancas-antecipadas); `apiKey` prose vs schema inside criar-subconta; key access after the evaluation (criacao-de-subcontas vs gerenciamento page) - https://docs.asaas.com/reference/criar-subconta.md - supports: the reference side of the `apiKey` mismatch - checked 2026-11-15
+- Observed in sandbox, not in the docs: webhook `payment.split[]` items carry `walletId`, `totalValue` and `cancellationReason`; with `percentualValue` the recipient's share has its cent truncated (599,07 where rounding gives 599,08); `PAYMENT_SPLIT_DONE` arrived before `PAYMENT_RECEIVED` for the same charge - https://docs.asaas.com/docs/split-de-pagamentos.md - supports: only the `split` array with `id` and `status` - checked 2026-11-18
 
 ## Integration practices
 

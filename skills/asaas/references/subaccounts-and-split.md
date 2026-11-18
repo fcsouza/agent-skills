@@ -234,6 +234,13 @@ A R$ 100,00 Pix charge issued with the root key, 85% to the seller:
 
 The response and the payment webhooks carry the `split` array, each item with an `id` and `status`. Store the split `id`; `PAYMENT_SPLIT_DONE` names it in `additionalInfo.splitId`.
 
+Observed in sandbox on 2026-11-18, not in the docs:
+
+- Each item of the webhook's `payment.split[]` also carries `walletId`, `totalValue` (the share Asaas computed, in reais) and `cancellationReason`.
+- With `percentualValue`, Asaas truncates the cent of the recipient's share. A 63,1929% split gave the recipient 599,07 where rounding the same product gives 599,08.
+
+This skill's rule: store the recipient's share from `totalValue` instead of recomputing it from the percentage. If a contract says who keeps the rounding difference, make it say the difference follows Asaas's calculation.
+
 ### Updating or deleting
 
 - `PUT /v3/lean/payments/{id}` with a new `split` replaces it. Leave `split` out to keep it; `null` or `[]` turns it off.
@@ -305,6 +312,8 @@ Charge events (on the issuer's webhooks):
 | `PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED` | The block ended. Not fixed within 2 business days means the splits were cancelled. Whether it also fires after a fix in time differs between pages |
 
 Fix a divergence block by updating `split` on the charge within 2 business days; once it fits, the split runs.
+
+Observed in sandbox on 2026-11-18, not in the docs: `PAYMENT_SPLIT_DONE` arrived before `PAYMENT_RECEIVED` for the same charge. This skill's rule: a split event must be able to create the payment's ledger row, or wait for the payment event and be applied then; never drop it because the payment row does not exist yet.
 
 Split `status` and reasons:
 
