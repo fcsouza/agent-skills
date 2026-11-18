@@ -234,10 +234,10 @@ A R$ 100,00 Pix charge issued with the root key, 85% to the seller:
 
 The response and the payment webhooks carry the `split` array, each item with an `id` and `status`. Store the split `id`; `PAYMENT_SPLIT_DONE` names it in `additionalInfo.splitId`.
 
-Observed in sandbox on 2026-11-18, not in the docs:
+Observed in sandbox, not in the docs:
 
-- Each item of the webhook's `payment.split[]` also carries `walletId`, `totalValue` (the share Asaas computed, in reais) and `cancellationReason`.
-- With `percentualValue`, Asaas truncates the cent of the recipient's share. A 63,1929% split gave the recipient 599,07 where rounding the same product gives 599,08.
+- In the webhook payload, each item of `payment.split[]` also carries `walletId`, `totalValue` (the share Asaas computed, in reais) and `cancellationReason`. The docs list these fields for the split endpoints (section 9), not for the webhook.
+- In one charge with `percentualValue` (63,1929%), the recipient's share came as 599,07 where rounding the same product gives 599,08: the cent was cut, not rounded. One case; the net value was not recorded.
 
 This skill's rule: store the recipient's share from `totalValue` instead of recomputing it from the percentage. If a contract says who keeps the rounding difference, make it say the difference follows Asaas's calculation.
 
@@ -282,7 +282,7 @@ Split works only on charges you create in `MANUAL` mode: send `split` on each `P
 
 ## 8. Refunds, partial refunds and chargebacks
 
-Refunding a charge with split reverses the splits too: the recipients' credits are taken back.
+Refunding a charge with split reverses the splits too: the recipients' credits are taken back. In sandbox, a charge confirmed through `/sandbox/payment/{id}/confirm` settles as a boleto and cannot be refunded (see the Sandbox section of `SKILL.md`).
 
 `POST /v3/payments/{id}/refund` (Pix or card) takes `value`, `description` and `splitRefunds` (items of `id`, the split id, and `value`):
 
@@ -313,7 +313,7 @@ Charge events (on the issuer's webhooks):
 
 Fix a divergence block by updating `split` on the charge within 2 business days; once it fits, the split runs.
 
-Observed in sandbox on 2026-11-18, not in the docs: `PAYMENT_SPLIT_DONE` arrived before `PAYMENT_RECEIVED` for the same charge. This skill's rule: a split event must be able to create the payment's ledger row, or wait for the payment event and be applied then; never drop it because the payment row does not exist yet.
+Observed in sandbox, not in the docs: in one run, `PAYMENT_SPLIT_DONE` arrived before `PAYMENT_RECEIVED` for the same charge. The docs promise no order between the two. This skill's rule: a split event must be able to create the payment's ledger row, or wait for the payment event and be applied then; never drop it because the payment row does not exist yet.
 
 Split `status` and reasons:
 
