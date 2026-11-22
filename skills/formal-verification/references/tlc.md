@@ -1,6 +1,6 @@
 # TLC from the command line
 
-Facts here come from the TLA+ tools repository and its docs, listed in [sources.md](sources.md). The check and dump commands below were run with v1.7.4 on Java 21, on the model in [example-job-lease/README.md](example-job-lease/README.md). `-continue` and `-deadlock` were read from the docs and not run. Run `-help` on the version you pin and trust that output over this page.
+Facts here come from the TLA+ tools repository and its docs, listed in [sources.md](sources.md). The check and dump commands below were run with v1.7.4 on Java 21, on the model in [example-job-lease/README.md](example-job-lease/README.md). `-deadlock` was read from the docs and not run. Run `-help` on the version you pin and trust that output over this page.
 
 ## Get the tools
 
@@ -27,7 +27,7 @@ java -cp tla2tools.jar tlc2.TLC -config JobLease.cfg -workers 1 JobLease.tla
 | `-config file` | The config file. Defaults to the spec's name with `.cfg`. |
 | `-workers num` | Worker threads. Defaults to 1. `auto` picks by core count. |
 | `-deadlock` | Do not check for deadlock. Same as `CHECK_DEADLOCK FALSE` in the config. |
-| `-continue` | Keep going after a violation and report every one. |
+| `-continue` | Keep going after a violation and report every one. The run then exits 0 even with violations, so never use it for the pass or fail check. Use it to dump the full graph of a broken model. |
 | `-dump dot,actionlabels,colorize file.dot` | Write the reachable state graph as Graphviz. The options after `dot` are comma-separated: `actionlabels`, `colorize`, `snapshot`. |
 | `-metadir dir` | Where TLC keeps its working files. Point it outside the repo. |
 | `-help` | List every option. |
@@ -70,7 +70,7 @@ TLC prints one of these lines, and exits with a matching status (from `EC.java` 
 | The spec does not parse | 150 |
 | The config does not parse | 151 |
 
-TLC writes a `states` working folder next to the spec unless you pass `-metadir`. The dot dump has one line per state, labelled with every variable, and one line per step, labelled with the action name:
+TLC writes a `states` working folder next to the spec unless you pass `-metadir`. Without `-continue`, TLC stops at the first violation and the dump holds only the states it reached by then. The dot dump has one line per state, labelled with every variable, and one line per step, labelled with the action name:
 
 ```
 6630222020553671211 [label="/\\ token = 0\n/\\ held = ...",style = filled]

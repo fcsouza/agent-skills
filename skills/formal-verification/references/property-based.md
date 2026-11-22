@@ -89,24 +89,25 @@ test('a job commits at most once', () => {
 With the fencing check removed from `LeaseStore.commit`, the run above printed:
 
 ```
-error: Property failed after 2 tests
-{ seed: 703225061, path: "1:4:5:12", endOnFailure: true }
-Counterexample: [acquire(b),expire,acquire(a),commit(b),commit(a) /*replayPath="JADCZ:V"*/]
-Shrunk 3 time(s)
+error: Property failed after 9 tests
+{ seed: -728014158, path: "8:7:5:11", endOnFailure: true }
+Counterexample: [acquire(a),expire,acquire(b),commit(a),commit(b) /*replayPath="AJ/DT:S"*/]
 ```
 
-The counterexample is already shrunk. Tell it as steps in the code's words: B takes the lease, the lease expires, A takes it, B commits with its stale token, A commits.
+The counterexample is already shrunk. Tell it as steps in the code's words: A takes the lease, the lease expires, B takes it, A commits with its stale token, B commits.
 
 ## Replay a failure
 
-Pass the reported values back. A commands failure needs the `replayPath` too.
+Pass the reported values back. A commands failure needs the `replayPath` too. Keep every other option of `fc.commands` as it was.
 
 ```ts
 fc.assert(
-  fc.property(fc.commands(commands, { replayPath: 'JADCZ:V' }), run),
-  { seed: 703225061, path: '1:4:5:12', endOnFailure: true },
+  fc.property(fc.commands(commands, { size: '+1', replayPath: 'AJ/DT:S' }), run),
+  { seed: -728014158, path: '8:7:5:11', endOnFailure: true },
 );
 ```
+
+Run here: this replays the one failing sequence against the broken store and passes against the fixed one. With `size: '+1'` dropped, fast-check stopped with `Unable to replay, got wrong path`. Passing only `{ seed }` reruns the whole failing run and finds the same counterexample.
 
 Remove the replay arguments once the fix lands. A pinned seed checks one run forever.
 

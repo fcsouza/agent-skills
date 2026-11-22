@@ -142,6 +142,7 @@ Do not weaken a property to make a run pass. Loosen one only when the rule itsel
 - `references/cli-and-traces.md`: read when you run, reproduce, shrink or inspect. Commands, flags, exit codes, output paths, trace JSON, real output.
 - `references/ci.md`: read when you add Bombadil to GitHub Actions.
 - `references/sources.md`: read when you need the page behind a claim.
+- [NOTICE.md](NOTICE.md): credit and licence for examples that follow the Bombadil manual.
 
 ## Related skills
 

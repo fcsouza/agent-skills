@@ -8,10 +8,15 @@ Ask the reader for the rules in their words: "You never see Synced while you are
 
 ## Build the chart from the state graph
 
-1. Run the check with a state graph dump. See [tlc.md](tlc.md) for the `-dump dot,actionlabels` option. The dot file holds one node per reachable state and one edge per step, labelled with its action.
-2. Write a small script that reads the dot file. Keep it next to the model. It maps each model state to a reader label and each action to a reader label, then prints Mermaid. A script can be rerun. A hand-drawn chart cannot.
-3. Merge model states that share a label into one chart state. Draw one arrow per distinct pair of labels and step label. Drop steps that stay inside one label.
-4. Print a `stateDiagram-v2`.
+1. Run the check with a state graph dump. See [tlc.md](tlc.md) for the `-dump dot,actionlabels` option. The dot file holds one node per reachable state and one edge per step, labelled with its action. When a rule breaks, add `-continue`, or the dump stops at the first violation.
+2. Write a view module next to the model. It exports `state(vars)`, the reader's label for a model state; `step(action)`, the reader's label for a TLC action, or `null` to hide it; and `breaks(vars)`, the rule a model state breaks, or `null`. `vars` maps each variable name to its value as TLC prints it. [example-job-lease/view.ts](example-job-lease/view.ts) is a worked one.
+3. Run the script that ships with this skill:
+
+```bash
+bun scripts/dot-to-mermaid.ts states.dot view.ts
+```
+
+It merges model states that share a label, draws one arrow per distinct pair of labels and step label, drops steps that stay inside one label, marks the states that break a rule, and prints the shortest path to each broken rule. Copy the script next to the model so the generated skill can rerun it.
 
 Rebuild the chart on every change to the model. Do not edit the Mermaid by hand.
 
@@ -28,20 +33,11 @@ Rebuild the chart on every change to the model. Do not edit the Mermaid by hand.
 - Do not merge two states that break different rules.
 - Add a legend that names the rule behind each mark.
 
-```mermaid
-stateDiagram-v2
-    classDef breaks fill:#ffecee,stroke:#e72e3b,stroke-width:2px
-    [*] --> Free
-    Free --> HeldByA: A takes the lease
-    HeldByA --> Expired: the lease expires
-    Expired --> HeldByB: B takes the lease
-    HeldByB --> WrittenTwice: A and B both write
-    class WrittenTwice breaks
-```
+The script writes these classes and their `classDef` lines. [example-job-lease/README.md](example-job-lease/README.md) shows a chart it produced.
 
 ## Shortest path per rule
 
-For each broken rule, give the shortest path from a start state to the breaking state, as numbered steps in reader labels. TLC's trace for an invariant is already a shortest one when it runs breadth-first with one worker. For other rules, search the dot graph.
+For each broken rule, give the shortest path from a start state to the breaking state, as numbered steps in reader labels. The script prints it after the chart, from a breadth-first search of the dump.
 
 ## Keep it readable
 

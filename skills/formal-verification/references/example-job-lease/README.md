@@ -65,22 +65,54 @@ In a real repo, break the code rather than flip a constant: remove the token che
 
 ## The chart
 
+Dump the full graph of the broken variant, then build the chart with [view.ts](view.ts). `-continue` is needed: without it the dump stops at the first violation. With it TLC reported the violation 6 times, found 63 distinct states and exited 0.
+
+```bash
+java -cp tla2tools.jar tlc2.TLC -config JobLeaseBroken.cfg -workers 1 -continue -dump dot,actionlabels broken.dot JobLease.tla
+bun ../../scripts/dot-to-mermaid.ts broken.dot view.ts
+```
+
+The script printed this chart:
+
 ```mermaid
 stateDiagram-v2
     classDef breaks fill:#ffecee,stroke:#e72e3b,stroke-width:2px
-    [*] --> Free
-    Free --> Held: a worker takes the lease
-    Held --> Done: the holder commits
-    Held --> Lapsed: the lease expires
-    Lapsed --> HeldAgain: another worker takes the lease
-    HeldAgain --> Done: the new holder commits
-    HeldAgain --> StaleCommit: the old holder commits [no token check]
-    StaleCommit --> CommittedTwice: the new holder commits
-    Done --> [*]
-    class CommittedTwice breaks
+    classDef mayBreak fill:#fff3e6,stroke:#e8730c,stroke-width:2px
+    s0: Free
+    s1: Held
+    s2: Lease lapsed, holder still working
+    s3: Committed
+    s4: Held again, old holder still working
+    s5: Committed, an old holder still working
+    s6: Committed twice
+    [*] --> s0
+    s0 --> s1: a worker takes the lease
+    s1 --> s2: the lease expires
+    s1 --> s3: a worker commits
+    s2 --> s1: a worker takes the lease
+    s2 --> s4: a worker takes the lease
+    s2 --> s3: a worker commits
+    s4 --> s2: the lease expires
+    s4 --> s3: a worker commits
+    s4 --> s5: a worker commits
+    s2 --> s5: a worker commits
+    s3 --> s6: a worker commits
+    s5 --> s6: a worker commits
+    class s6 breaks
 ```
 
-Legend: the red state breaks "a job commits its result at most once". With the token check in place, the arrow into `StaleCommit` does not exist.
+And this path:
+
+```
+Breaks "a job commits its result at most once", shortest path:
+1. a worker takes the lease -> Held
+2. the lease expires -> Lease lapsed, holder still working
+3. a worker takes the lease -> Held again, old holder still working
+4. a worker commits -> Committed
+5. a worker commits -> Committed twice
+```
+
+Run on the dump of the fenced config, the same script prints the chart without `Committed twice` and ends with "No state breaks a rule."
 
 ## Bounds and what is left out
 

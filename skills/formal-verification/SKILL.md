@@ -52,17 +52,17 @@ Prefer a tool the repo's developers can install and run. Tell the user which too
 - **Cheap to rerun.** One command, a pinned tool version, a run short enough to use on every relevant change.
 - **Kept in step.** Record the files and functions each check covers, and the commit where you last confirmed the check describes them.
 
-[references/example-job-lease/README.md](references/example-job-lease/README.md) walks one small case end to end: the model in [JobLease.tla](references/example-job-lease/JobLease.tla), a passing config in [JobLease.cfg](references/example-job-lease/JobLease.cfg), a broken variant in [JobLeaseBroken.cfg](references/example-job-lease/JobLeaseBroken.cfg), the counterexample as steps, and the chart.
+[references/example-job-lease/README.md](references/example-job-lease/README.md) walks one small case end to end: the model in [JobLease.tla](references/example-job-lease/JobLease.tla), a passing config in [JobLease.cfg](references/example-job-lease/JobLease.cfg), a broken variant in [JobLeaseBroken.cfg](references/example-job-lease/JobLeaseBroken.cfg), the reader's labels in [view.ts](references/example-job-lease/view.ts), the counterexample as steps, and the chart.
 
 ### 4. Draw the behaviour
 
-A counterexample in model terms convinces you. The person who owns the behaviour needs it in their words. Draw a Mermaid `stateDiagram-v2` from the checker's state graph, not from memory, so the picture and the checked model cannot drift apart. Mark each state that breaks a rule and give the shortest path to it. Follow [references/statechart.md](references/statechart.md).
+A counterexample in model terms convinces you. The person who owns the behaviour needs it in their words. Draw a Mermaid `stateDiagram-v2` from the checker's state graph with `scripts/dot-to-mermaid.ts`, not from memory, so the picture and the checked model cannot drift apart. Mark each state that breaks a rule and give the shortest path to it. Follow [references/statechart.md](references/statechart.md).
 
 Before you show a bug path to anyone, replay it against the real code as a test or a live reproduction, one step per action. If the bug does not occur, assume the model is wrong until you show otherwise.
 
 ### 5. Generate the project skill
 
-Write `.claude/skills/verify-<area>/SKILL.md` in the target repo. Give it YAML frontmatter with `name: verify-<area>` and a `description` that names the area and says when to use it. Claude decides when to load a skill from its description, so a skill without one is never matched to a change.
+Write `.claude/skills/verify-<area>/SKILL.md` in the target repo. Name it after the verified area, such as `verify-job-lease`, so it does not collide with a `verify-<app>` skill that drives the running app. Give it YAML frontmatter with `name: verify-<area>` and a `description` that names the area and says when to use it. Claude decides when to load a skill from its description, so a skill without one is never matched to a change.
 
 From that skill alone, the next agent must be able to:
 
@@ -125,7 +125,8 @@ A check can be both updated and bug. Say outright which failures were drift and 
 - [references/tlc.md](references/tlc.md): getting TLC, the command line, the config file, exit codes, the state graph dump.
 - [references/statechart.md](references/statechart.md): drawing the Mermaid chart and marking rule breaks.
 - [references/property-based.md](references/property-based.md): generated-input tests on real code with fast-check.
-- [references/example-job-lease/README.md](references/example-job-lease/README.md): a worked example, with [JobLease.tla](references/example-job-lease/JobLease.tla), [JobLease.cfg](references/example-job-lease/JobLease.cfg) and [JobLeaseBroken.cfg](references/example-job-lease/JobLeaseBroken.cfg).
+- [references/example-job-lease/README.md](references/example-job-lease/README.md): a worked example, with [JobLease.tla](references/example-job-lease/JobLease.tla), [JobLease.cfg](references/example-job-lease/JobLease.cfg), [JobLeaseBroken.cfg](references/example-job-lease/JobLeaseBroken.cfg) and [view.ts](references/example-job-lease/view.ts).
+- `scripts/dot-to-mermaid.ts`: builds the chart and the shortest bug path from a TLC dot dump and a view module. Run with bun.
 - [references/sources.md](references/sources.md): where each tool fact comes from.
 
 ## Related skills

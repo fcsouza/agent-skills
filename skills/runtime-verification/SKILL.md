@@ -17,7 +17,7 @@ Adapted from the create-verification-skill and maintain-verification-skill skill
 
 - No project skill drives the app, or the user asks for one: **Create**.
 - A `verify-*` skill with a `features/` map exists and the app changed, or the user asks to audit it: **Maintain**.
-- Several `verify-*` skills exist: ask which one. None exists and the user asked for Maintain: say so and offer Create. Do not invent a target.
+- Several `verify-*` skills exist: ask which one. One with a `features/` map drives the app; one that runs a model checker or a prover belongs to `formal-verification`. None exists and the user asked for Maintain: say so and offer Create. Do not invent a target.
 - A `verify-*` skill exists and the task is to check one change: do not run either mode. Follow that skill.
 
 ## Rules for both modes
