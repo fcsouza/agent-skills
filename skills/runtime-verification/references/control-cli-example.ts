@@ -41,7 +41,7 @@ const root = join(tmpdir(), 'verify-notes');
 const runDir = join(root, 'runs', values.run);
 const evidenceDir = join(root, 'evidence', values.run);
 const stateFile = join(runDir, 'state.json');
-type State = { pid: number; port: number; dataDir: string; log: string; repo: string; startedAt: string };
+type State = { pid: number; procStart: string; port: number; dataDir: string; log: string; repo: string; startedAt: string };
 
 // Both exit, so code after a call never runs. The `never` type makes the compiler say so.
 const print = (data: unknown, ok = true): never => {
@@ -72,9 +72,11 @@ const health = async (port: number) => {
     return null;
   }
 };
-// A PID alone proves nothing after a crash or reboot: the OS reuses PIDs. The app's own health
-// endpoint reports its PID, so a match means the process on that port is the one this run started.
-const owned = async (s: State) => (await health(s.port))?.pid === s.pid;
+// A PID alone proves nothing after a crash or reboot: the OS reuses PIDs. The start time of the
+// process does not change, so PID plus start time names the process this run started, whether or
+// not its port answers yet.
+const procStart = (pid: number) => Bun.spawnSync(['ps', '-o', 'lstart=', '-p', String(pid)]).stdout.toString().trim();
+const owned = (s: State) => s.procStart !== '' && procStart(s.pid) === s.procStart;
 const freePort = () => {
   const probe = Bun.serve({ port: 0, fetch: () => new Response() });
   const { port } = probe;
@@ -87,7 +89,7 @@ const runCli = (args: string[], dataDir: string) => {
 };
 
 const up = async () => {
-  if (existsSync(stateFile) && (await owned(readState()))) {
+  if (existsSync(stateFile) && owned(readState())) {
     fail(`run "${values.run}" is already up`, 'run `control-notes doctor`, or `down` first, or pick another --run');
   }
   if (!existsSync('src/server.ts')) {
@@ -116,7 +118,7 @@ const up = async () => {
     stderr: logFd,
   });
   proc.unref();
-  const state: State = { pid: proc.pid, port, dataDir, log, repo: resolve('.'), startedAt: new Date().toISOString() };
+  const state: State = { pid: proc.pid, procStart: procStart(proc.pid), port, dataDir, log, repo: resolve('.'), startedAt: new Date().toISOString() };
   writeFileSync(stateFile, JSON.stringify(state, null, 2));
   for (let i = 0; i < 50; i++) {
     const page = await fetch(`http://127.0.0.1:${port}/`).then((r) => r.text()).catch(() => '');
@@ -218,9 +220,9 @@ const cli = (args: string[]) => {
 
 const down = async () => {
   const s = readState();
-  // Signal the PID only while the app on our port still reports it. Otherwise the PID is stale
+  // Signal the PID only while it is still the process this run started. Otherwise the PID is stale
   // and may now belong to another program.
-  const running = await owned(s);
+  const running = owned(s);
   const plan = { stop: s.pid, running, stalePid: !running && alive(s.pid), remove: runDir, keep: evidenceDir };
   if (values['dry-run']) {
     print({ ok: true, dryRun: true, ...plan });
@@ -237,7 +239,7 @@ const down = async () => {
     rmSync(runDir, { recursive: true, force: true });
   }
   const ok = !stillAlive && portFree;
-  print({ ok, ...plan, stopped: !stillAlive, portFree, evidence: existsSync(evidenceDir) ? readdirSync(evidenceDir) : [], hint: ok ? undefined : `pid ${s.pid} or port ${s.port} still busy; check with \`lsof -i :${s.port}\`` }, ok);
+  print({ ok, ...plan, stopped: !stillAlive, portFree, evidence: existsSync(evidenceDir) ? readdirSync(evidenceDir) : [], hint: ok ? (plan.stalePid ? `pid ${s.pid} now belongs to another process; it was not signalled` : undefined) : `pid ${s.pid} or port ${s.port} still busy; check with \`lsof -i :${s.port}\`` }, ok);
 };
 
 const [cmd, ...rest] = positionals;
