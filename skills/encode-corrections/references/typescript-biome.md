@@ -2,10 +2,10 @@
 
 Concrete checks for a repo on TypeScript, bun and Biome through ultracite. Every config below ran on 2026-11-22 against Biome 2.6.8, ultracite 8.3.1, dependency-cruiser 18.8.0, TypeScript 6.0.3 and bun 1.4.4, in a scratch project, unless a line says otherwise. Biome's docs describe the 2.x line; option names changed between majors, so check the installed version (`biome --version`) before copying. Pages behind each claim: `sources.md`.
 
-## Commands in this owner's projects
+## Commands
 
-- `bun run format` fixes and `bun run lint:biome` checks. These are the owner's package.json scripts, not names ultracite defines. Read package.json for the real names in another repo.
-- Never run the Biome binary through bunx. Add a new check to an existing script, or add a script, so the same command runs locally and in CI.
+- Read package.json for the repo's own lint and format scripts, for example `bun run format` and `bun run lint:biome`. Ultracite does not define those names.
+- Run Biome through those scripts, not through bunx. Add a new check to an existing script, or add a script, so the same command runs locally and in CI.
 - Ultracite itself provides `ultracite check` (reports, changes nothing) and `ultracite fix` (applies safe fixes).
 
 ## Extend ultracite's config

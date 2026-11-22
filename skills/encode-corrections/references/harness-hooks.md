@@ -53,7 +53,7 @@ exit 0
 - A matcher made of letters, digits, `_`, `-`, spaces, `,` and `|` matches tool names exactly (`Edit|Write`). Any other character makes it an unanchored JavaScript regex.
 - `${CLAUDE_PROJECT_DIR}` is the project root where the session started. This is the exec form: `command` plus `args`, no shell, so a path with spaces needs no quoting. The docs prefer it for any hook that names a path placeholder; in shell form, wrap each placeholder in double quotes. A plugin has its own variable for its folder; see the hooks reference.
 - Tested: fed JSON on stdin, the script exited 2 for `git commit --no-verify -m x`, `git commit -n -m x`, `git commit -m x -n` and `git push --no-verify`, and 0 for `git push -n origin feat`, `git commit -m x`, `git log -n 5` and `ls`. It was not run inside a live session.
-- Text matching catches the common spellings only. A command written another way gets through, and a commit message that contains ` -n` is refused. Say so in the table row.
+- Text matching catches the common spellings only. Tested: `git -C . commit --no-verify -m x`, `git commit -nm x` and `git commit --no-v -m x` all get through. A commit message that contains ` -n` is refused. Say so in the table row.
 
 ## Mod: refuse or rewrite a tool call
 
@@ -71,7 +71,7 @@ import type { Register } from 'claude-code';
 export const register: Register = on => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const command = String((e as { command?: unknown }).command ?? '');
-    if (/\bgit\s+(commit|push)\b.*--no-verify/.test(command)) {
+    if (/\bgit\s+(commit|push)\b.*--no-verify/.test(command) || /\bgit\s+commit\b.*\s-n(\s|$)/.test(command)) {
       return { deny: 'Do not skip git hooks. Run the failing check, fix what it reports, then commit again.' };
     }
     return next(e);
@@ -98,9 +98,9 @@ test('refuses --no-verify and lets a plain commit through', async ($, on) => {
 });
 ```
 
-## Models in this skill's repository
+## Worked examples
 
-The marketplace that ships this skill also ships mods that encode the owner's corrections as hooks. Read them as worked examples:
+The repository that ships this skill also ships mods that encode corrections as hooks, at https://github.com/fcsouza/agent-skills/tree/main/mods. Read them as worked examples:
 
 - `bun-only` rewrites `npm`, `npx`, `yarn` and `pnpm` calls to `bun` and `bunx`, and sends direct Biome calls to the project scripts. It rewrites rather than refuses, so the agent's step still runs.
 - `commit-guard` blocks a commit whose staged diff holds a home-folder path or stages a `.env` file, blocks `git add -A`, and blocks pushes to `main`.

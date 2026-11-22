@@ -1,10 +1,10 @@
 # Notice
 
-This skill adapts three skills from pstack, https://github.com/cursor/plugins/tree/main/pstack, under the MIT licence.
+This skill adapts three skills from pstack v0.15.46, https://github.com/cursor/plugins/tree/main/pstack, under the MIT licence.
 
-- `SKILL.md`: adapted from `skills/create-formal-verification-skill/SKILL.md` and `skills/maintain-formal-verification-skill/SKILL.md`. Changes: merged into one skill with two modes, rewritten for Claude Code, a property-based route added.
-- `references/statechart.md`: adapted from `skills/statechart/SKILL.md`. Changes: the chart is built from TLC's state graph dump by a script the reader writes. The upstream toolchain is not included.
-- `references/tlc.md`, `references/property-based.md` and `references/example-job-lease/`: written for this skill.
+- `SKILL.md`: adapted from `skills/create-formal-verification-skill/SKILL.md` and `skills/maintain-formal-verification-skill/SKILL.md`. Changes: merged into one skill with two modes, adapted for Claude Code, a property-based route added. Some sentences are kept as upstream wrote them, mainly the quality bar and the proof step.
+- `references/statechart.md`: adapted from `skills/statechart/SKILL.md`. Changes: the chart is built from TLC's state graph dump by `scripts/dot-to-mermaid.ts`, written for this skill. The upstream toolchain is not included. Some sentences are kept as upstream wrote them.
+- `references/tlc.md`, `references/property-based.md`, `references/example-job-lease/` and `scripts/dot-to-mermaid.ts`: written for this skill.
 
 ## Upstream MIT License
 

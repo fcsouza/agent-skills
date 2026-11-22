@@ -40,8 +40,8 @@ Four skills that make an agent's work checkable. They come from Lauren Tan's tal
 
 | Skill | Description | Platform |
 |-------|-------------|----------|
-| [encode-corrections](skills/encode-corrections/) | Turn each correction you give an agent into a check that fails next time: architecture first, then types, a lint whose error names the fix, a test, a hook, and prose last | Any |
-| [runtime-verification](skills/runtime-verification/) | Give a project a scripted way to run the real app, drive it as a user would and keep evidence: generates a `verify-<app>` skill with a feature map, and audits it when the app changes | Any |
+| [encode-corrections](skills/encode-corrections/) | Turn each correction you give an agent into a check that fails next time: architecture first, then types, a lint whose error names the fix, a test, a hook, and prose last | Claude Code |
+| [runtime-verification](skills/runtime-verification/) | Give a project a scripted way to run the real app, drive it as a user would and keep evidence: generates a `verify-<app>` skill with a feature map, and audits it when the app changes | Claude Code |
 | [formal-verification](skills/formal-verification/) | Verify one property where tests do not reach: a TLA+ model checked with TLC or generated inputs on the real code, a broken variant that fails, a Mermaid statechart, and a project skill that rechecks it | TLA+ / fast-check |
 | [bombadil](skills/bombadil/) | Find UI bugs with property-based testing: write a Bombadil spec for a web or terminal app, run a bounded test, read the trace, reproduce and shrink a violation | [Bombadil](https://github.com/antithesishq/bombadil) |
 

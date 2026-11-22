@@ -51,7 +51,7 @@ jobs:
           path: bombadil-output
 ```
 
-The `upload-artifact@v7` line follows the README example. The `checkout@v7` and `setup-bun@v2` majors follow the pinned versions in this skills repo's own CI. Check each against its releases page before use.
+The `upload-artifact@v7` line follows the README example. The `checkout@v7` and `setup-bun@v2` majors are the current majors on each action's releases page at the time of writing. Check each against its releases page before use.
 
 ## Terminal workflow
 

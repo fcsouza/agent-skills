@@ -2,20 +2,18 @@
 // Usage: bun dot-to-mermaid.ts <states.dot> <view.ts>
 // Reads a TLC state graph dump (-dump dot,actionlabels) and prints a Mermaid
 // stateDiagram-v2 in the reader's words, then the shortest path to each
-// state that breaks a rule.
-//
-// The view module exports:
-//   state(vars)  -> the label of the chart state for a model state
-//   step(action) -> the label of the arrow for a TLC action, or null to hide it
-//   breaks(vars) -> the rule a model state breaks, or null
-// `vars` maps each TLA+ variable name to its value as TLC prints it.
+// state that breaks a rule. Exits 1 when the dump cannot support that answer.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+// Each TLA+ variable name mapped to its value as TLC prints it.
 type Vars = Record<string, string>;
 type View = {
+  // The chart label for a model state.
   state: (vars: Vars) => string;
+  // The arrow label for a TLC action, or null to hide the step.
   step: (action: string) => string | null;
+  // The rule a model state breaks, or null.
   breaks: (vars: Vars) => string | null;
 };
 
@@ -41,10 +39,11 @@ for (const line of readFileSync(dotPath, 'utf8').split('\n')) {
     const pair = part.match(/^\/\\\\ (\w+) = (.*)$/);
     if (pair) vars[pair[1]] = pair[2];
   }
+  // TLC draws initial states with `style = filled`.
   nodes.set(node[1], { vars, initial: node[3] !== undefined });
 }
-if (nodes.size === 0) {
-  console.error(`no states found in ${dotPath}; was it written with -dump dot,actionlabels?`);
+if (nodes.size === 0 || (nodes.size > 1 && edges.length === 0)) {
+  console.error(`${dotPath} has ${nodes.size} states and ${edges.length} labelled steps; write it with -dump dot,actionlabels`);
   process.exit(1);
 }
 
@@ -59,18 +58,19 @@ for (const [id, { vars }] of nodes) {
   else cleanIn.add(label);
 }
 
+// Every label gets an id up front, so a marked state is always declared, even when its steps are hidden.
 const ids = new Map<string, string>();
-const idFor = (label: string) => {
+for (const label of labelOf.values()) {
   if (!ids.has(label)) ids.set(label, `s${ids.size}`);
-  return ids.get(label) as string;
-};
+}
+const idFor = (label: string) => ids.get(label) ?? label;
 
 const out = ['stateDiagram-v2'];
 out.push('    classDef breaks fill:#ffecee,stroke:#e72e3b,stroke-width:2px');
 out.push('    classDef mayBreak fill:#fff3e6,stroke:#e8730c,stroke-width:2px');
 const arrows = new Set<string>();
 for (const [id, { initial }] of nodes) {
-  if (initial) arrows.add(`    [*] --> ${idFor(labelOf.get(id) as string)}`);
+  if (initial) arrows.add(`    [*] --> ${idFor(labelOf.get(id) ?? id)}`);
 }
 for (const { from, to, action } of edges) {
   const a = labelOf.get(from);
@@ -97,7 +97,8 @@ for (const id of queue) cameFrom.set(id, null);
 const found = new Map<string, string>();
 for (let i = 0; i < queue.length; i++) {
   const id = queue[i];
-  const rule = view.breaks((nodes.get(id) as { vars: Vars }).vars);
+  const node = nodes.get(id);
+  const rule = node ? view.breaks(node.vars) : null;
   if (rule && !found.has(rule)) found.set(rule, id);
   for (const { to, action } of next.get(id) ?? []) {
     if (cameFrom.has(to)) continue;
@@ -107,11 +108,17 @@ for (let i = 0; i < queue.length; i++) {
 }
 for (const [rule, end] of found) {
   const steps: string[] = [];
-  for (let at = end; cameFrom.get(at); at = (cameFrom.get(at) as { from: string }).from) {
-    const { action } = cameFrom.get(at) as { action: string };
-    steps.unshift(`${view.step(action) ?? action} -> ${labelOf.get(at)}`);
+  for (let at = end, via = cameFrom.get(at); via; at = via.from, via = cameFrom.get(at)) {
+    steps.unshift(`${view.step(via.action) ?? via.action} -> ${labelOf.get(at)}`);
   }
   console.log(`\nBreaks "${rule}", shortest path:`);
   steps.forEach((s, n) => console.log(`${n + 1}. ${s}`));
 }
-if (found.size === 0) console.log('\nNo state breaks a rule.');
+const allRules = new Set([...rulesOf.values()].flatMap((rules) => [...rules]));
+const unreached = [...allRules].filter((rule) => !found.has(rule));
+if (unreached.length > 0) {
+  console.error(`\nno path from an initial state to: ${unreached.join('; ')}. The dump is incomplete.`);
+  process.exit(1);
+}
+// A dump TLC wrote before it stopped at a violation holds no breaking state. Check TLC's own result first.
+if (found.size === 0) console.log('\nNo state in this dump breaks a rule.');

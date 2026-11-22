@@ -29,6 +29,8 @@ A proof is evidence a reviewer can open and check without running the app again.
 | Any side effect | The second-view read-back named above |
 | A flow with motion or timing | A short recording, plus the screenshots above |
 
+Keep secrets out of evidence. Passwords, tokens, cookies and API keys do not belong in a screenshot, a log, a transcript or a saved response. Use a test account, mask the value before you save the file, and say what you masked.
+
 Write evidence to one directory per run, outside anything Cleanup removes. Name files `<feature>-<step>.<ext>`. Write a short `summary.json` or `summary.md` that lists each artifact with the feature and entry point it proves.
 
 ## Doctor discipline

@@ -68,7 +68,7 @@ Name the session after the run, and kill only that session in Cleanup. Without t
 
 ## HTTP services
 
-`curl` or `fetch` is the user path when the users are programs. Record method, URL, body, status and response. Read every write back with a second request or through the store.
+`curl` or `fetch` is the user path when the users are programs. Record method, URL, body, status and response. Read every write back with a second request or through the store. The proof run drove a page and a CLI, so this recipe is not verified.
 
 ## Ports and processes
 

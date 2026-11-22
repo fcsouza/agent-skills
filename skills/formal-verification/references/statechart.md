@@ -16,7 +16,7 @@ Ask the reader for the rules in their words: "You never see Synced while you are
 bun scripts/dot-to-mermaid.ts states.dot view.ts
 ```
 
-It merges model states that share a label, draws one arrow per distinct pair of labels and step label, drops steps that stay inside one label, marks the states that break a rule, and prints the shortest path to each broken rule. Copy the script next to the model so the generated skill can rerun it.
+It merges model states that share a label, draws one arrow per distinct pair of labels and step label, drops steps that stay inside one label, marks the states that break a rule, and prints the shortest path to each broken rule. Copy the script next to the model so the generated skill can rerun it. It exits 1 when the dump has no labelled steps, or when a breaking state has no path from an initial state.
 
 Rebuild the chart on every change to the model. Do not edit the Mermaid by hand.
 

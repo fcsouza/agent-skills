@@ -17,7 +17,7 @@ A specification is an ES module in TypeScript or JavaScript. Every export of the
 | `@antithesishq/bombadil/terminal/defaults` | `exitSuccess`, `noReplacementChars`, `typeBasicInput` |
 | `@antithesishq/bombadil/terminal/defaults/actions` | `CharSets`, `typeFromSet`, `pasteText` |
 | `@antithesishq/bombadil/actions` | `isAction`, `CharSet`, `branch`, `leaf`, types `Range`, `Tree` |
-| `@antithesishq/bombadil/browser/extras/resources` | `noResourceLeak`. Bombadil runs it, but the 0.8.0 package has no types for this path, so `tsc` fails on it |
+| `@antithesishq/bombadil/browser/extras/resources` | `noResourceLeak`. Bombadil runs it, but the 0.8.0 package's `exports` map has no entry for this path, so `tsc` fails on it |
 
 Import `extract` from the driver path (`/browser` or `/terminal`), not from the package root. The driver version types `state` for you.
 

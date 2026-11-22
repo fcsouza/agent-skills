@@ -1,6 +1,6 @@
 # Notice
 
-This skill documents Bombadil, https://github.com/antithesishq/bombadil, by Antithesis. The text is written for this skill. Some examples in `references/property-patterns.md` and `references/spec-language.md` follow shapes from the Bombadil manual (the notification count, the error that disappears, the counter state machine, the sidebar filter). The manual is part of the Bombadil repository, under the MIT licence below.
+This skill documents Bombadil, https://github.com/antithesishq/bombadil, by Antithesis. The text is written for this skill. Some examples in `references/property-patterns.md` and `references/spec-language.md` follow shapes from the Bombadil manual (the notification count, the error that disappears, the counter state machine). The manual is part of the Bombadil repository, under the MIT licence below.
 
 ## Upstream MIT License
 

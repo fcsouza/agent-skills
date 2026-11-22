@@ -23,7 +23,7 @@ Run the start command once before you write anything. If it fails:
 - Fix it when the fix is small and inside the task (a missing install step, a wrong script name). Say what you fixed.
 - Report it when it is not: the exact command, the exact error, and what you tried.
 
-When an asset the feature under test never uses blocks startup (a static folder, a sample config), the skill may create it. Mark it as verification scaffolding and remove it in Cleanup.
+When an asset the feature under test never uses blocks startup (a static folder, a sample config), the skill may create it. Mark it as verification scaffolding, remove it in Cleanup, and report the missing asset in the handover.
 
 ## 3. Pick the driver
 
@@ -67,7 +67,7 @@ You read the new SKILL.md from disk, so Claude Code has not substituted `${CLAUD
 5. Clean up.
 6. List the evidence directory and confirm every file is still there.
 7. Check that no process this run started is still alive and its port is free.
-8. Run `claude plugin validate .claude/skills`. It reports frontmatter that does not parse (Claude Code v2.1.233 or later, per the skills docs).
+8. Run `claude plugin validate .claude/skills`. It reports frontmatter that does not parse.
 9. If the interview said two instances can run side by side, start a second run ID while the first is up and run its Doctor. Then clean it up.
 
 Each time you needed knowledge the page did not hold, the page has a gap. Fix the page, run cleanup, and start again from step 1. Keep a log of these gaps; they go in the handover.

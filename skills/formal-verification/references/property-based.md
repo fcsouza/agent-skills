@@ -6,7 +6,7 @@ The rule: import the real module. Never test a hand copy of the function.
 
 ## fast-check with bun
 
-Run with fast-check 4.11.0 and `bun test` 1.4.4 while this file was written.
+Tested with fast-check 4.11.0 and `bun test` 1.4.4.
 
 ```bash
 bun add --dev fast-check
@@ -72,13 +72,13 @@ const commands = [
   fc.constantFrom('a', 'b').map((w) => new Commit(w)),
 ];
 
+const run = (cmds: Iterable<fc.Command<Model, LeaseStore>>) => {
+  const setup = () => ({ model: { held: new Map() }, real: new LeaseStore() });
+  fc.modelRun(setup, cmds);
+};
+
 test('a job commits at most once', () => {
-  fc.assert(
-    fc.property(fc.commands(commands, { size: '+1' }), (cmds) => {
-      const setup = () => ({ model: { held: new Map() }, real: new LeaseStore() });
-      fc.modelRun(setup, cmds);
-    }),
-  );
+  fc.assert(fc.property(fc.commands(commands, { size: '+1' }), run));
 });
 ```
 

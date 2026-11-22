@@ -23,7 +23,7 @@ Adapted from pstack v0.15.46 by Lauren Tan, https://github.com/cursor/plugins/tr
 1. **Highest level that works.** Go through the levels below in order. Stop at the first level that makes the mistake fail.
 2. **Prove the check.** Reintroduce the real past mistake in a scratch change, watch the new check fail, then drop the scratch change. A check you have not seen fail is a guess.
 3. **Same command locally and in CI.** Wire the check into the script developers already run and into CI under that same script. A check that runs only in CI teaches the agent nothing until push.
-4. **Exceptions sit on the offending line, with a reason.** Use the tool's one-line suppression, naming the rule and the reason. No file-wide or range suppressions, and no rule switched off for a whole folder to get past one hit.
+4. **Exceptions sit on the offending line, with a reason.** Use the tool's one-line suppression, naming the rule and the reason, and link the issue when the repo tracks one. No file-wide or range suppressions, and no rule switched off for a whole folder to get past one hit.
 5. **The error message names the fix.** It says what to use instead and where it lives: the function, the file, the type. "Do not use X" alone sends the agent looking for a way around.
 6. **Stop new occurrences first.** If the pattern is already common, add a ratchet that fails only when a change adds more, then clean up the old ones in their own change.
 7. **No prose when structure exists.** If a type, lint, test or hook now enforces the rule, do not also add the rule to CLAUDE.md. The table row (below) is the only prose.
@@ -127,4 +127,4 @@ For each mistake class:
 - `runtime-verification`: when the mistake shows only in the running app.
 - `formal-verification`: when the mistake breaks an invariant of a state machine or algorithm.
 - `bombadil`: when the mistake is a UI behaviour a property test can find.
-- `judge`: its "Promote to lint rule" section feeds this skill.
+- `judge`: its "Promote to lint rule" section feeds this skill. It ships in the `standalone-skills` plugin.

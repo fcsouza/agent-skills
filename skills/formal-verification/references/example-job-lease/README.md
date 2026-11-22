@@ -1,6 +1,6 @@
 # Worked example: a job lease
 
-Run with TLC from `tla2tools.jar` v1.7.4 on Java 21. The outputs below are from those runs. The same design was also checked on real TypeScript code with generated inputs, which found the same counterexample. See [../property-based.md](../property-based.md).
+Tested with TLC from `tla2tools.jar` v1.7.4 on Java 21. The outputs below are from those runs. The same design was also checked on real TypeScript code with generated inputs, which found the same counterexample. See [../property-based.md](../property-based.md).
 
 ## The target
 
@@ -112,7 +112,7 @@ Breaks "a job commits its result at most once", shortest path:
 5. a worker commits -> Committed twice
 ```
 
-Run on the dump of the fenced config, the same script prints the chart without `Committed twice` and ends with "No state breaks a rule."
+Run on the dump of the fenced config, the same script prints the chart without `Committed twice` and ends with "No state in this dump breaks a rule."
 
 ## Bounds and what is left out
 

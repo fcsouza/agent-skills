@@ -43,6 +43,7 @@ CONSTANTS
     Workers = {w1, w2}
     NoOne = NoOne
     MaxToken = 3
+    Fenced = TRUE
 
 INVARIANT
     AtMostOneCommit

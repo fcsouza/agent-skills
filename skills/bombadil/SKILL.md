@@ -85,7 +85,7 @@ Each of these caught a planted bug in a local test page. `references/property-pa
 
 The browser defaults weight clicks 100, inputs 100, scroll 50, navigation (back, forward, reload) 10 and wait 1. The terminal defaults type safe Unicode and common control keys.
 
-To keep a destructive control out of reach, filter `clicks` on the element fingerprint and export your own weighted set. Do not also write `export * from '@antithesishq/bombadil/browser/defaults'`: it exports `defaultActions`, which still holds the unfiltered `clicks`. In a test here, a spec with `export *` plus a filtered copy clicked "Delete all data" in its first action. Export the default properties by name instead.
+To keep a destructive control out of reach, filter `clicks` on the element fingerprint and export your own weighted set. Do not also write `export * from '@antithesishq/bombadil/browser/defaults'`: it exports `defaultActions`, which still holds the unfiltered `clicks`. In a test here, a spec with `export *` plus a filtered copy clicked "Delete all data" as its second action, 11 ms into the run. Export the default properties by name instead.
 
 ```typescript
 const safeClicks = clicks.filter(
@@ -133,7 +133,7 @@ Do not weaken a property to make a run pass. Loosen one only when the rule itsel
 - Do not leave `reload` on when a property is about client state that a reload resets. 153 reloads in 90 seconds hid a stuck error message until reload was removed from the actions.
 - Raise `--quiescence-timeout-ms` for a slow terminal program. At the default 5 ms, a Bun CLI was sampled before it had redrawn.
 - `bombadil browser inspect` binds to `0.0.0.0`. Run it with `--no-open` and a `--port`, and stop it when done.
-- In 0.8.0 the types for `@antithesishq/bombadil/browser/extras/resources` are missing from the package, so `tsc` fails on that import even though Bombadil runs it.
+- In 0.8.0 the package's `exports` map has no entry for `@antithesishq/bombadil/browser/extras/resources`, so `tsc` fails on that import even though the types ship and Bombadil runs it.
 
 ## Files
 
@@ -149,4 +149,4 @@ Do not weaken a property to make a run pass. Loosen one only when the rule itsel
 - `runtime-verification`: run the app and check it with real tools; Bombadil is its fuzz layer for UIs.
 - `formal-verification`: model-check a flow when random exploration cannot cover the state space.
 - `encode-corrections`: turn each correction into a check; a UI rule often becomes a Bombadil property.
-- `judge`: review the change that fixes a violation before merge.
+- `judge`: review the change that fixes a violation before merge. It ships in the `standalone-skills` plugin.

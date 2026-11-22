@@ -17,7 +17,7 @@ Adapted from the create-verification-skill and maintain-verification-skill skill
 
 - No project skill drives the app, or the user asks for one: **Create**.
 - A `verify-*` skill with a `features/` map exists and the app changed, or the user asks to audit it: **Maintain**.
-- Several `verify-*` skills exist: ask which one. One with a `features/` map drives the app; one that runs a model checker or a prover belongs to `formal-verification`. None exists and the user asked for Maintain: say so and offer Create. Do not invent a target.
+- Several `verify-*` skills exist: ask which one. One with a `features/` map drives the app; one that runs a model checker, a prover or property-based tests belongs to `formal-verification`. None exists and the user asked for Maintain: say so and offer Create. Do not invent a target.
 - A `verify-*` skill exists and the task is to check one change: do not run either mode. Follow that skill.
 
 ## Rules for both modes
@@ -64,7 +64,7 @@ Claude Code loads project skills from `.claude/skills/<name>/SKILL.md`. Claude d
 - **Launch**: the exact start command, how to tell the app is usable (not only that a port answers), a fresh data directory, and the teardown. For a short-lived CLI, Launch builds once and each drive runs in its own session.
 - **Doctor**: one read-only check. Process up, the right build, the port held by the process this run started, auth valid.
 - **Drive**: real selectors and commands from this repo. Prefer roles, labels, test ids, prompt strings and routes over coordinates.
-- **Evidence**: what to capture, where it goes, and the standards in rules 1 to 5.
+- **Evidence**: what to capture, where it goes, and the proof standards, written out in the generated skill.
 - **Cleanup**: stop what this run started, remove scratch state, keep evidence. Show how to check that nothing was left running.
 - **Helpers**: every script is executable, and the skill body shows the exact command that runs it. Refer to scripts as `${CLAUDE_SKILL_DIR}/scripts/<name>` so the path works from any directory.
 
@@ -93,6 +93,8 @@ Read `references/maintain.md` before you start. In short:
    - `clean`: every feature covered from source and live, nothing to change.
    - `changed`: proven corrections made inside the verify skill's directory.
    - `blocked`: coverage could not finish. Name the blocker.
+
+The proof run for this skill ended `changed`. The `clean` and `blocked` paths were not run.
 
 Edit only the verify skill's own directory. Never edit product code during Maintain.
 
@@ -126,6 +128,7 @@ When agents keep writing one-off scripts to click through the app, give the veri
 - `references/feature-map-example/create-note.md`: example feature driven through the page and read back through the CLI.
 - `references/feature-map-example/search-notes.md`: example feature with scoped assertions and a product regression recorded under `Gotchas`.
 - `references/feature-map-example/delete-note.md`: example CLI-only feature with a dry run checked before the real delete.
+- `references/sources.md`: read when you need the page behind a Claude Code claim.
 - `NOTICE.md`: upstream files adapted and the MIT licence.
 
 ## Related skills
@@ -133,4 +136,4 @@ When agents keep writing one-off scripts to click through the app, give the veri
 - `bombadil`: a property-based fuzz pass over the same running app, after the verify skill can launch it.
 - `formal-verification`: for promises driving cannot reach, such as two retries that overlap.
 - `encode-corrections`: turn a repeated verification miss into a rule, a lint or a test.
-- `judge`: review the change before merge; the verify skill's evidence goes in that review.
+- `judge`: review the change before merge; the verify skill's evidence goes in that review. It ships in the `standalone-skills` plugin.

@@ -9,14 +9,14 @@ description: >-
 
 A test checks the cases someone thought to write. A formal check covers every case in a stated scope: every order of steps in a model, every input up to a bound, or every input. This skill verifies one property where that matters, and leaves a way to recheck it.
 
-Adapted from the create-formal-verification-skill, maintain-formal-verification-skill and statechart skills in pstack by Lauren Tan, https://github.com/cursor/plugins/tree/main/pstack, under the MIT licence. Modified: one skill with two modes, a chart drawn from the checker's own output instead of a bundled toolchain, and a property-based route for code no verifier runs on. Licence details: [NOTICE.md](NOTICE.md).
+Adapted from the create-formal-verification-skill, maintain-formal-verification-skill and statechart skills in pstack v0.15.46 by Lauren Tan, https://github.com/cursor/plugins/tree/main/pstack, under the MIT licence. Modified: one skill with two modes, a chart drawn from the checker's own output instead of a bundled toolchain, and a property-based route for code no verifier runs on. Licence details: [NOTICE.md](NOTICE.md).
 
 It is one layer, not a replacement for tests. A pass covers the model or the bound, never the whole system.
 
 ## Pick the mode
 
 - **Create**: no check exists for this area. Go to "Create".
-- **Maintain**: a project skill already runs a model checker, prover or verifier against named code, and that code changed. Go to "Maintain".
+- **Maintain**: a project skill already runs a model checker, a prover, a verifier or property-based tests against named code, and that code changed. Go to "Maintain".
 
 Find an existing check by what it does, not by its name. If the user asks for maintenance and none exists, say so and offer Create.
 
@@ -61,6 +61,8 @@ A counterexample in model terms convinces you. The person who owns the behaviour
 Before you show a bug path to anyone, replay it against the real code as a test or a live reproduction, one step per action. If the bug does not occur, assume the model is wrong until you show otherwise.
 
 ### 5. Generate the project skill
+
+Steps 5 and 6 and Maintain mode were not run end to end while this skill was written. The model check, the broken variant, the chart script and the property-based test were.
 
 Write `.claude/skills/verify-<area>/SKILL.md` in the target repo. Name it after the verified area, such as `verify-job-lease`, so it does not collide with a `verify-<app>` skill that drives the running app. Give it YAML frontmatter with `name: verify-<area>` and a `description` that names the area and says when to use it. Claude decides when to load a skill from its description, so a skill without one is never matched to a change.
 
@@ -116,6 +118,7 @@ A check can be both updated and bug. Say outright which failures were drift and 
 - An unbounded counter makes TLC run without end. Bound it with a constant or a `CONSTRAINT`, and report the bound.
 - Weakening a property until it passes turns a finding into a false pass.
 - A chart drawn by hand drifts from the model. Rebuild it from the state graph on every change.
+- The chart script reads only the dump. A dump TLC wrote before it stopped at a violation holds no breaking state, so check TLC's exit status before you trust a chart with no marks.
 - Property-based tests on a hand model of the function test the model, not the code.
 - Tool commands change between releases. Pin the version and record it in the generated skill.
 
@@ -134,4 +137,4 @@ A check can be both updated and bug. Say outright which failures were drift and 
 - `runtime-verification`: drive the real app and keep evidence. Use it to replay a counterexample live.
 - `bombadil`: property-based testing of a running web or terminal UI.
 - `encode-corrections`: turn a correction into a lint, type or test.
-- `judge`: review the change before merge.
+- `judge`: review the change before merge. It ships in the `standalone-skills` plugin.

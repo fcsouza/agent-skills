@@ -94,7 +94,7 @@ as of 00:00.000, it should always be the case that if () => errorText.current !=
 Two traps showed up while writing this property.
 
 - **A tight bound gives false alarms.** The correct page cleared the error after 1 second. With `.within(2, 'seconds')`, a clean run still failed: one click took nearly 2 seconds, no state was captured in between, and the next state came 2.1 seconds after the error appeared. Bombadil checks only the states it captures. Give the bound several times the app's own delay.
-- **Reload hides the bug.** With the default `navigation` generator in the actions, the buggy page passed a 90-second run. The log showed 153 reloads, and each reload cleared the stuck message before the bound ran out. Removing `reload` from the actions exposed the bug at once. For any property about client state that a reload resets, leave `reload` out, or write the property so a reload does not satisfy it.
+- **Reload hides the bug.** With the default `navigation` generator in the actions, the buggy page passed a 90-second run. The log showed 153 reloads, and each reload cleared the stuck message before the bound ran out. Removing `reload` from the actions exposed the bug at once. For any property about client state that a reload resets, leave `reload` out, or write the property so a reload does not satisfy it. Both traps were seen during the test runs; their logs were not kept.
 
 ## State machine: the counter moves by one
 

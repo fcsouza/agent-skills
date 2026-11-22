@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // Control CLI for verifying Notes. Run from the repo root. Every command prints JSON.
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -43,11 +43,12 @@ const evidenceDir = join(root, 'evidence', values.run);
 const stateFile = join(runDir, 'state.json');
 type State = { pid: number; port: number; dataDir: string; log: string; repo: string; startedAt: string };
 
-const print = (data: unknown, ok = true) => {
+// Both exit, so code after a call never runs. The `never` type makes the compiler say so.
+const print = (data: unknown, ok = true): never => {
   console.log(JSON.stringify(data, null, 2));
   process.exit(ok ? 0 : 1);
 };
-const fail = (error: string, hint: string) => print({ ok: false, error, hint }, false);
+const fail = (error: string, hint: string): never => print({ ok: false, error, hint }, false);
 
 const readState = (): State => {
   if (!existsSync(stateFile)) {
@@ -71,11 +72,14 @@ const health = async (port: number) => {
     return null;
   }
 };
+// A PID alone proves nothing after a crash or reboot: the OS reuses PIDs. The app's own health
+// endpoint reports its PID, so a match means the process on that port is the one this run started.
+const owned = async (s: State) => (await health(s.port))?.pid === s.pid;
 const freePort = () => {
   const probe = Bun.serve({ port: 0, fetch: () => new Response() });
   const { port } = probe;
   probe.stop(true);
-  return port;
+  return port ?? fail('could not find a free port', 'pass --port N');
 };
 const runCli = (args: string[], dataDir: string) => {
   const proc = Bun.spawnSync(['bun', 'src/cli.ts', ...args], { env: { ...process.env, NOTES_DATA_DIR: dataDir } });
@@ -83,12 +87,14 @@ const runCli = (args: string[], dataDir: string) => {
 };
 
 const up = async () => {
-  if (existsSync(stateFile) && alive(readState().pid)) {
+  if (existsSync(stateFile) && (await owned(readState()))) {
     fail(`run "${values.run}" is already up`, 'run `control-notes doctor`, or `down` first, or pick another --run');
   }
   if (!existsSync('src/server.ts')) {
     fail('src/server.ts not found', 'run this from the Notes repo root');
   }
+  // No live instance of this run: drop whatever a crash or a failed seed left, so the data dir is fresh.
+  rmSync(runDir, { recursive: true, force: true });
   const port = values.port ? Number(values.port) : freePort();
   const dataDir = join(runDir, 'data');
   const log = join(runDir, 'server.log');
@@ -101,11 +107,13 @@ const up = async () => {
   if (seeds.some((s) => s.exitCode !== 0)) {
     fail('seeding failed', JSON.stringify(seeds));
   }
+  // One append handle for both streams. Two handles on one file overwrite each other's lines.
+  const logFd = openSync(log, 'a');
   // Spawn the server directly: `bun run dev` is a wrapper whose PID is not the one holding the port.
   const proc = Bun.spawn(['bun', 'src/server.ts'], {
     env: { ...process.env, PORT: String(port), NOTES_DATA_DIR: dataDir },
-    stdout: Bun.file(log),
-    stderr: Bun.file(log),
+    stdout: logFd,
+    stderr: logFd,
   });
   proc.unref();
   const state: State = { pid: proc.pid, port, dataDir, log, repo: resolve('.'), startedAt: new Date().toISOString() };
@@ -136,8 +144,15 @@ const doctor = async () => {
 
 const browser = async (steps: string[]) => {
   const s = readState();
-  const { chromium } = await import('playwright');
-  const b = await chromium.launch();
+  const launch = async () => {
+    try {
+      const { chromium } = await import('playwright');
+      return await chromium.launch();
+    } catch (e) {
+      return fail(`could not start Chromium: ${(e as Error).message}`, 'run `bunx playwright install chromium`');
+    }
+  };
+  const b = await launch();
   const page = await b.newPage();
   // Fail in seconds, not Playwright's 30 s default, so a renamed control shows up fast.
   page.setDefaultTimeout(5000);
@@ -203,17 +218,20 @@ const cli = (args: string[]) => {
 
 const down = async () => {
   const s = readState();
-  const plan = { stop: s.pid, running: alive(s.pid), remove: runDir, keep: evidenceDir };
+  // Signal the PID only while the app on our port still reports it. Otherwise the PID is stale
+  // and may now belong to another program.
+  const running = await owned(s);
+  const plan = { stop: s.pid, running, stalePid: !running && alive(s.pid), remove: runDir, keep: evidenceDir };
   if (values['dry-run']) {
     print({ ok: true, dryRun: true, ...plan });
   }
-  if (plan.running) {
+  if (running) {
     process.kill(s.pid, 'SIGTERM');
     for (let i = 0; i < 30 && alive(s.pid); i++) {
       await Bun.sleep(100);
     }
   }
-  const stillAlive = alive(s.pid);
+  const stillAlive = running && alive(s.pid);
   const portFree = (await health(s.port)) === null;
   if (!stillAlive) {
     rmSync(runDir, { recursive: true, force: true });
@@ -225,7 +243,7 @@ const down = async () => {
 const [cmd, ...rest] = positionals;
 if (values.help || !cmd) {
   console.log(HELP);
-  process.exit(cmd ? 0 : 1);
+  process.exit(values.help ? 0 : 1);
 }
 switch (cmd) {
   case 'up':
