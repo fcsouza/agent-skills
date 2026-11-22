@@ -45,6 +45,34 @@ Four skills that make an agent's work checkable. They come from Lauren Tan's tal
 | [formal-verification](skills/formal-verification/) | Verify one property where tests do not reach: a TLA+ model checked with TLC or generated inputs on the real code, a broken variant that fails, a Mermaid statechart, and a project skill that rechecks it | TLA+ / fast-check |
 | [bombadil](skills/bombadil/) | Find UI bugs with property-based testing: write a Bombadil spec for a web or terminal app, run a bounded test, read the trace, reproduce and shrink a violation | [Bombadil](https://github.com/antithesishq/bombadil) |
 
+#### How they fit together
+
+Each skill works on its own, so you can adopt one at a time. Together they follow the order the talk gives: cheap, deterministic checks first, costly verification last.
+
+| Step | Skill | When |
+|------|-------|------|
+| 1 | `encode-corrections` | All the time. Each correction you give the agent becomes architecture, a type, a lint or a test. Start here. |
+| 2 | `runtime-verification` | Once per project. It writes a `verify-<app>` skill so the agent can run the app and keep evidence. Run its Maintain mode when the app changes. |
+| 3 | `bombadil` | After the app starts on its own, locally or on staging, with disposable data. Each UI rule you state becomes a property. |
+| 4 | `formal-verification` | Only where tests and fuzzing do not reach: a race, a retry, a lease, a state machine. One target at a time. |
+
+Only step 3 leans on another step: Bombadil needs a running app, and step 2 is what gives the agent one.
+
+The skills feed each other:
+
+- A bug that `bombadil` or the `verify-<app>` skill finds is a correction. Give it to `encode-corrections` so a check stops it from coming back.
+- Replay a `formal-verification` counterexample in the running app with the `verify-<app>` skill before you report it as a bug.
+- Review the change with [judge](skills/judge/), from the `standalone-skills` plugin. Its "Promote to lint rule" section lists findings for `encode-corrections`.
+
+A first session in a project can look like this:
+
+```
+/fstack:runtime-verification make a verification skill for this repo
+/fstack:encode-corrections sweep this repo for mistakes that happened twice
+/fstack:bombadil fuzz the checkout page; the cart total never goes negative
+/fstack:formal-verification can two workers commit the same job?
+```
+
 ### Standalone
 
 Each skill stands on its own. Install one, or all eight with the `standalone-skills` plugin.
