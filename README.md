@@ -11,6 +11,7 @@ A plugin bundles skills you install in one step.
 | Plugin | Description | Platform |
 |--------|-------------|----------|
 | [game-dev](skills/game-dev/) | Game development skills for design, art and assets, engineering, narrative and infrastructure, seven workflow commands, and an index skill that routes a task to the right one | Game Dev |
+| fstack | Four skills for trusting an agent's work: corrections encoded as checks, runtime verification, formal verification and UI fuzzing. See [fstack](#fstack) below | Claude Code |
 | standalone-skills | The eight skills under [Standalone](#standalone) below | Various |
 
 ## Claude Code Mods
@@ -32,6 +33,17 @@ Mods are plugins built on function hooks: they run inside Claude Code, guard too
 ## Available Skills
 
 Skills are individual, cherry-pickable modules. Install only what you need.
+
+### fstack
+
+Four skills that make an agent's work checkable. They come from Lauren Tan's talk [All Code Is Slop (Except Mine)](https://www.youtube.com/watch?v=O_zcc6Xl12g): every correction becomes a check, and verification is how you trust the result. Installed as the Claude Code plugin, the commands are `/fstack:<name>`.
+
+| Skill | Description | Platform |
+|-------|-------------|----------|
+| [encode-corrections](skills/encode-corrections/) | Turn each correction you give an agent into a check that fails next time: architecture first, then types, a lint whose error names the fix, a test, a hook, and prose last | Claude Code |
+| [runtime-verification](skills/runtime-verification/) | Give a project a scripted way to run the real app, drive it as a user would and keep evidence: generates a `verify-<app>` skill with a feature map, and audits it when the app changes | Claude Code |
+| [formal-verification](skills/formal-verification/) | Verify one property where tests do not reach: a TLA+ model checked with TLC or generated inputs on the real code, a broken variant that fails, a Mermaid statechart, and a project skill that rechecks it | TLA+ / fast-check |
+| [bombadil](skills/bombadil/) | Find UI bugs with property-based testing: write a Bombadil spec for a web or terminal app, run a bounded test, read the trace, reproduce and shrink a violation | [Bombadil](https://github.com/antithesishq/bombadil) |
 
 ### Standalone
 
@@ -156,6 +168,7 @@ The seven workflow commands sit under `skills/game-dev-commands/<name>/`.
 ```bash
 /plugin marketplace add fcsouza/agent-skills
 /plugin install game-dev@fcsouza-agent-skills
+/plugin install fstack@fcsouza-agent-skills
 /plugin install standalone-skills@fcsouza-agent-skills
 ```
 
@@ -182,6 +195,7 @@ bunx skills update -g -y
 # Plugins (in your shell)
 claude plugin marketplace update fcsouza-agent-skills
 claude plugin update game-dev@fcsouza-agent-skills
+claude plugin update fstack@fcsouza-agent-skills
 claude plugin update standalone-skills@fcsouza-agent-skills
 ```
 
