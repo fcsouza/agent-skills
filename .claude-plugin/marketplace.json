@@ -5,7 +5,7 @@
     "url": "https://github.com/fcsouza"
   },
   "metadata": {
-    "description": "Game development skills and standalone skills for AI agents, plus Claude Code mods",
+    "description": "Game development skills, the fstack verification skills and standalone skills for AI agents, plus Claude Code mods",
     "version": "2.0.0"
   },
   "renames": {
@@ -100,6 +100,27 @@
         "./skills/nuvemshop-sdk",
         "./skills/openclaw-genie",
         "./skills/react-animations"
+      ]
+    },
+    {
+      "name": "fstack",
+      "source": "./",
+      "description": "Four skills for trusting an agent's work: corrections encoded as checks, runtime verification with a feature map, formal verification with TLA+ or generated inputs, and Bombadil UI fuzzing.",
+      "version": "0.1.0",
+      "keywords": [
+        "verification",
+        "lint",
+        "property-based-testing",
+        "tla-plus",
+        "bombadil",
+        "fast-check"
+      ],
+      "category": "development",
+      "skills": [
+        "./skills/bombadil",
+        "./skills/encode-corrections",
+        "./skills/formal-verification",
+        "./skills/runtime-verification"
       ]
     },
     {
